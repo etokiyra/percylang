@@ -201,7 +201,7 @@ func TestPercyPurrBuildRealFixtures(t *testing.T) {
 func TestPercyPurrBuildDefaultAndPaths(t *testing.T) {
 	requireToolchain(t)
 	goPurr := buildGoPurr(t)
-	kt := buildPurrPcyWithGo(t)
+	pcy := buildPurrPcyWithGo(t)
 	root := t.TempDir()
 	writeBuildFixture(t, root)
 
@@ -219,7 +219,7 @@ func TestPercyPurrBuildDefaultAndPaths(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, testCase := range cases {
-		for pipeline, executable := range map[string]string{"Go": goPurr, "Percy": kt} {
+		for pipeline, executable := range map[string]string{"Go": goPurr, "Percy": pcy} {
 			result := runBuildCommand(t, executable, root, testCase.arguments, nil)
 			if result.status != 0 || result.stderr != "" {
 				t.Errorf("%s %s: status %d, stderr %q", pipeline, testCase.name, result.status, result.stderr)
@@ -234,7 +234,7 @@ func TestPercyPurrBuildDefaultAndPaths(t *testing.T) {
 		// A source named ".pcy" has an empty base name once the extension is
 		// stripped, and both implementations fall back to "a.out".
 		hiddenSource := "fn main() {\n    print(\"hidden\");\n}\n"
-		for pipeline, executable := range map[string]string{"Go": goPurr, "Percy": kt} {
+		for pipeline, executable := range map[string]string{"Go": goPurr, "Percy": pcy} {
 			work := t.TempDir()
 			if err := os.WriteFile(filepath.Join(work, ".pcy"), []byte(hiddenSource), 0o644); err != nil {
 				t.Fatal(err)
@@ -260,7 +260,7 @@ func TestPercyPurrBuildDefaultAndPaths(t *testing.T) {
 func TestPercyPurrBuildDiagnostics(t *testing.T) {
 	requireToolchain(t)
 	goPurr := buildGoPurr(t)
-	kt := buildPurrPcyWithGo(t)
+	pcy := buildPurrPcyWithGo(t)
 	cases := []struct {
 		name string
 		root string
@@ -279,12 +279,12 @@ func TestPercyPurrBuildDiagnostics(t *testing.T) {
 			t.Fatal(err)
 		}
 		goResult := runBuildCommand(t, goPurr, directory, []string{"build", path}, nil)
-		ktResult := runBuildCommand(t, kt, directory, []string{"build", path}, nil)
-		if goResult.status != 1 || ktResult.status != 1 {
-			t.Errorf("%s: status Go %d, Percy %d", testCase.name, goResult.status, ktResult.status)
+		pcyResult := runBuildCommand(t, pcy, directory, []string{"build", path}, nil)
+		if goResult.status != 1 || pcyResult.status != 1 {
+			t.Errorf("%s: status Go %d, Percy %d", testCase.name, goResult.status, pcyResult.status)
 		}
-		if goResult.stdout != ktResult.stdout || goResult.stderr != ktResult.stderr {
-			t.Errorf("%s diagnostics differ:\nGo %q\nPercy %q", testCase.name, goResult.stderr, ktResult.stderr)
+		if goResult.stdout != pcyResult.stdout || goResult.stderr != pcyResult.stderr {
+			t.Errorf("%s diagnostics differ:\nGo %q\nPercy %q", testCase.name, goResult.stderr, pcyResult.stderr)
 		}
 	}
 
@@ -297,11 +297,11 @@ func TestPercyPurrBuildDiagnostics(t *testing.T) {
 		}
 		for _, path := range []string{missing, asDirectory} {
 			goResult := runBuildCommand(t, goPurr, directory, []string{"build", path}, nil)
-			ktResult := runBuildCommand(t, kt, directory, []string{"build", path}, nil)
-			if goResult.status != 1 || ktResult.status != 1 || goResult.stdout != ktResult.stdout || goResult.stderr != ktResult.stderr {
+			pcyResult := runBuildCommand(t, pcy, directory, []string{"build", path}, nil)
+			if goResult.status != 1 || pcyResult.status != 1 || goResult.stdout != pcyResult.stdout || goResult.stderr != pcyResult.stderr {
 				t.Errorf("%s: Go %d/%q/%q, Percy %d/%q/%q", path,
 					goResult.status, goResult.stdout, goResult.stderr,
-					ktResult.status, ktResult.stdout, ktResult.stderr)
+					pcyResult.status, pcyResult.stdout, pcyResult.stderr)
 			}
 		}
 	})
@@ -335,11 +335,11 @@ func TestPercyPurrBuildDiagnostics(t *testing.T) {
 			}
 			goResult := runBuildCommand(t, goPurr, root, []string{"build", mainPath}, nil)
 
-			ktResult := runBuildCommand(t, kt, root, []string{"build", mainPath}, nil)
-			if goResult.status != 1 || ktResult.status != 1 || goResult.stdout != ktResult.stdout || goResult.stderr != ktResult.stderr {
+			pcyResult := runBuildCommand(t, pcy, root, []string{"build", mainPath}, nil)
+			if goResult.status != 1 || pcyResult.status != 1 || goResult.stdout != pcyResult.stdout || goResult.stderr != pcyResult.stderr {
 				t.Errorf("%s: Go %d/%q/%q, Percy %d/%q/%q", testCase.name,
 					goResult.status, goResult.stdout, goResult.stderr,
-					ktResult.status, ktResult.stdout, ktResult.stderr)
+					pcyResult.status, pcyResult.stdout, pcyResult.stderr)
 			}
 		}
 	})
@@ -348,7 +348,7 @@ func TestPercyPurrBuildDiagnostics(t *testing.T) {
 func TestPercyPurrBuildTempCleanup(t *testing.T) {
 	requireToolchain(t)
 	goPurr := buildGoPurr(t)
-	kt := buildPurrPcyWithGo(t)
+	pcy := buildPurrPcyWithGo(t)
 	directory := t.TempDir()
 	tmp := t.TempDir()
 	source := writeBuildFixture(t, directory)
@@ -361,7 +361,7 @@ func TestPercyPurrBuildTempCleanup(t *testing.T) {
 		{"success", []string{"build", source, "-o", filepath.Join(directory, "ok")}, 0},
 		{"failure", []string{"build", filepath.Join(directory, "missing.pcy")}, 1},
 	} {
-		for pipeline, executable := range map[string]string{"Go": goPurr, "Percy": kt} {
+		for pipeline, executable := range map[string]string{"Go": goPurr, "Percy": pcy} {
 			result := runBuildCommand(t, executable, directory, testCase.arguments, environment)
 			if result.status != testCase.status {
 				t.Errorf("%s %s: status %d, want %d", pipeline, testCase.name, result.status, testCase.status)
@@ -382,21 +382,21 @@ func TestPercyPurrBuildTempCleanup(t *testing.T) {
 func TestPercyPurrBuildCapstone(t *testing.T) {
 	requireToolchain(t)
 	goPurr := buildGoPurr(t)
-	kt := buildPurrPcyWithGo(t)
+	pcy := buildPurrPcyWithGo(t)
 	root := repoPath(t, "..", "..")
 	driver := filepath.Join(root, "selfhost", "driver.pcy")
 	work := t.TempDir()
-	ktStage := filepath.Join(work, "stage-kt")
+	pcyStage := filepath.Join(work, "stage-pcy")
 	start := time.Now()
-	result := runBuildCommand(t, kt, work, []string{"build", driver, "-o", ktStage}, nil)
+	result := runBuildCommand(t, pcy, work, []string{"build", driver, "-o", pcyStage}, nil)
 	elapsed := time.Since(start)
 	if result.status != 0 || result.stderr != "" {
 		t.Fatalf("purr-pcy capstone build: %d %q", result.status, result.stderr)
 	}
 	t.Logf("purr-pcy capstone build time: %s", elapsed)
-	ktC := runExternal(t, ktStage, []string{driver}, root, nil)
-	if ktC.status != 0 || ktC.stderr != "" {
-		t.Fatalf("capstone stage output: %d %q", ktC.status, ktC.stderr)
+	pcyC := runExternal(t, pcyStage, []string{driver}, root, nil)
+	if pcyC.status != 0 || pcyC.stderr != "" {
+		t.Fatalf("capstone stage output: %d %q", pcyC.status, pcyC.stderr)
 	}
 	goStage := filepath.Join(work, "stage-go")
 	if result := runBuildCommand(t, goPurr, work, []string{"build", driver, "-o", goStage}, nil); result.status != 0 || result.stderr != "" {
@@ -406,7 +406,7 @@ func TestPercyPurrBuildCapstone(t *testing.T) {
 	if goC.status != 0 || goC.stderr != "" {
 		t.Fatalf("Go stage output: %d %q", goC.status, goC.stderr)
 	}
-	if difference := unitDifference(ktC.stdout, goC.stdout); difference != "" {
+	if difference := unitDifference(pcyC.stdout, goC.stdout); difference != "" {
 		t.Fatalf("capstone driver C differs: %s", difference)
 	}
 }
@@ -452,7 +452,7 @@ func TestPercyPurrBuildSanitizer(t *testing.T) {
 func TestPercyPurrBuildOutputFailures(t *testing.T) {
 	requireToolchain(t)
 	goPurr := buildGoPurr(t)
-	kt := buildPurrPcyWithGo(t)
+	pcy := buildPurrPcyWithGo(t)
 	root := t.TempDir()
 	writeBuildFixture(t, root)
 
@@ -462,16 +462,16 @@ func TestPercyPurrBuildOutputFailures(t *testing.T) {
 			t.Fatal(err)
 		}
 		goResult := runBuildCommand(t, goPurr, root, []string{"build", "hello.pcy", "-o", output}, nil)
-		ktResult := runBuildCommand(t, kt, root, []string{"build", "hello.pcy", "-o", output}, nil)
-		if goResult.status != 1 || ktResult.status != 1 {
-			t.Fatalf("status Go %d, Percy %d", goResult.status, ktResult.status)
+		pcyResult := runBuildCommand(t, pcy, root, []string{"build", "hello.pcy", "-o", output}, nil)
+		if goResult.status != 1 || pcyResult.status != 1 {
+			t.Fatalf("status Go %d, Percy %d", goResult.status, pcyResult.status)
 		}
 		if !strings.Contains(goResult.stderr, "C compilation failed") {
 			t.Errorf("Go output directory diagnostic: %q", goResult.stderr)
 		}
 		wantPercy := "hello.pcy: output path " + output + " is a directory\n"
-		if ktResult.stderr != wantPercy {
-			t.Errorf("Percy output directory diagnostic: %q; want %q", ktResult.stderr, wantPercy)
+		if pcyResult.stderr != wantPercy {
+			t.Errorf("Percy output directory diagnostic: %q; want %q", pcyResult.stderr, wantPercy)
 		}
 	})
 
@@ -486,17 +486,17 @@ func TestPercyPurrBuildOutputFailures(t *testing.T) {
 		t.Cleanup(func() { _ = os.Chmod(outputDir, 0o755) })
 		output := filepath.Join(outputDir, "app")
 		goResult := runBuildCommand(t, goPurr, root, []string{"build", "hello.pcy", "-o", output}, nil)
-		ktResult := runBuildCommand(t, kt, root, []string{"build", "hello.pcy", "-o", output}, nil)
-		if goResult.status != 1 || ktResult.status != 1 {
-			t.Fatalf("status Go %d, Percy %d", goResult.status, ktResult.status)
+		pcyResult := runBuildCommand(t, pcy, root, []string{"build", "hello.pcy", "-o", output}, nil)
+		if goResult.status != 1 || pcyResult.status != 1 {
+			t.Fatalf("status Go %d, Percy %d", goResult.status, pcyResult.status)
 		}
 		if !strings.Contains(goResult.stderr, "C compilation failed") {
 			t.Errorf("Go unwritable output diagnostic: %q", goResult.stderr)
 		}
 		wantPrefix := "hello.pcy: cannot write " + output + ": "
-		if !strings.HasPrefix(ktResult.stderr, wantPrefix) ||
-			!(strings.HasSuffix(ktResult.stderr, "permission denied\n") || strings.HasSuffix(ktResult.stderr, "operation not permitted\n")) {
-			t.Errorf("Percy unwritable output diagnostic: %q; want %q with a permission reason", ktResult.stderr, wantPrefix)
+		if !strings.HasPrefix(pcyResult.stderr, wantPrefix) ||
+			!(strings.HasSuffix(pcyResult.stderr, "permission denied\n") || strings.HasSuffix(pcyResult.stderr, "operation not permitted\n")) {
+			t.Errorf("Percy unwritable output diagnostic: %q; want %q with a permission reason", pcyResult.stderr, wantPrefix)
 		}
 	})
 }
@@ -508,7 +508,7 @@ func TestPercyPurrBuildOutputFailures(t *testing.T) {
 func TestPercyPurrBuildSourceReadErrors(t *testing.T) {
 	requireToolchain(t)
 	goPurr := buildGoPurr(t)
-	kt := buildPurrPcyWithGo(t)
+	pcy := buildPurrPcyWithGo(t)
 	if os.Geteuid() == 0 {
 		t.Skip("permission checks are not meaningful as root")
 	}
@@ -521,15 +521,15 @@ func TestPercyPurrBuildSourceReadErrors(t *testing.T) {
 	t.Cleanup(func() { _ = os.Chmod(source, 0o644) })
 
 	goResult := runBuildCommand(t, goPurr, directory, []string{"build", source}, nil)
-	ktResult := runBuildCommand(t, kt, directory, []string{"build", source}, nil)
-	if goResult.status != 1 || ktResult.status != 1 {
-		t.Fatalf("status Go %d, Percy %d", goResult.status, ktResult.status)
+	pcyResult := runBuildCommand(t, pcy, directory, []string{"build", source}, nil)
+	if goResult.status != 1 || pcyResult.status != 1 {
+		t.Fatalf("status Go %d, Percy %d", goResult.status, pcyResult.status)
 	}
-	if goResult.stdout != "" || ktResult.stdout != "" {
-		t.Errorf("stdout Go %q, Percy %q", goResult.stdout, ktResult.stdout)
+	if goResult.stdout != "" || pcyResult.stdout != "" {
+		t.Errorf("stdout Go %q, Percy %q", goResult.stdout, pcyResult.stdout)
 	}
-	if goResult.stderr != ktResult.stderr {
-		t.Errorf("unreadable source diagnostics differ:\nGo %q\nPercy %q", goResult.stderr, ktResult.stderr)
+	if goResult.stderr != pcyResult.stderr {
+		t.Errorf("unreadable source diagnostics differ:\nGo %q\nPercy %q", goResult.stderr, pcyResult.stderr)
 	}
 	if !strings.HasPrefix(goResult.stderr, source+": cannot read source file: ") {
 		t.Errorf("Go stderr %q does not have the loader's prefix", goResult.stderr)
@@ -549,12 +549,12 @@ func TestPercyPurrBuildSourceReadErrors(t *testing.T) {
 		return names
 	}
 	before := listNames()
-	ktAgain := runBuildCommand(t, kt, directory, []string{"build", source}, nil)
+	pcyAgain := runBuildCommand(t, pcy, directory, []string{"build", source}, nil)
 	if after := listNames(); len(after) != len(before) {
 		t.Errorf("failed build changed the directory entries: %v != %v", after, before)
 	}
-	if ktAgain.stderr != ktResult.stderr {
-		t.Errorf("repeat run stderr %q differs from %q", ktAgain.stderr, ktResult.stderr)
+	if pcyAgain.stderr != pcyResult.stderr {
+		t.Errorf("repeat run stderr %q differs from %q", pcyAgain.stderr, pcyResult.stderr)
 	}
 }
 

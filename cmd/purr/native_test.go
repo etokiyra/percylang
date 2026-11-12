@@ -6915,7 +6915,7 @@ func TestNativeProbePercyPipeline(t *testing.T) {
 	requireToolchain(t)
 	stage1 := buildStage1(t)
 	percyPurr := buildPurrPcyWithPercy(t, stage1)
-	executable := filepath.Join(t.TempDir(), "native-probe-kt")
+	executable := filepath.Join(t.TempDir(), "native-probe-pcy")
 	result := runPurrPcy(t, percyPurr, t.TempDir(), []string{
 		"build", repoPath(t, "..", "..", "selfhost", "native.pcy"), "-o", executable,
 	})
@@ -6950,12 +6950,12 @@ func TestNativeProbePercyPipeline(t *testing.T) {
 			arguments = append(arguments, testCase.mode)
 		}
 		goResult := runExternal(t, goProbe, arguments, t.TempDir(), nil)
-		ktResult := runExternal(t, executable, arguments, t.TempDir(), nil)
-		if ktResult.status != goResult.status ||
-			ktResult.stdout != goResult.stdout ||
-			ktResult.stderr != goResult.stderr {
+		pcyResult := runExternal(t, executable, arguments, t.TempDir(), nil)
+		if pcyResult.status != goResult.status ||
+			pcyResult.stdout != goResult.stdout ||
+			pcyResult.stderr != goResult.stderr {
 			t.Errorf("mode %q: Percy %d/%q/%q, Go %d/%q/%q",
-				testCase.mode, ktResult.status, ktResult.stdout, ktResult.stderr,
+				testCase.mode, pcyResult.status, pcyResult.stdout, pcyResult.stderr,
 				goResult.status, goResult.stdout, goResult.stderr)
 		}
 	}
@@ -6970,11 +6970,11 @@ func TestNativeProbePercyPipelineSkeleton(t *testing.T) {
 	requireToolchain(t)
 	stage1 := buildStage1(t)
 	percyPurr := buildPurrPcyWithPercy(t, stage1)
-	ktExecutable := filepath.Join(t.TempDir(), "native-probe-kt")
+	pcyExecutable := filepath.Join(t.TempDir(), "native-probe-pcy")
 	result := runPurrPcy(t, percyPurr, t.TempDir(), []string{
-		"build", repoPath(t, "..", "..", "selfhost", "native.pcy"), "-o", ktExecutable,
+		"build", repoPath(t, "..", "..", "selfhost", "native.pcy"), "-o", pcyExecutable,
 	})
-	if result.status != 0 || result.stderr != "" || result.stdout != "built "+ktExecutable+"\n" {
+	if result.status != 0 || result.stderr != "" || result.stdout != "built "+pcyExecutable+"\n" {
 		t.Fatalf("Percy build of the native probe: status %d, stdout %q, stderr %q",
 			result.status, result.stdout, result.stderr)
 	}
@@ -6999,28 +6999,28 @@ func TestNativeProbePercyPipelineSkeleton(t *testing.T) {
 		if written := runExternal(t, goExecutable, []string{kind.mode, goNative}, directory, nil); written.status != 0 {
 			t.Fatalf("Go pipeline %s elf: status %d, stderr %q", kind.name, written.status, written.stderr)
 		}
-		ktNative := filepath.Join(directory, kind.name+"-kt")
-		if written := runExternal(t, ktExecutable, []string{kind.mode, ktNative}, directory, nil); written.status != 0 {
+		pcyNative := filepath.Join(directory, kind.name+"-pcy")
+		if written := runExternal(t, pcyExecutable, []string{kind.mode, pcyNative}, directory, nil); written.status != 0 {
 			t.Fatalf("Percy pipeline %s elf: status %d, stderr %q", kind.name, written.status, written.stderr)
 		}
 		goBytes, err := os.ReadFile(goNative)
 		if err != nil {
 			t.Fatalf("reading the Go-produced %s ELF: %v", kind.name, err)
 		}
-		ktBytes, err := os.ReadFile(ktNative)
+		pcyBytes, err := os.ReadFile(pcyNative)
 		if err != nil {
 			t.Fatalf("reading the Percy-produced %s ELF: %v", kind.name, err)
 		}
-		if string(goBytes) != string(ktBytes) {
+		if string(goBytes) != string(pcyBytes) {
 			t.Fatalf("the two pipelines' %s ELFs differ in %d bytes", kind.name, len(goBytes))
 		}
 		// The hello executable's behavior is asserted directly; arith and
 		// divzero already are in their own tests.
 		if kind.name == "hello" {
-			if err := os.Chmod(ktNative, 0o755); err != nil {
+			if err := os.Chmod(pcyNative, 0o755); err != nil {
 				t.Fatalf("chmod the Percy-produced ELF: %v", err)
 			}
-			run := runExternal(t, ktNative, nil, directory, nil)
+			run := runExternal(t, pcyNative, nil, directory, nil)
 			if run.status != 0 || run.stdout != "hello\n" || run.stderr != "" {
 				t.Fatalf("Percy-produced native run: %d %q %q", run.status, run.stdout, run.stderr)
 			}
@@ -7040,11 +7040,11 @@ func TestNativeProbePercyPipelineLower(t *testing.T) {
 	requireToolchain(t)
 	stage1 := buildStage1(t)
 	percyPurr := buildPurrPcyWithPercy(t, stage1)
-	ktExecutable := filepath.Join(t.TempDir(), "native-probe-kt")
+	pcyExecutable := filepath.Join(t.TempDir(), "native-probe-pcy")
 	built := runPurrPcy(t, percyPurr, t.TempDir(), []string{
-		"build", repoPath(t, "..", "..", "selfhost", "native.pcy"), "-o", ktExecutable,
+		"build", repoPath(t, "..", "..", "selfhost", "native.pcy"), "-o", pcyExecutable,
 	})
-	if built.status != 0 || built.stderr != "" || built.stdout != "built "+ktExecutable+"\n" {
+	if built.status != 0 || built.stderr != "" || built.stdout != "built "+pcyExecutable+"\n" {
 		t.Fatalf("Percy build of the native probe: status %d, stdout %q, stderr %q",
 			built.status, built.stdout, built.stderr)
 	}
@@ -7059,30 +7059,30 @@ func TestNativeProbePercyPipelineLower(t *testing.T) {
 		name := filepath.Base(source)
 		t.Run(name, func(t *testing.T) {
 			goRender := runExternal(t, goExecutable, []string{"lower", source}, directory, nil)
-			ktRender := runExternal(t, ktExecutable, []string{"lower", source}, directory, nil)
-			if ktRender.status != goRender.status || ktRender.stdout != goRender.stdout || ktRender.stderr != goRender.stderr {
+			pcyRender := runExternal(t, pcyExecutable, []string{"lower", source}, directory, nil)
+			if pcyRender.status != goRender.status || pcyRender.stdout != goRender.stdout || pcyRender.stderr != goRender.stderr {
 				t.Fatalf("renders differ:\nGo: %d %q %q\nPercy: %d %q %q",
 					goRender.status, goRender.stdout, goRender.stderr,
-					ktRender.status, ktRender.stdout, ktRender.stderr)
+					pcyRender.status, pcyRender.stdout, pcyRender.stderr)
 			}
 
 			goNative := filepath.Join(directory, name+"-go")
-			pthread := filepath.Join(directory, name+"-kt")
+			pthread := filepath.Join(directory, name+"-pcy")
 			if written := runExternal(t, goExecutable, []string{"lower", source, goNative}, directory, nil); written.status != 0 {
 				t.Fatalf("Go pipeline lower: status %d, stderr %q", written.status, written.stderr)
 			}
-			if written := runExternal(t, ktExecutable, []string{"lower", source, pthread}, directory, nil); written.status != 0 {
+			if written := runExternal(t, pcyExecutable, []string{"lower", source, pthread}, directory, nil); written.status != 0 {
 				t.Fatalf("Percy pipeline lower: status %d, stderr %q", written.status, written.stderr)
 			}
 			goBytes, err := os.ReadFile(goNative)
 			if err != nil {
 				t.Fatalf("reading the Go-produced ELF: %v", err)
 			}
-			ktBytes, err := os.ReadFile(pthread)
+			pcyBytes, err := os.ReadFile(pthread)
 			if err != nil {
 				t.Fatalf("reading the Percy-produced ELF: %v", err)
 			}
-			if string(goBytes) != string(ktBytes) {
+			if string(goBytes) != string(pcyBytes) {
 				t.Fatalf("the two pipelines' %s ELFs differ in %d bytes", name, len(goBytes))
 			}
 
@@ -7103,11 +7103,11 @@ func TestNativeProbePercyPipelineLower(t *testing.T) {
 		t.Run("bad-"+failure.file, func(t *testing.T) {
 			source := filepath.Join(bad, failure.file)
 			goResult := runExternal(t, goExecutable, []string{"lower", source}, directory, nil)
-			ktResult := runExternal(t, ktExecutable, []string{"lower", source}, directory, nil)
-			if ktResult.status != goResult.status || ktResult.stdout != goResult.stdout || ktResult.stderr != goResult.stderr {
+			pcyResult := runExternal(t, pcyExecutable, []string{"lower", source}, directory, nil)
+			if pcyResult.status != goResult.status || pcyResult.stdout != goResult.stdout || pcyResult.stderr != goResult.stderr {
 				t.Fatalf("failures differ for %s:\nGo: %d %q %q\nPercy: %d %q %q",
 					failure.file, goResult.status, goResult.stdout, goResult.stderr,
-					ktResult.status, ktResult.stdout, ktResult.stderr)
+					pcyResult.status, pcyResult.stdout, pcyResult.stderr)
 			}
 		})
 	}

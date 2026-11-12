@@ -398,7 +398,7 @@ func TestPercyPurrRun(t *testing.T) {
 
 func TestPercyPurrRunTempCleanup(t *testing.T) {
 	requireToolchain(t)
-	kt := buildPurrPcyWithGo(t)
+	pcy := buildPurrPcyWithGo(t)
 	directory := t.TempDir()
 	source := writeRunFixture(t, directory, "hello.pcy",
 		"fn main() {\n    print(\"Hello, world!\");\n}\n")
@@ -413,7 +413,7 @@ func TestPercyPurrRunTempCleanup(t *testing.T) {
 		{"failure", []string{"run", filepath.Join(directory, "missing.pcy")}, 1},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
-			result := runExternal(t, kt, testCase.arguments, directory, environment)
+			result := runExternal(t, pcy, testCase.arguments, directory, environment)
 			if result.status != testCase.status {
 				t.Fatalf("status %d, want %d; stderr %q", result.status, testCase.status, result.stderr)
 			}
