@@ -35,7 +35,9 @@ cd percylang
 go build -o /tmp/purr-bootstrap ./cmd/purr
 
 # Build the shipped tool and put it on PATH.
+mkdir -p ~/.local/bin
 /tmp/purr-bootstrap build purr.pcy -o ~/.local/bin/purr
+export PATH="$HOME/.local/bin:$PATH"
 ```
 
 Then, with only `purr` on `PATH`:
