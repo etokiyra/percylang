@@ -711,7 +711,7 @@ literal, and the native selector's `$array_push` shell stores one or eight bytes
 through the same capacity word. `tests/append.pcy`, `tests/native/push.pcy`, and
 the checker, unit, and native corpora cover it. Phase 10.41 then renamed the
 language, extension, runtime prefixes, Go module, documentation, website, and
-profile from Kitten to Percy: `.pcy` files, `pcy_*` and `pcy_rt_*` identifiers,
+profile to Percy: `.pcy` files, `pcy_*` and `pcy_rt_*` identifiers,
 `percy_runtime.{h,c}`, the `percy` module, and `runtime/pcy`; the tool remains
 `purr`. Full register allocation (callee-saved registers and liveness), the
 Go-free bootstrap artifact, and the Goal 3 ecosystem remain. The release-flow
