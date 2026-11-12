@@ -1,0 +1,64 @@
+struct Entry {
+    string key;
+    int count;
+}
+
+fn main() {
+    int[] squares = new int[0];
+    for (int i = 1; i <= 8; i++) {
+        push(squares, i * i);
+    }
+    print("squares", length(squares));
+
+    int sum = 0;
+    for (int i = 0; i < length(squares); i++) {
+        sum += squares[i];
+    }
+    print("sum", sum);
+
+    string[] words = new string[0];
+    push(words, "percy");
+    push(words, "purr");
+    push(words, "moggie");
+    string joined = "";
+    for (int i = 0; i < length(words); i++) {
+        if (i > 0) {
+            joined += " ";
+        }
+        joined += words[i];
+    }
+    print(joined);
+
+    Entry[] entries = new Entry[0];
+    push(entries, Entry { key = "a", count = 1 });
+    push(entries, Entry { key = "b", count = 2 });
+    push(entries, Entry { key = "c", count = 3 });
+    int total = 0;
+    for (int i = 0; i < length(entries); i++) {
+        total += entries[i].count;
+    }
+    print(entries[2].key, total);
+
+    byte[] letters = new byte[0];
+    push(letters, byte_from_int(65));
+    push(letters, byte_from_int(66));
+    push(letters, byte_from_int(67));
+    print(bytes_to_string(letters));
+
+    bool[] marks = new bool[0];
+    for (int i = 0; i < 5; i++) {
+        push(marks, i % 2 == 0);
+    }
+    int on = 0;
+    for (int i = 0; i < length(marks); i++) {
+        if (marks[i]) {
+            on++;
+        }
+    }
+    print("on", on);
+
+    float[] halves = new float[0];
+    push(halves, 0.5);
+    push(halves, 1.5);
+    print(halves[0] + halves[1]);
+}

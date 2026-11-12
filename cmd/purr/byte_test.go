@@ -32,7 +32,7 @@ const byteIndexSource = `fn main() {
 func TestByteRuntime(t *testing.T) {
 	requireToolchain(t)
 
-	unitExecutable := buildKittenUnit(t)
+	unitExecutable := buildPercyUnit(t)
 	probeDirectory := t.TempDir()
 	compiler, err := discoverCompiler()
 	if err != nil {
@@ -83,26 +83,26 @@ func TestByteRuntime(t *testing.T) {
 					goResult.stdout, goResult.stderr, goResult.status, testCase.stdout, testCase.stderr, testCase.status)
 			}
 
-			kittenText, err := runKittenUnit(unitExecutable, probeDirectory, testCase.source, "")
+			percyText, err := runPercyUnit(unitExecutable, probeDirectory, testCase.source, "")
 			if err != nil {
-				t.Fatalf("%s: generating C with the Kitten pipeline: %v", testCase.name, err)
+				t.Fatalf("%s: generating C with the Percy pipeline: %v", testCase.name, err)
 			}
 			_, _, referenceText, ok := checkProgram(t, testCase.name, testCase.source, "")
 			if !ok {
 				return
 			}
-			if difference := unitDifference(kittenText, referenceText); difference != "" {
+			if difference := unitDifference(percyText, referenceText); difference != "" {
 				t.Fatalf("%s: the translation unit differs: %s", testCase.name, difference)
 			}
 
-			kittenBuildDirectory := t.TempDir()
-			kittenResult, err := buildAndRunProgram(t, compiler, compileFlags, linkFlags, kittenBuildDirectory, kittenText, index)
+			percyBuildDirectory := t.TempDir()
+			percyResult, err := buildAndRunProgram(t, compiler, compileFlags, linkFlags, percyBuildDirectory, percyText, index)
 			if err != nil {
-				t.Fatalf("%s: building and running the Kitten-generated program: %v", testCase.name, err)
+				t.Fatalf("%s: building and running the Percy-generated program: %v", testCase.name, err)
 			}
-			if kittenResult.stdout != testCase.stdout || kittenResult.stderr != testCase.stderr || kittenResult.status != testCase.status {
-				t.Errorf("Kitten pipeline: stdout %q, stderr %q, status %d; want %q, %q, %d",
-					kittenResult.stdout, kittenResult.stderr, kittenResult.status, testCase.stdout, testCase.stderr, testCase.status)
+			if percyResult.stdout != testCase.stdout || percyResult.stderr != testCase.stderr || percyResult.status != testCase.status {
+				t.Errorf("Percy pipeline: stdout %q, stderr %q, status %d; want %q, %q, %d",
+					percyResult.stdout, percyResult.stderr, percyResult.status, testCase.stdout, testCase.stderr, testCase.status)
 			}
 		})
 	}
@@ -120,9 +120,9 @@ func TestByteSanitizer(t *testing.T) {
 	compileFlags, linkFlags := gcBuildFlags()
 	compileFlags = append(compileFlags, "-fsanitize=undefined")
 
-	text, err := runKittenUnit(buildKittenUnit(t), t.TempDir(), byteSource, "")
+	text, err := runPercyUnit(buildPercyUnit(t), t.TempDir(), byteSource, "")
 	if err != nil {
-		t.Fatalf("generating C with the Kitten pipeline: %v", err)
+		t.Fatalf("generating C with the Percy pipeline: %v", err)
 	}
 	directory := t.TempDir()
 	result, err := buildAndRunProgram(t, compiler, compileFlags, linkFlags, directory, text, 0)

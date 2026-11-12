@@ -52,7 +52,7 @@ func TestHeaderDeclaresRuntimeABI(t *testing.T) {
 
 func TestSourceImplementsGarbageCollection(t *testing.T) {
 	source := Source()
-	for _, fragment := range []string{"GC_INIT", "GC_MALLOC", "memcmp", "memcpy", "ktn_rt_array_new", "ktn_rt_array_at", "snprintf"} {
+	for _, fragment := range []string{"GC_INIT", "GC_MALLOC", "memcmp", "memcpy", "pcy_rt_array_new", "pcy_rt_array_at", "snprintf"} {
 		if !strings.Contains(source, fragment) {
 			t.Errorf("runtime source does not contain %q", fragment)
 		}
@@ -60,10 +60,10 @@ func TestSourceImplementsGarbageCollection(t *testing.T) {
 }
 
 func TestFileNames(t *testing.T) {
-	if HeaderFileName != "kitten_runtime.h" {
+	if HeaderFileName != "percy_runtime.h" {
 		t.Errorf("HeaderFileName = %q", HeaderFileName)
 	}
-	if SourceFileName != "kitten_runtime.c" {
+	if SourceFileName != "percy_runtime.c" {
 		t.Errorf("SourceFileName = %q", SourceFileName)
 	}
 }

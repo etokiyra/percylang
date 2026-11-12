@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"kitten/lexer"
-	"kitten/parser"
+	"percy/lexer"
+	"percy/parser"
 )
 
 // The fixed source blocks of the implicit prelude. Each block ends with its
@@ -244,6 +244,10 @@ func statementUsesCallee(statement parser.Stmt, calleeName string) bool {
 				statementUsesCallee(s.Body, calleeName))
 	case *parser.ReturnStmt:
 		return s != nil && expressionUsesCallee(s.Value, calleeName)
+	case *parser.BreakStmt:
+		return false
+	case *parser.ContinueStmt:
+		return false
 	case *parser.MatchStmt:
 		if s == nil {
 			return false

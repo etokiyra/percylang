@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"kitten/parser"
+	"percy/parser"
 )
 
 func TestPreludeSourceSubsets(t *testing.T) {

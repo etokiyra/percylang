@@ -1,0 +1,7 @@
+fn main() {
+    byte[] octets = new byte[3];
+    octets[0] = byte_from_int(65);
+    octets[1] = byte_from_int(0);
+    octets[2] = byte_from_int(66);
+    print(bytes_to_string(octets));
+}

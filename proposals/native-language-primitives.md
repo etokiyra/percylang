@@ -45,20 +45,20 @@ undefined-behavior gap.
   classifies `0x1F` and `0b101` as invalid literals. They become valid in the
   bitwise step, while `0o17`, `1_000`, and suffixes remain invalid.
 - `parser/parser.go:binaryPrecedence` and
-  `selfhost/parser/parser.ktn:binary_precedence` implement the current levels:
+  `selfhost/parser/parser.pcy:binary_precedence` implement the current levels:
   assignment, `||`, `&&`, equality, relational, additive, multiplicative.
   Unary operators are parsed by `parseUnary`/`parse_unary`; there is no unary
   bitwise complement.
 - `checker/expr.go:checkBinary`, `checkUnary`, and `checkArithmetic`, and
-  `selfhost/checker/expr.ktn:check_binary`, `check_unary`, and
+  `selfhost/checker/expr.pcy:check_binary`, `check_unary`, and
   `check_arithmetic`, dispatch by operator text and require exact operand-type
   matching. `checkArithmetic` accepts `+ - * / %`; `- * /` are numeric-only,
   `%` is int-only, and `+` is also defined for strings.
 - `codegen/emit.go:binaryExpression` and
-  `selfhost/codegen/expressions.ktn:binary_expression` pass most operators
+  `selfhost/codegen/expressions.pcy:binary_expression` pass most operators
   through to C with explicit parentheses. String `+`, `==`, and `!=` are the
   only special cases today. `codegen/names.go:cType` and
-  `selfhost/codegen/names.ktn:c_type` map the primitive types.
+  `selfhost/codegen/names.pcy:c_type` map the primitive types.
 - `SPEC.md` Sections 17.2 and 18.3 document exactly those operators. Section
   6.1 accepts only decimal integer literals. Section 18.2 says there are no
   implicit conversions and no casts.
@@ -72,14 +72,14 @@ generated C currently violates that last claim.
 
 `codegen/emit.go:expression` emits an `IntLiteral` as its source spelling
 (`codegen/emit.go:228`), and `binaryExpression` emits ordinary signed C
-operators (`codegen/emit.go:321`). The Kitten generator does the same in
-`selfhost/codegen/expressions.ktn:1102-1141`. The C type is `int64_t`
+operators (`codegen/emit.go:321`). The Percy generator does the same in
+`selfhost/codegen/expressions.pcy:1102-1141`. The C type is `int64_t`
 (`codegen/names.go:cType`). No `-fwrapv` or equivalent is passed:
 `cmd/purr/main.go:257` uses `-std=c11 -Wall -Wextra`.
 
 Concrete source:
 
-```kitten
+```percy
 fn main() {
     int x = 9223372036854775807;
     int y = x + 1;
@@ -90,8 +90,8 @@ fn main() {
 Current generated C contains:
 
 ```c
-int64_t ktn_var_x = 9223372036854775807;
-int64_t ktn_var_y = (ktn_var_x + 1);
+int64_t pcy_var_x = 9223372036854775807;
+int64_t pcy_var_y = (pcy_var_x + 1);
 ```
 
 The addition has C signed overflow, which is undefined behavior. The current
@@ -104,9 +104,9 @@ minus of `INT64_MIN` is also signed overflow.
 Division has separate undefined cases that are not diagnosed today:
 
 - `x / 0` and `x % 0` emit direct C division. `checker/expr.go:checkArithmetic`
-  and `selfhost/checker/expr.ktn:check_arithmetic` do not reject a constant zero
+  and `selfhost/checker/expr.pcy:check_arithmetic` do not reject a constant zero
   and `codegen/emit.go:binaryExpression` does not add a check. A compiled
-  `10 / 0` currently exits with SIGFPE (observed status 136), not a Kitten
+  `10 / 0` currently exits with SIGFPE (observed status 136), not a Percy
   diagnostic.
 - `INT64_MIN / -1` and `INT64_MIN % -1` are also undefined in C. The current
   generated C emits them directly; on x86-64 the observed result is SIGFPE
@@ -116,7 +116,7 @@ Integer literal checking is also absent. `checker/expr.go:26` returns
 `IntType` for every `IntLiteral`, and `codegen/emit.go:228` copies its text.
 A decimal literal larger than `INT64_MAX` is therefore accepted by the checker
 and may be emitted as a C constant of an implementation-selected type. The
-Kitten checker has the same gap at `selfhost/checker/expr.ktn:32`.
+Percy checker has the same gap at `selfhost/checker/expr.pcy:32`.
 
 **Finding: this is a real bug.** The fix belongs in the first implementation
 commit, before bitwise operators add more arithmetic.
@@ -128,29 +128,29 @@ contains only `int`, `float`, `bool`, `string`, and `void`. `SPEC.md` Sections
 6.1, 18.2, and 20.7 say integer/float/string conversions are deferred and that
 there are no casts. The only existing formatting path is `print`, whose
 `printHelper`/`print_helper` selects a runtime formatter by type
-(`codegen/emit.go:851`, `selfhost/codegen/expressions.ktn:860`). `try_read_file`
+(`codegen/emit.go:851`, `selfhost/codegen/expressions.pcy:860`). `try_read_file`
 is the only predeclared result union (`checker/prelude.go`,
-`selfhost/checker/prelude.ktn`).
+`selfhost/checker/prelude.pcy`).
 
 This matters for `byte`: a new primitive with “no implicit conversions” needs a
 deliberate explicit-conversion surface, not an accidental cast through C.
 
 ### 1.4 Arrays, strings, and byte buffers
 
-- An array is `ktn_array *`, a GC-managed reference with a length, an element
-  size, and zero-initialized storage (`runtime/csrc/kitten_runtime.h`,
-  `ktn_rt_array_new`/`ktn_rt_array_at`; `codegen/names.go:cType`). Element size
+- An array is `pcy_array *`, a GC-managed reference with a length, an element
+  size, and zero-initialized storage (`runtime/csrc/percy_runtime.h`,
+  `pcy_rt_array_new`/`pcy_rt_array_at`; `codegen/names.go:cType`). Element size
   is supplied by the generator through `sizeof(<element C type>)`
   (`codegen/emit.go:newArrayExpression`,
-  `selfhost/codegen/expressions.ktn:new_array_expression`). A `byte[]` therefore
+  `selfhost/codegen/expressions.pcy:new_array_expression`). A `byte[]` therefore
   fits the existing representation with element size 1.
 - A string is an immutable, length-carrying, NUL-terminated object
-  (`runtime/csrc/kitten_runtime.h`), indexed as an `int` byte (0..255), not a
+  (`runtime/csrc/percy_runtime.h`), indexed as an `int` byte (0..255), not a
   one-character string. The current string helpers have no byte-array
   conversion. `lexer/string.go:DecodeString` decodes literal escapes; it is not
   a general string/bytes conversion.
 - The runtime can allocate a byte array and copy bytes, but it currently has no
-  API that exposes such a buffer to Kitten code. `runtime/csrc` has no file
+  API that exposes such a buffer to Percy code. `runtime/csrc` has no file
   write or directory API.
 
 ### 1.5 Built-ins and the prelude mechanism
@@ -158,22 +158,22 @@ deliberate explicit-conversion surface, not an accidental cast through C.
 - The current SPEC.md Section 18.8 list is `print`, `eprint`, `exit`,
   `length`, `argv`, `has`, `substring`, `read_file`, and `try_read_file`. Go
   built-ins are declared in `checker/checker.go:builtinFunctions` and keyed in
-  `checker/symbols.go`; the Kitten mirror is
-  `selfhost/checker/state.ktn:builtin_functions`. `try_read_file` is registered
-  late against the prelude type by `checker.CheckModules` and the Kitten
+  `checker/symbols.go`; the Percy mirror is
+  `selfhost/checker/state.pcy:builtin_functions`. `try_read_file` is registered
+  late against the prelude type by `checker.CheckModules` and the Percy
   checker. Dispatch is in `checker/expr.go:checkCall` and
-  `selfhost/checker/expr.ktn:check_call`; lowering is in
+  `selfhost/checker/expr.pcy:check_call`; lowering is in
   `codegen/emit.go:callExpression` and
-  `selfhost/codegen/expressions.ktn:call_expression`.
+  `selfhost/codegen/expressions.pcy:call_expression`.
 - The existing prelude is one fixed source parsed by
   `checker/prelude.go:parseReadFileResultPrelude`, injected by
   `checker.CheckModules` when `usesTryReadFile` finds a syntactic
-  `try_read_file` call. The Kitten mirror is
-  `selfhost/checker/prelude.ktn` and `selfhost/checker/checker.ktn`. Its name is
+  `try_read_file` call. The Percy mirror is
+  `selfhost/checker/prelude.pcy` and `selfhost/checker/checker.pcy`. Its name is
   reserved in every program by `checker/checker.go:collectDeclarations` and
-  `selfhost/checker/checker.ktn:collect_declaration`. The generated helper is
+  `selfhost/checker/checker.pcy:collect_declaration`. The generated helper is
   emitted by `codegen/codegen.go:emitPreludeHelper` and
-  `selfhost/codegen/declarations.ktn:emit_prelude_helper_section`.
+  `selfhost/codegen/declarations.pcy:emit_prelude_helper_section`.
 - The mechanism generalizes, but not by replacing the one fixed source with one
   universal prelude. That would change every existing `try_read_file` program’s
   generated C by adding unused types and helpers. The recommended generalization
@@ -186,31 +186,31 @@ Every feature must change both implementations and their differential harnesses.
 The current “Adding a built-in” checklist in `AGENTS.md` covers the built-in
 cases; operators and types need these additional rows:
 
-| Area | Go | Kitten | Shared verification |
+| Area | Go | Percy | Shared verification |
 | --- | --- | --- | --- |
-| Tokens | `lexer/token.go`, `lexer/lexer.go`, `lexer/lexer_test.go` | `selfhost/lexer/tokens.ktn`, `selfhost/lexer/lexer.ktn` | `cmd/purr/lexer_differential_test.go` |
-| AST/grammar | `parser/ast.go`, `parser/parser.go`, `parser/parser_test.go` | `selfhost/parser/ast.ktn`, `selfhost/parser/parser.ktn` | `cmd/purr/parser_differential_test.go` |
-| Types | `checker/types.go`, `checker/checker.go` | `selfhost/checker/model.ktn`, `selfhost/checker/state.ktn` | checker and semantic corpora |
-| Operator rules | `checker/expr.go` | `selfhost/checker/expr.ktn` | `cmd/purr/checker_differential_test.go`, `cmd/purr/semantics_differential_test.go` |
-| C names/layout | `codegen/names.go` | `selfhost/codegen/names.ktn` | declaration/expression corpora |
-| C expressions | `codegen/emit.go` | `selfhost/codegen/expressions.ktn` | expression, function, unit, call corpora |
+| Tokens | `lexer/token.go`, `lexer/lexer.go`, `lexer/lexer_test.go` | `selfhost/lexer/tokens.pcy`, `selfhost/lexer/lexer.pcy` | `cmd/purr/lexer_differential_test.go` |
+| AST/grammar | `parser/ast.go`, `parser/parser.go`, `parser/parser_test.go` | `selfhost/parser/ast.pcy`, `selfhost/parser/parser.pcy` | `cmd/purr/parser_differential_test.go` |
+| Types | `checker/types.go`, `checker/checker.go` | `selfhost/checker/model.pcy`, `selfhost/checker/state.pcy` | checker and semantic corpora |
+| Operator rules | `checker/expr.go` | `selfhost/checker/expr.pcy` | `cmd/purr/checker_differential_test.go`, `cmd/purr/semantics_differential_test.go` |
+| C names/layout | `codegen/names.go` | `selfhost/codegen/names.pcy` | declaration/expression corpora |
+| C expressions | `codegen/emit.go` | `selfhost/codegen/expressions.pcy` | expression, function, unit, call corpora |
 | Runtime API | `runtime/runtime.go`, `runtime/csrc/*` | native runtime later | runtime fixtures; C/native parity later |
-| Prelude | `checker/prelude.go`, `checker/checker.go`, `codegen/codegen.go` | `selfhost/checker/prelude.ktn`, `checker.ktn`, `selfhost/codegen/declarations.ktn` | checker/prelude and whole-unit corpora |
-| Diagnostics | checker error sites | Kitten mirror | checker/message corpora |
+| Prelude | `checker/prelude.go`, `checker/checker.go`, `codegen/codegen.go` | `selfhost/checker/prelude.pcy`, `checker.pcy`, `selfhost/codegen/declarations.pcy` | checker/prelude and whole-unit corpora |
+| Diagnostics | checker error sites | Percy mirror | checker/message corpora |
 | Documentation | `SPEC.md`, `README.md`, `AGENTS.md` | `selfhost/*/README.md` | measured counts |
 
-`selfhost/driver.ktn` and the fixpoint must be rerun whenever the Kitten
+`selfhost/driver.pcy` and the fixpoint must be rerun whenever the Percy
 compiler’s own source changes. The fixpoint is the only check that proves the
-new Go and Kitten implementations agree on the compiler itself.
+new Go and Percy implementations agree on the compiler itself.
 
-### 1.7 What the Kitten compiler’s own source needs, and collisions
+### 1.7 What the Percy compiler’s own source needs, and collisions
 
 - **`byte` collides with existing identifiers.** `byte` is currently an
   ordinary identifier used by the compiler’s own source: for example
-  `selfhost/lexer/lexer.ktn:advance`, `is_digit`, `is_identifier_start`,
+  `selfhost/lexer/lexer.pcy:advance`, `is_digit`, `is_identifier_start`,
   `is_identifier_part`, `hex_pair`, and `quoted_byte`; `selfhost/parser/
-  parser.ktn:decode_string` and `hex_pair`; `selfhost/codegen/names.ktn:
-  octal_three`; and `tests/lexer_proof.ktn`. Test source strings in
+  parser.pcy:decode_string` and `hex_pair`; `selfhost/codegen/names.pcy:
+  octal_three`; and `tests/lexer_proof.pcy`. Test source strings in
   `checker/checker_test.go` and `cmd/purr/main_test.go` also use `int byte`.
   Making `byte` a reserved keyword is a **breaking source change**. The byte
   commit must mechanically rename those locals/parameters (for example to
@@ -219,11 +219,11 @@ new Go and Kitten implementations agree on the compiler itself.
 - **`~`, `<<`, and `>>` do not collide with valid source.** They are currently
   lexical errors or two adjacent `>`/`<` tokens. `lexer/lexer_test.go` has
   explicit “unexpected character” cases for `&`, `|`, and `~`; those cases must
-  change into token cases. No current `.ktn` file uses a bitwise expression.
+  change into token cases. No current `.pcy` file uses a bitwise expression.
 - **`&` and `|` already have `&&`/`||` spellings.** The lexer must implement the
   longest match: `&&` and `||` remain their current tokens; a single character
   becomes the new bitwise token.
-- `selfhost/checker/expr.ktn`, `selfhost/codegen/expressions.ktn`, and the
+- `selfhost/checker/expr.pcy`, `selfhost/codegen/expressions.pcy`, and the
   compiler’s own parser use integer arithmetic heavily. The defined-arithmetic
   fix changes their generated C but not their source behavior. The fixpoint
   must still pass byte for byte.
@@ -242,7 +242,7 @@ need generics:
   per variant. Each triggered builtin costs one `Function` entry and one
   generated helper. All of this is O(types + builtins), not O(program size).
 - The scanner must return a set of used built-ins, not one boolean. Go and
-  Kitten both need the same set and the same fragment order.
+  Percy both need the same set and the same fragment order.
 - The loader does not change: preludes remain a checker concern and are never
   loaded from disk.
 
@@ -252,7 +252,7 @@ need generics:
 
 The native backend, ELF writer, GC, and runtime cannot rely on C’s undefined
 signed behavior. The current C pipeline is already wrong for programs that
-overflow, divide by zero, or divide `INT64_MIN` by `-1`. A defined Kitten
+overflow, divide by zero, or divide `INT64_MIN` by `-1`. A defined Percy
 semantic is required before the native backend can share behavior with the C
 backend.
 
@@ -292,18 +292,18 @@ purr: integer division by zero
 Generated C helpers (names are MIT runtime API):
 
 ```c
-int64_t ktn_rt_i64_add(int64_t a, int64_t b);
-int64_t ktn_rt_i64_sub(int64_t a, int64_t b);
-int64_t ktn_rt_i64_mul(int64_t a, int64_t b);
-int64_t ktn_rt_i64_neg(int64_t a);
-int64_t ktn_rt_i64_div(int64_t a, int64_t b);
-int64_t ktn_rt_i64_mod(int64_t a, int64_t b);
-int64_t ktn_rt_i64_add_assign(int64_t *slot, int64_t b);
-int64_t ktn_rt_i64_sub_assign(int64_t *slot, int64_t b);
-int64_t ktn_rt_i64_pre_inc(int64_t *slot);
-int64_t ktn_rt_i64_post_inc(int64_t *slot);
-int64_t ktn_rt_i64_pre_dec(int64_t *slot);
-int64_t ktn_rt_i64_post_dec(int64_t *slot);
+int64_t pcy_rt_i64_add(int64_t a, int64_t b);
+int64_t pcy_rt_i64_sub(int64_t a, int64_t b);
+int64_t pcy_rt_i64_mul(int64_t a, int64_t b);
+int64_t pcy_rt_i64_neg(int64_t a);
+int64_t pcy_rt_i64_div(int64_t a, int64_t b);
+int64_t pcy_rt_i64_mod(int64_t a, int64_t b);
+int64_t pcy_rt_i64_add_assign(int64_t *slot, int64_t b);
+int64_t pcy_rt_i64_sub_assign(int64_t *slot, int64_t b);
+int64_t pcy_rt_i64_pre_inc(int64_t *slot);
+int64_t pcy_rt_i64_post_inc(int64_t *slot);
+int64_t pcy_rt_i64_pre_dec(int64_t *slot);
+int64_t pcy_rt_i64_post_dec(int64_t *slot);
 ```
 
 `add`, `sub`, `mul`, and `neg` operate on `uint64_t` bit patterns and convert
@@ -319,8 +319,8 @@ current compound-assignment rule.
 Generated C becomes, for example:
 
 ```c
-int64_t ktn_var_y = ktn_rt_i64_add(ktn_var_x, 1);
-int64_t ktn_var_q = ktn_rt_i64_div(ktn_var_x, ktn_var_y);
+int64_t pcy_var_y = pcy_rt_i64_add(pcy_var_x, 1);
+int64_t pcy_var_q = pcy_rt_i64_div(pcy_var_x, pcy_var_y);
 ```
 
 Do not use `-fwrapv` as the primary fix. It is a compiler extension, it does not
@@ -330,15 +330,15 @@ as an extra diagnostic aid, not as the semantics.
 
 ### 2.4 Files and acceptance
 
-Files: `checker/expr.go`, `selfhost/checker/expr.ktn`, `codegen/emit.go`,
-`selfhost/codegen/expressions.ktn`, `runtime/runtime.go`,
-`runtime/csrc/kitten_runtime.{c,h}`, both `codegen/names` files, all arithmetic
+Files: `checker/expr.go`, `selfhost/checker/expr.pcy`, `codegen/emit.go`,
+`selfhost/codegen/expressions.pcy`, `runtime/runtime.go`,
+`runtime/csrc/percy_runtime.{c,h}`, both `codegen/names` files, all arithmetic
 corpora, `tests/` overflow cases, and the fixpoint.
 
 Acceptance: new tests for `INT64_MAX + 1`, `INT64_MIN - 1`, multiplication, unary
 minus of `INT64_MIN`, `+=`, `-=`, `++`, `--`, `INT64_MIN / -1`,
 `INT64_MIN % -1`, `/ 0`, and `% 0`; exact expected stdout/stderr/status; the
-full suite under GCC and Clang; and Go/Kitten generated C byte-identical for
+full suite under GCC and Clang; and Go/Percy generated C byte-identical for
 every existing corpus and fixture. This commit must land before bitwise
 operators.
 
@@ -432,7 +432,7 @@ involved.
 - `&`, `|`, `^`, and `~`: emit direct parenthesized C operations. These are
   defined on signed integers; the target is two's complement.
 - `<<` and `>>`: emit calls to the MIT runtime helpers
-  `ktn_rt_i64_shl(left, count)` and `ktn_rt_i64_shr(left, count)`. The helpers
+  `pcy_rt_i64_shl(left, count)` and `pcy_rt_i64_shr(left, count)`. The helpers
   validate `0 <= count <= 63` and perform the operation on `uint64_t`, with
   arithmetic sign fill for `>>`.
 - Hex/binary literals: the lexer validates their digit runs and widths, the
@@ -443,7 +443,7 @@ involved.
   spelling so existing generated C stays stable.
 - The full-suite C comparison must include the compiler source; this feature is
   not complete until the fixpoint still passes. Shifts are checked by the MIT
-  `ktn_rt_i64_shl`/`ktn_rt_i64_shr` helpers; `&`, `|`, `^`, and `~` are direct
+  `pcy_rt_i64_shl`/`pcy_rt_i64_shr` helpers; `&`, `|`, `^`, and `~` are direct
   C operators.
 
 ### 3.6 Diagnostics
@@ -502,15 +502,15 @@ Add to Sections 18.2 and 18.3:
 
 Add to Section 19.1:
 
-> `byte` maps to `uint8_t`. A `byte[]` uses the existing `ktn_array`
+> `byte` maps to `uint8_t`. A `byte[]` uses the existing `pcy_array`
 > representation with an element size of `sizeof(uint8_t)`, which is one byte.
 
 ### 4.3 C lowering
 
 - `cType(byte)` is `uint8_t` in both generators.
-- `new byte[n]` is `ktn_rt_array_new(n, sizeof(uint8_t))`.
-- `bytes[i]` is `*((uint8_t *)ktn_rt_array_at(bytes, i))`.
-- `print(byte_value)`/`eprint(byte_value)` reuse `ktn_rt_print_int`/`eprint_int`
+- `new byte[n]` is `pcy_rt_array_new(n, sizeof(uint8_t))`.
+- `bytes[i]` is `*((uint8_t *)pcy_rt_array_at(bytes, i))`.
+- `print(byte_value)`/`eprint(byte_value)` reuse `pcy_rt_print_int`/`eprint_int`
   with `(int64_t)value`; no new runtime formatter is required.
 - Structs and map values containing `byte` use C's normal layout; native layout
   will later record byte size 1 and alignment 1.
@@ -518,7 +518,7 @@ Add to Section 19.1:
 ### 4.4 `byte` is a reserved keyword
 
 `byte` must be added to the Go `lexer.keywords` and to
-`selfhost/lexer/tokens.ktn`/`lexer.ktn`, and to `is_type_keyword` in both
+`selfhost/lexer/tokens.pcy`/`lexer.pcy`, and to `is_type_keyword` in both
 parsers. It is a reserved type keyword, not an ordinary identifier.
 
 This is the collision reported in Section 1.7. The byte commit must rename every
@@ -535,7 +535,7 @@ fixpoint must be re-run.
 - `cannot convert byte to int implicitly; use int_from_byte`
 
 Files: `checker/types.go`, `checker/checker.go`, `checker/expr.go`,
-`selfhost/checker/model.ktn`, `state.ktn`, `expr.ktn`, both lexers/parser,
+`selfhost/checker/model.pcy`, `state.pcy`, `expr.pcy`, both lexers/parser,
 both codegen names/expressions, both print helpers, semantic model rendering,
 and the compiler’s `byte` identifier migration.
 
@@ -592,10 +592,10 @@ internally.
 
 - `int_from_byte(x)` -> `((int64_t)(x))`
 - `byte_from_int(x)` -> `((uint8_t)((uint64_t)(x) & UINT64_C(0xFF)))`
-- `string_to_bytes` -> `ktn_rt_string_to_bytes(value)`
-- `bytes_to_string` -> `ktn_rt_bytes_to_string(value)`
+- `string_to_bytes` -> `pcy_rt_string_to_bytes(value)`
+- `bytes_to_string` -> `pcy_rt_bytes_to_string(value)`
 
-Runtime helpers return `ktn_array *`/`const ktn_string *`; the byte-array
+Runtime helpers return `pcy_array *`/`const pcy_string *`; the byte-array
 helper allocates `sizeof(uint8_t)` elements and copies the string bytes. The
 string helper checks the byte array length and each byte, reports the first
 NUL index, allocates a string, and copies the bytes.
@@ -623,7 +623,7 @@ rather than adding generics.
 
 Use these public unions, assembled only as needed (Section 6.3):
 
-```kitten
+```percy
 public union FileResult {
     Ok
     Failed { string message; }
@@ -722,7 +722,7 @@ function of the same name still shadows it.
 Cost per additional result type: one fixed fragment, one parsed union, one
 public type, one reserved name, one constructor per variant. Cost per additional
 built-in: one `Function` entry and one non-static generated helper. The Go and
-Kitten checkers each duplicate the fragment text; differential whole-unit tests
+Percy checkers each duplicate the fragment text; differential whole-unit tests
 must compare the assembled module and generated C. The loader is unchanged.
 
 ### 6.5 C lowering and runtime ABI
@@ -730,37 +730,37 @@ must compare the assembled module and generated C. The loader is unchanged.
 Generated helpers use the existing non-static pattern, for example:
 
 ```c
-FileResult *ktn_prelude_<P>_try_write_file(
-    const ktn_string *ktn_path, const ktn_string *ktn_text);
+FileResult *pcy_prelude_<P>_try_write_file(
+    const pcy_string *pcy_path, const pcy_string *pcy_text);
 ```
 
 The helper calls the MIT runtime primitive and constructs `Ok` or `Failed`.
 Proposed runtime declarations:
 
 ```c
-bool ktn_rt_try_write_file(const ktn_string *path,
-                           const ktn_string *text,
-                           const ktn_string **message);
-bool ktn_rt_try_write_bytes(const ktn_string *path,
-                            const ktn_array *bytes,
-                            const ktn_string **message);
-bool ktn_rt_try_create_directory(const ktn_string *path,
-                                 const ktn_string **message);
-bool ktn_rt_try_remove(const ktn_string *path,
-                       const ktn_string **message);
-bool ktn_rt_try_list_directory(const ktn_string *path,
-                               ktn_array **entries,
-                               const ktn_string **message);
-bool ktn_rt_try_run(const ktn_string *path,
-                    const ktn_array *arguments,
+bool pcy_rt_try_write_file(const pcy_string *path,
+                           const pcy_string *text,
+                           const pcy_string **message);
+bool pcy_rt_try_write_bytes(const pcy_string *path,
+                            const pcy_array *bytes,
+                            const pcy_string **message);
+bool pcy_rt_try_create_directory(const pcy_string *path,
+                                 const pcy_string **message);
+bool pcy_rt_try_remove(const pcy_string *path,
+                       const pcy_string **message);
+bool pcy_rt_try_list_directory(const pcy_string *path,
+                               pcy_array **entries,
+                               const pcy_string **message);
+bool pcy_rt_try_run(const pcy_string *path,
+                    const pcy_array *arguments,
                     int64_t *status,
-                    const ktn_string **message);
+                    const pcy_string **message);
 ```
 
-`try_list_directory` returns a `ktn_array` of `const ktn_string *` elements in
+`try_list_directory` returns a `pcy_array` of `const pcy_string *` elements in
 sorted order in `entries`. `try_run` builds an argv vector from `path` and the argument
 array, forks/execs, waits, and reports a normalized status. The byte array
-argument of `try_write_bytes` is the existing `ktn_array *` with element size
+argument of `try_write_bytes` is the existing `pcy_array *` with element size
 one.
 
 ### 6.6 Diagnostics and files
@@ -771,12 +771,12 @@ Wrong arity/type diagnostics use the generic built-in path:
 the other APIs. OS failures are returned, not diagnosed by the checker.
 
 Files: `checker/checker.go`, `checker/expr.go`, `checker/prelude.go`,
-`selfhost/checker/state.ktn`, `expr.ktn`, `prelude.ktn`, `checker.ktn`, both
+`selfhost/checker/state.pcy`, `expr.pcy`, `prelude.pcy`, `checker.pcy`, both
 `codegen` call paths/names/declarations, `runtime/runtime.go`,
-`runtime/csrc/kitten_runtime.{c,h}`, `cmd/purr/try_read_file_test.go` or a new
+`runtime/csrc/percy_runtime.{c,h}`, `cmd/purr/try_read_file_test.go` or a new
 runtime fixture, checker/semantics/unit/calls corpora, and the fixpoint.
 
-Risks: prelude assembly drift between Go and Kitten; reserved-name churn;
+Risks: prelude assembly drift between Go and Percy; reserved-name churn;
 directory sorting/locale; permission and root tests; process security; no
 recursive remove; no metadata. Alternatives: individual result unions (more
 types), one universal prelude (changes existing C), fatal APIs (rejected),
@@ -800,21 +800,21 @@ It uses the kernel's `getcwd` result, ignores `$PWD`, and grows its buffer on
 `ERANGE` rather than imposing a `PATH_MAX` limit. Failure text is
 `getwd: <reason>`. The prelude fragment is the `CurrentDirectoryResult` union,
 appended only when this builtin is called. Its C helper is
-`ktn_prelude_<P>_try_current_directory`, backed by:
+`pcy_prelude_<P>_try_current_directory`, backed by:
 
 ```c
-bool ktn_rt_try_current_directory(const ktn_string **path,
-                                  const ktn_string **message);
+bool pcy_rt_try_current_directory(const pcy_string **path,
+                                  const pcy_string **message);
 ```
 
 The name is deliberately `try_current_directory`, not `cwd`, because the
-operation can fail. The Kitten driver can combine it with its path-cleaning
+operation can fail. The Percy driver can combine it with its path-cleaning
 logic to accept relative roots; the current wrapper may continue to absolutize
 paths. This built-in does not by itself add a working-directory *change*
 primitive (`chdir` is not proposed).
 
 Files: same prelude/builtin/checker/codegen/runtime set as Section 6, plus the
-driver/CLI path-resolution tests when the Kitten CLI adopts it. Risks: symlink
+driver/CLI path-resolution tests when the Percy CLI adopts it. Risks: symlink
 and canonicalization semantics; current wrapper contract; relative-path
 diagnostics. Alternative: return `Failed` through a file-style union (chosen);
 a total `cwd()` string (rejected because `getcwd` can fail).
@@ -829,7 +829,7 @@ native build embeds/appends it. The checker recognizes it by
 `module.path == "<runtime>"`. User code cannot import it; an ordinary import
 resolves a filesystem path and cannot name the synthetic module.
 
-The source lives under `runtime/ktn/` (for example `core.ktn`) with an MIT
+The source lives under `runtime/pcy/` (for example `core.pcy`) with an MIT
 notice. The compiler and backend remain GPL-3.0-or-later; the runtime source is
 MIT and its notice must travel with any embedded copy, exactly as
 `runtime/csrc` does today. No user-program component becomes GPL.
@@ -873,7 +873,7 @@ libgc.
 
 ### 8.3 Files and risks
 
-Files: `runtime/ktn/memory.ktn` under MIT, both checkers' synthetic-module and
+Files: `runtime/pcy/memory.pcy` under MIT, both checkers' synthetic-module and
 intrinsic gates, both C generators, the MIT header helpers, and harness-only
 probe drivers. The production loader and CLI never inject `<runtime>`. Risks:
 bypassing the gate, leaking addresses into user values, auditing unsafe code,
@@ -886,7 +886,7 @@ package registry (rejected for the bootstrap).
 Each item is one small commit after approval. Each commit ends with
 `gofmt -l .`, `git diff --check`, `go vet ./...`, `go build -o /tmp/purr ./cmd/purr`, and the
 full suite under the default compiler, `CC=gcc`, and `CC=clang`; every change
-that affects selfhost reruns `TestKittenFixpoint` and compares generated C byte
+that affects selfhost reruns `TestPercyFixpoint` and compares generated C byte
 for byte.
 
 1. **Defined integer arithmetic and literal range** (Section 2). First commit,
@@ -923,7 +923,7 @@ for byte.
 
 Yes: file writing, directory create/list/remove, and `try_current_directory`
 directly unblock Goal 3 work and can be implemented independently of the native
-backend once approved. They make Kitten-written versions of:
+backend once approved. They make Percy-written versions of:
 
 - `purr new`: create directories and write scaffold files;
 - `purr add`/`purr remove`: read and write `purr.toml`/`purr.lock`;

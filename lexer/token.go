@@ -40,6 +40,8 @@ const (
 	Else
 	While
 	For
+	Break
+	Continue
 	Return
 	Fn
 	New
@@ -115,21 +117,23 @@ var kindNames = map[Kind]string{
 	Float:  "Float",
 	String: "String",
 
-	Struct:  "Struct",
-	If:      "If",
-	Else:    "Else",
-	While:   "While",
-	For:     "For",
-	Return:  "Return",
-	Fn:      "Fn",
-	New:     "New",
-	Import:  "Import",
-	Public:  "Public",
-	Private: "Private",
-	Enum:    "Enum",
-	Union:   "Union",
-	Match:   "Match",
-	Map:     "Map",
+	Struct:   "Struct",
+	If:       "If",
+	Else:     "Else",
+	While:    "While",
+	For:      "For",
+	Break:    "Break",
+	Continue: "Continue",
+	Return:   "Return",
+	Fn:       "Fn",
+	New:      "New",
+	Import:   "Import",
+	Public:   "Public",
+	Private:  "Private",
+	Enum:     "Enum",
+	Union:    "Union",
+	Match:    "Match",
+	Map:      "Map",
 
 	TypeInt:    "TypeInt",
 	TypeFloat:  "TypeFloat",

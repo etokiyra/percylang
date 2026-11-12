@@ -1,0 +1,63 @@
+enum Color {
+    Red,
+    Green,
+    Blue
+}
+
+union Shape {
+    Circle {
+        int radius;
+    }
+    Rect {
+        int width;
+        int height;
+    }
+    Empty
+}
+
+fn area(Shape shape) -> int {
+    match (shape) {
+        Circle(radius) {
+            return 3 * radius * radius;
+        }
+        Rect(width, height) {
+            return width * height;
+        }
+        Empty {
+            return 0;
+        }
+    }
+}
+
+fn color_name(Color color) -> string {
+    match (color) {
+        Red {
+            return "red";
+        }
+        Green {
+            return "green";
+        }
+        Blue {
+            return "blue";
+        }
+    }
+}
+
+fn main() {
+    Shape circle = Shape.Circle { radius = 2 };
+    Shape rect = Shape.Rect { width = 3, height = 4 };
+    Shape empty = Shape.Empty;
+    print(area(circle), area(rect), area(empty));
+    match (circle) {
+        Circle(radius) {
+            print("circle", radius);
+        }
+        Rect(width, height) {
+            print("rect", width, height);
+        }
+        Empty {
+            print("empty");
+        }
+    }
+    print(color_name(Color.Red), color_name(Color.Green), color_name(Color.Blue));
+}

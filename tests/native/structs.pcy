@@ -1,0 +1,45 @@
+struct Point {
+    int x;
+    int y;
+    bool flag;
+    float scale;
+    string label;
+}
+
+struct Pair {
+    Point first;
+    Point second;
+}
+
+fn sum(Point point) -> int {
+    return point.x + point.y;
+}
+
+fn make(int x, int y) -> Point {
+    return Point { x = x, y = y, flag = false, scale = 0.5, label = "made" };
+}
+
+fn main() {
+    Point point = Point { x = 3, y = 4, flag = true, scale = 1.5, label = "p" };
+    print(point.x + point.y);
+    print(point.flag);
+    print(point.scale);
+    print(point.label);
+    point.x = 10;
+    point.x += 5;
+    print(point.x);
+    print(sum(point));
+
+    Point other = make(7, 8);
+    Pair pair = Pair { first = point, second = other };
+    print(pair.first.x);
+    print(pair.second.y);
+    print(pair.second.label);
+
+    Point[] points = new Point[2];
+    points[0] = point;
+    points[1] = other;
+    print(points[0].x);
+    print(points[1].y);
+    print(length(points));
+}

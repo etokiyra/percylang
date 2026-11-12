@@ -1,14 +1,14 @@
 package main
 
-// Differential testing for the Kitten-written semantic checker in
+// Differential testing for the Percy-written semantic checker in
 // selfhost/checker.
 //
 // This file lives in the CLI package because the harness needs the same build
 // pipeline and toolchain probe as the other integration tests: it compiles
-// selfhost/check.ktn with the bootstrap compiler and runs the resulting
+// selfhost/check.pcy with the bootstrap compiler and runs the resulting
 // executable once per corpus input.
 //
-// The reference is the Go checker in kitten/checker. Both implementations render
+// The reference is the Go checker in percy/checker. Both implementations render
 // one line per result:
 //
 //	ok modules <n> types <n> functions <n> bodies <n>
@@ -27,7 +27,7 @@ package main
 // outcome.
 //
 // Two differences are expected and are handled here rather than hidden. Both
-// come from the shared Kitten lexer and parser, not from the checker: a column
+// come from the shared Percy lexer and parser, not from the checker: a column
 // after a byte at or above 128 counts bytes rather than code points, and an
 // error message that quotes such a byte names the byte. The harness therefore
 // requires exact equality for input whose bytes are all ASCII, and compares the
@@ -45,36 +45,36 @@ import (
 	"strings"
 	"testing"
 
-	"kitten/checker"
-	"kitten/lexer"
-	"kitten/parser"
+	"percy/checker"
+	"percy/lexer"
+	"percy/parser"
 )
 
-// kittenCheckerProgram is the driver program of the Kitten-written checker.
-func kittenCheckerProgram() string {
-	return filepath.Join("..", "..", "selfhost", "check.ktn")
+// percyCheckerProgram is the driver program of the Percy-written checker.
+func percyCheckerProgram() string {
+	return filepath.Join("..", "..", "selfhost", "check.pcy")
 }
 
-// buildKittenChecker compiles the Kitten checker and returns the executable path.
-func buildKittenChecker(t *testing.T) string {
+// buildPercyChecker compiles the Percy checker and returns the executable path.
+func buildPercyChecker(t *testing.T) string {
 	t.Helper()
 
 	requireToolchain(t)
 
-	executable := filepath.Join(t.TempDir(), "kitten-checker")
+	executable := filepath.Join(t.TempDir(), "percy-checker")
 	var diagnostics bytes.Buffer
-	if err := buildExecutable(kittenCheckerProgram(), executable, &diagnostics); err != nil {
-		t.Fatalf("building the Kitten checker: %v\n%s", err, diagnostics.String())
+	if err := buildExecutable(percyCheckerProgram(), executable, &diagnostics); err != nil {
+		t.Fatalf("building the Percy checker: %v\n%s", err, diagnostics.String())
 	}
 	if warnings := strings.TrimSpace(diagnostics.String()); warnings != "" {
-		t.Fatalf("C compiler diagnostics while building the Kitten checker:\n%s", warnings)
+		t.Fatalf("C compiler diagnostics while building the Percy checker:\n%s", warnings)
 	}
 	return executable
 }
 
-// runKittenChecker writes the two module sources into directory and runs the
-// Kitten checker there, returning its stdout.
-func runKittenChecker(executable, directory, root, imported string) (string, error) {
+// runPercyChecker writes the two module sources into directory and runs the
+// Percy checker there, returning its stdout.
+func runPercyChecker(executable, directory, root, imported string) (string, error) {
 	if err := os.WriteFile(filepath.Join(directory, "input.txt"), []byte(root), 0o644); err != nil {
 		return "", fmt.Errorf("writing input.txt: %v", err)
 	}
@@ -88,15 +88,15 @@ func runKittenChecker(executable, directory, root, imported string) (string, err
 	command.Stdout = &stdout
 	command.Stderr = &stderr
 	if err := command.Run(); err != nil {
-		return "", fmt.Errorf("running the Kitten checker: %v (stderr: %s)", err, stderr.String())
+		return "", fmt.Errorf("running the Percy checker: %v (stderr: %s)", err, stderr.String())
 	}
 	if stderr.Len() != 0 {
-		return "", fmt.Errorf("the Kitten checker wrote to stderr: %s", stderr.String())
+		return "", fmt.Errorf("the Percy checker wrote to stderr: %s", stderr.String())
 	}
 	return stdout.String(), nil
 }
 
-// checkerKindName maps an error kind to the single-token name the Kitten driver
+// checkerKindName maps an error kind to the single-token name the Percy driver
 // prints, which is the harness's normalized identity for the category.
 func checkerKindName(kind checker.ErrorKind) string {
 	switch kind {
@@ -120,13 +120,15 @@ func checkerKindName(kind checker.ErrorKind) string {
 		return "InvalidExpression"
 	case checker.PrivateAccess:
 		return "PrivateAccess"
+	case checker.InvalidLoopControl:
+		return "InvalidLoopControl"
 	default:
 		return "Unknown"
 	}
 }
 
 // renderReferenceCheck lexes, parses, and checks a two-module program with the
-// reference implementation and renders the same line the Kitten driver produces.
+// reference implementation and renders the same line the Percy driver produces.
 func renderReferenceCheck(root, imported string) (string, error) {
 	return renderReferenceCheckWithRuntime(root, imported, "")
 }
@@ -246,6 +248,7 @@ func checkerCorpus(t *testing.T) []checkerCase {
 	add("match with enum", "enum Kind { A, B }\nfn f(Kind k) -> int {\n    match (k) {\n        A { return 1; }\n        B { return 2; }\n    }\n}\n")
 	add("recursive union", "union Expr {\n    Num { int value; }\n    Add { Expr left; Expr right; }\n}\nfn eval(Expr e) -> int {\n    match (e) {\n        Num(value) { return value; }\n        Add(left, right) { return eval(left) + eval(right); }\n    }\n}\n")
 	add("array operations", "fn main() {\n    int[] values = new int[3];\n    values[0] = 1;\n    values[0] += 2;\n    values[0]++;\n    int total = length(values);\n    int[][] grid = new int[][2];\n    grid[0] = new int[1];\n}\n")
+	add("array push", "fn main() {\n    int[] values = new int[0];\n    int first = push(values, 1);\n    int second = push(values, 2);\n    string[] names = new string[0];\n    push(names, \"x\");\n    bool[] flags = new bool[0];\n    push(flags, true);\n    byte[] bytes = new byte[0];\n    push(bytes, byte_from_int(65));\n    float[] reals = new float[0];\n    push(reals, 1.5);\n    print(first, second, length(values));\n}\n")
 	add("map operations", "fn main() {\n    map[string]int table = new map[string]int;\n    table[\"a\"] = 1;\n    table[\"a\"] += 2;\n    int v = table[\"a\"];\n    bool present = has(table, \"a\");\n    int n = length(table);\n}\n")
 	add("string operations", "fn main() {\n    string s = \"hello\";\n    int n = length(s);\n    int b = s[0];\n    string t = substring(s, 1, 2);\n    bool same = s == \"hello\";\n}\n")
 	add("builtins", "fn main() {\n    print(1, 2.5, true, \"x\");\n    eprint(1, 2.5, true, \"x\");\n    print(length(new int[1]));\n    print(read_file(\"x\") == \"\");\n    print(length(argv()), argv()[0]);\n}\n")
@@ -705,6 +708,16 @@ fn main() {
 		"fn f() { while (\"a\") {} }\n",
 		"fn f() { for (; 1; ) {} }\n",
 
+		// Push.
+		"fn f() { int x = 1; push(x, 1); }\n",
+		"fn f() { int[] v = new int[0]; push(v, \"x\"); }\n",
+		"fn f() { int[] v = new int[0]; push(v); }\n",
+		"fn f() { string[] v = new string[0]; push(v, 1); }\n",
+
+		// Loop control.
+		"fn f() { break; }\n",
+		"fn f() { continue; }\n",
+
 		// Returns.
 		"fn f() { return 1; }\n",
 		"fn f() -> int { return; }\n",
@@ -1121,41 +1134,41 @@ fn main() {
 	addModules("root malformed with valid import", "fn broken( {\n", "fn ok() {}\n")
 
 	// Every fixture and self-hosted source, checked as the root module.
-	inputs, err := filepath.Glob(filepath.Join("..", "..", "tests", "*.ktn"))
+	inputs, err := filepath.Glob(filepath.Join("..", "..", "tests", "*.pcy"))
 	if err != nil {
 		t.Fatalf("globbing fixtures: %v", err)
 	}
 	inputs = append(inputs,
-		filepath.Join("..", "..", "tests", "modules", "main.ktn"),
-		filepath.Join("..", "..", "tests", "modules", "geometry.ktn"),
-		filepath.Join("..", "..", "tests", "modules", "util", "text.ktn"),
-		filepath.Join("..", "..", "selfhost", "parse.ktn"),
-		filepath.Join("..", "..", "selfhost", "check.ktn"),
-		filepath.Join("..", "..", "selfhost", "lexer", "tokens.ktn"),
-		filepath.Join("..", "..", "selfhost", "lexer", "lexer.ktn"),
-		filepath.Join("..", "..", "selfhost", "lexer", "main.ktn"),
-		filepath.Join("..", "..", "selfhost", "parser", "ast.ktn"),
-		filepath.Join("..", "..", "selfhost", "parser", "parser.ktn"),
-		filepath.Join("..", "..", "selfhost", "parser", "printer.ktn"),
-		filepath.Join("..", "..", "selfhost", "checker", "model.ktn"),
-		filepath.Join("..", "..", "selfhost", "checker", "state.ktn"),
-		filepath.Join("..", "..", "selfhost", "checker", "expr.ktn"),
-		filepath.Join("..", "..", "selfhost", "checker", "stmt.ktn"),
-		filepath.Join("..", "..", "selfhost", "checker", "prelude.ktn"),
-		filepath.Join("..", "..", "selfhost", "checker", "checker.ktn"),
-		filepath.Join("..", "..", "selfhost", "codegen.ktn"),
-		filepath.Join("..", "..", "selfhost", "codegen", "names.ktn"),
-		filepath.Join("..", "..", "selfhost", "codegen", "output.ktn"),
-		filepath.Join("..", "..", "selfhost", "codegen", "errors.ktn"),
-		filepath.Join("..", "..", "selfhost", "codegen", "expressions.ktn"),
-		filepath.Join("..", "..", "selfhost", "codegen", "literals.ktn"),
-		filepath.Join("..", "..", "selfhost", "codegen", "statements.ktn"),
-		filepath.Join("..", "..", "selfhost", "codegen", "unit.ktn"),
-		filepath.Join("..", "..", "selfhost", "codegen", "declarations.ktn"),
-		filepath.Join("..", "..", "selfhost", "declarations.ktn"),
-		filepath.Join("..", "..", "selfhost", "expressions.ktn"),
-		filepath.Join("..", "..", "selfhost", "functions.ktn"),
-		filepath.Join("..", "..", "selfhost", "unit.ktn"),
+		filepath.Join("..", "..", "tests", "modules", "main.pcy"),
+		filepath.Join("..", "..", "tests", "modules", "geometry.pcy"),
+		filepath.Join("..", "..", "tests", "modules", "util", "text.pcy"),
+		filepath.Join("..", "..", "selfhost", "parse.pcy"),
+		filepath.Join("..", "..", "selfhost", "check.pcy"),
+		filepath.Join("..", "..", "selfhost", "lexer", "tokens.pcy"),
+		filepath.Join("..", "..", "selfhost", "lexer", "lexer.pcy"),
+		filepath.Join("..", "..", "selfhost", "lexer", "main.pcy"),
+		filepath.Join("..", "..", "selfhost", "parser", "ast.pcy"),
+		filepath.Join("..", "..", "selfhost", "parser", "parser.pcy"),
+		filepath.Join("..", "..", "selfhost", "parser", "printer.pcy"),
+		filepath.Join("..", "..", "selfhost", "checker", "model.pcy"),
+		filepath.Join("..", "..", "selfhost", "checker", "state.pcy"),
+		filepath.Join("..", "..", "selfhost", "checker", "expr.pcy"),
+		filepath.Join("..", "..", "selfhost", "checker", "stmt.pcy"),
+		filepath.Join("..", "..", "selfhost", "checker", "prelude.pcy"),
+		filepath.Join("..", "..", "selfhost", "checker", "checker.pcy"),
+		filepath.Join("..", "..", "selfhost", "codegen.pcy"),
+		filepath.Join("..", "..", "selfhost", "codegen", "names.pcy"),
+		filepath.Join("..", "..", "selfhost", "codegen", "output.pcy"),
+		filepath.Join("..", "..", "selfhost", "codegen", "errors.pcy"),
+		filepath.Join("..", "..", "selfhost", "codegen", "expressions.pcy"),
+		filepath.Join("..", "..", "selfhost", "codegen", "literals.pcy"),
+		filepath.Join("..", "..", "selfhost", "codegen", "statements.pcy"),
+		filepath.Join("..", "..", "selfhost", "codegen", "unit.pcy"),
+		filepath.Join("..", "..", "selfhost", "codegen", "declarations.pcy"),
+		filepath.Join("..", "..", "selfhost", "declarations.pcy"),
+		filepath.Join("..", "..", "selfhost", "expressions.pcy"),
+		filepath.Join("..", "..", "selfhost", "functions.pcy"),
+		filepath.Join("..", "..", "selfhost", "unit.pcy"),
 	)
 	sort.Strings(inputs)
 	for _, input := range inputs {
@@ -1215,12 +1228,12 @@ func describeCheckerCase(testCase checkerCase) string {
 	return fmt.Sprintf("%s %q", testCase.name, root)
 }
 
-// TestKittenCheckerMatchesReference runs the whole corpus through both
+// TestPercyCheckerMatchesReference runs the whole corpus through both
 // implementations and compares their rendered results.
-func TestKittenCheckerMatchesReference(t *testing.T) {
+func TestPercyCheckerMatchesReference(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenChecker(t)
+	executable := buildPercyChecker(t)
 	directory := t.TempDir()
 	cases := checkerCorpus(t)
 	t.Logf("checker differential corpus: %d inputs", len(cases))
@@ -1234,7 +1247,7 @@ func TestKittenCheckerMatchesReference(t *testing.T) {
 			continue
 		}
 
-		got, err := runKittenChecker(executable, directory, testCase.root, testCase.imported)
+		got, err := runPercyChecker(executable, directory, testCase.root, testCase.imported)
 		if err != nil {
 			t.Errorf("%s: %v", describeCheckerCase(testCase), err)
 			continue
@@ -1254,7 +1267,7 @@ func TestKittenCheckerMatchesReference(t *testing.T) {
 			continue
 		}
 
-		t.Errorf("checker mismatch for %s\n--- reference ---\n%s--- Kitten ---\n%s", describeCheckerCase(testCase), want, got)
+		t.Errorf("checker mismatch for %s\n--- reference ---\n%s--- Percy ---\n%s", describeCheckerCase(testCase), want, got)
 	}
 
 	t.Logf("checker corpus: %d inputs, %d byte-identical, %d compared without text (non-ASCII)", len(cases), exact, loose)
@@ -1270,7 +1283,7 @@ func compareNonASCIIChecker(t *testing.T, testCase checkerCase, want, got string
 	wantFields := strings.Fields(strings.TrimSuffix(want, "\n"))
 	gotFields := strings.Fields(strings.TrimSuffix(got, "\n"))
 	if len(wantFields) < 2 || len(gotFields) < 2 {
-		t.Errorf("unexpected rendering for %s\n--- reference ---\n%s--- Kitten ---\n%s", describeCheckerCase(testCase), want, got)
+		t.Errorf("unexpected rendering for %s\n--- reference ---\n%s--- Percy ---\n%s", describeCheckerCase(testCase), want, got)
 		return
 	}
 	if wantFields[0] != gotFields[0] {
@@ -1292,17 +1305,17 @@ func compareNonASCIIChecker(t *testing.T, testCase checkerCase, want, got string
 		return
 	}
 	if want != got {
-		t.Errorf("summary differs for %s\n--- reference ---\n%s--- Kitten ---\n%s", describeCheckerCase(testCase), want, got)
+		t.Errorf("summary differs for %s\n--- reference ---\n%s--- Percy ---\n%s", describeCheckerCase(testCase), want, got)
 	}
 }
 
-// TestKittenCheckerOutputFormat pins the driver's output format with explicit
+// TestPercyCheckerOutputFormat pins the driver's output format with explicit
 // expected text, so that a change to the format is caught even if both
 // implementations change together.
-func TestKittenCheckerOutputFormat(t *testing.T) {
+func TestPercyCheckerOutputFormat(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenChecker(t)
+	executable := buildPercyChecker(t)
 	directory := t.TempDir()
 
 	cases := []struct {
@@ -1345,7 +1358,7 @@ func TestKittenCheckerOutputFormat(t *testing.T) {
 	}
 
 	for _, testCase := range cases {
-		got, err := runKittenChecker(executable, directory, testCase.root, testCase.imported)
+		got, err := runPercyChecker(executable, directory, testCase.root, testCase.imported)
 		if err != nil {
 			t.Fatalf("%s: %v", testCase.name, err)
 		}

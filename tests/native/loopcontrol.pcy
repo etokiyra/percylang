@@ -1,0 +1,17 @@
+fn main() {
+    int sum = 0;
+    for (int i = 0; i < 10; i++) {
+        if (i == 3) { continue; }
+        if (i == 7) { break; }
+        sum = sum + i;
+    }
+    print(sum);
+    int n = 0;
+    while (true) {
+        n++;
+        if (n == 3) { continue; }
+        if (n == 5) { break; }
+        print("w", n);
+    }
+    print(n);
+}

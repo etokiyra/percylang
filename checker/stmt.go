@@ -3,7 +3,7 @@ package checker
 import (
 	"fmt"
 
-	"kitten/parser"
+	"percy/parser"
 )
 
 // checkStatements checks a list of statements in the given scope.
@@ -46,6 +46,12 @@ func (c *checker) checkStatement(statement parser.Stmt, scope *Scope) error {
 
 	case *parser.ReturnStmt:
 		return c.checkReturn(s, scope)
+
+	case *parser.BreakStmt:
+		return c.checkLoopControl("break", s.At)
+
+	case *parser.ContinueStmt:
+		return c.checkLoopControl("continue", s.At)
 
 	case *parser.MatchStmt:
 		return c.checkMatch(s, scope)
@@ -128,7 +134,10 @@ func (c *checker) checkWhile(statement *parser.WhileStmt, scope *Scope) error {
 	if err := c.checkCondition(statement.Condition, scope, "while"); err != nil {
 		return err
 	}
-	return c.checkBlock(statement.Body, scope)
+	c.loopDepth++
+	err := c.checkBlock(statement.Body, scope)
+	c.loopDepth--
+	return err
 }
 
 // checkFor checks a C-style for loop.
@@ -175,7 +184,18 @@ func (c *checker) checkFor(statement *parser.ForStmt, scope *Scope) error {
 		}
 	}
 
-	return c.checkBlock(statement.Body, loopScope)
+	c.loopDepth++
+	err := c.checkBlock(statement.Body, loopScope)
+	c.loopDepth--
+	return err
+}
+
+// checkLoopControl rejects break and continue outside a loop.
+func (c *checker) checkLoopControl(keyword string, at parser.Position) error {
+	if c.loopDepth == 0 {
+		return c.errorAt(InvalidLoopControl, at, "%s is only valid inside a loop", keyword)
+	}
+	return nil
 }
 
 // checkReturn checks a return statement against the enclosing function's
@@ -312,6 +332,10 @@ func statementReturns(statement parser.Stmt) bool {
 	switch s := statement.(type) {
 	case *parser.ReturnStmt:
 		return s != nil
+	case *parser.BreakStmt:
+		return false
+	case *parser.ContinueStmt:
+		return false
 	case *parser.BlockStmt:
 		return blockReturns(s)
 	case *parser.IfStmt:

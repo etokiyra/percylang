@@ -1,0 +1,5 @@
+fn main() {
+    map[string]int ages = new map[string]int;
+    ages["alice"] = 30;
+    print(ages["missing"]);
+}

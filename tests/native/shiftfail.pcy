@@ -1,0 +1,4 @@
+fn main() {
+    int n = 64;
+    print(1 << n);
+}

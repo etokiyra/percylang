@@ -1,6 +1,6 @@
 package checker
 
-import "kitten/parser"
+import "percy/parser"
 
 // Kind classifies a semantic type.
 type Kind int
@@ -43,7 +43,7 @@ const (
 	KindMap
 )
 
-// Type is a resolved Kitten type.
+// Type is a resolved Percy type.
 //
 // Primitive types are the package-level singletons below. Each struct
 // declaration produces exactly one *Type that is shared by every reference to

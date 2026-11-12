@@ -1,0 +1,568 @@
+// purr/cli.pcy - the Percy-written purr command surface.
+//
+// It dispatches help, new, build, and run. build and run link the in-process
+// compiler modules; run compiles to a temporary executable and executes it.
+
+import "build.pcy";
+import "new.pcy";
+import "project.pcy";
+
+fn usage_text() -> string {
+    return "Percy compiler\n" +
+        "\n" +
+        "Usage:\n" +
+        "  purr build <file.pcy> [-o <output>]   Compile a Percy source file\n" +
+        "  purr run <file.pcy>                   Compile and run a Percy source file\n" +
+        "  purr new [--lib] <name>               Create a new project\n" +
+        "  purr help                             Show this help\n" +
+        "\n" +
+        "Options:\n" +
+        "  -o, --output <path>   Write the executable to <path> (build only)\n" +
+        "\n" +
+        "Builds use the Percy-native backend and need no C compiler.\n" +
+        "Compiled programs carry the Percy runtime and garbage collector.";
+}
+
+fn quote_argument(string value) -> string {
+    string result = "\"";
+    int index = 0;
+    int size = length(value);
+    while (index < size) {
+        int octet = value[index];
+        if (octet == 34) {
+            result = result + "\\\"";
+        } else if (octet == 92) {
+            result = result + "\\\\";
+        } else if (octet == 10) {
+            result = result + "\\n";
+        } else if (octet == 9) {
+            result = result + "\\t";
+        } else if (octet == 13) {
+            result = result + "\\r";
+        } else if (octet < 32 || octet >= 127) {
+            result = result + "\\x" +
+                substring("0123456789abcdef", octet / 16, octet / 16 + 1) +
+                substring("0123456789abcdef", octet % 16, octet % 16 + 1);
+        } else {
+            result = result + substring(value, index, index + 1);
+        }
+        index++;
+    }
+    return result + "\"";
+}
+
+fn print_usage_to_stderr() {
+    eprint(usage_text());
+}
+
+fn decimal(int value) -> string {
+    if (value == 0) {
+        return "0";
+    }
+    string result = "";
+    while (value > 0) {
+        int digit = value % 10;
+        result = substring("0123456789", digit, digit + 1) + result;
+        value = value / 10;
+    }
+    return result;
+}
+
+fn starts_with(string value, string prefix) -> bool {
+    if (length(prefix) > length(value)) {
+        return false;
+    }
+    return substring(value, 0, length(prefix)) == prefix;
+}
+
+fn ends_with(string value, string suffix) -> bool {
+    if (length(suffix) > length(value)) {
+        return false;
+    }
+    return substring(value, length(value) - length(suffix), length(value)) == suffix;
+}
+
+struct ParsedCommand {
+    string source;
+    string output;
+    bool have_source;
+    bool have_output;
+    bool native;
+    bool valid;
+    string error;
+}
+
+fn parse_command_arguments(string[] arguments, int count) -> ParsedCommand {
+    string source = "";
+    string output = "";
+    int positional_count = 0;
+    bool have_source = false;
+    bool have_output = false;
+    bool native = false;
+    bool bad = false;
+    string error = "";
+    int index = 2;
+    while (index < count && !bad) {
+        string argument = arguments[index];
+        if (argument == "-o" || argument == "--output") {
+            have_output = true;
+            if (index + 1 >= count) {
+                bad = true;
+                error = argument + " requires a path";
+            } else {
+                output = arguments[index + 1];
+                index++;
+            }
+        } else if (starts_with(argument, "-o=")) {
+            have_output = true;
+            output = substring(argument, 3, length(argument));
+        } else if (starts_with(argument, "--output=")) {
+            have_output = true;
+            output = substring(argument, 9, length(argument));
+        } else if (argument == "--native") {
+            native = true;
+        } else if (argument == "--") {
+            index++;
+            while (index < count) {
+                positional_count++;
+                if (positional_count == 1) {
+                    source = arguments[index];
+                    have_source = true;
+                }
+                index++;
+            }
+        } else if (length(argument) > 1 && argument[0] == 45) { // '-'
+            bad = true;
+            error = "unknown option " + quote_argument(argument);
+        } else {
+            positional_count++;
+            if (positional_count == 1) {
+                source = arguments[index];
+                have_source = true;
+            }
+        }
+        index++;
+    }
+
+    if (!bad) {
+        if (positional_count == 0) {
+            bad = true;
+            error = "missing source file";
+        } else if (positional_count > 1) {
+            bad = true;
+            error = "expected one source file, got " + decimal(positional_count);
+        }
+    }
+    return ParsedCommand {
+        source = source,
+        output = output,
+        have_source = have_source,
+        have_output = have_output,
+        native = native,
+        valid = !bad,
+        error = error
+    };
+}
+
+fn run_build(string[] arguments, int count) {
+    ParsedCommand parsed = parse_command_arguments(arguments, count);
+    if (!parsed.valid) {
+        if (!parsed.have_source && !parsed.have_output && path_exists("purr.toml")) {
+            run_project_build();
+            return;
+        }
+        eprint("purr build: " + parsed.error);
+        eprint("");
+        print_usage_to_stderr();
+        exit(2);
+    }
+    if (!ends_with(parsed.source, ".pcy")) {
+        eprint("purr build: " + quote_argument(parsed.source) +
+            " is not a Percy source file (expected a .pcy file)");
+        exit(2);
+    }
+    string output = parsed.output;
+    if (output == "") {
+        output = build_default_output(parsed.source);
+    }
+
+    BuildResult result = build_native(parsed.source, output);
+    match (result) {
+        Ok(warnings, notes) {
+            if (warnings != "") {
+                eprint(warnings);
+            }
+            if (notes != "") {
+                eprint(notes);
+            }
+            print("built", output);
+            exit(0);
+        }
+        Failed(message, output_text, notes) {
+            eprint(message);
+            if (output_text != "") {
+                eprint(output_text);
+            }
+            if (notes != "") {
+                eprint(notes);
+            }
+            exit(1);
+        }
+    }
+}
+
+fn path_exists(string path) -> bool {
+    match (try_file_info(path)) {
+        Ok(is_file, is_directory, is_symlink, executable, size) {
+            return true;
+        }
+        Missing {
+            return false;
+        }
+        Failed(message) {
+            return false;
+        }
+    }
+}
+
+// ProjectTarget records the result of preparing the project's target directory.
+// created is true only when this invocation created it, so a failed build can
+// remove an otherwise empty target it introduced without touching a directory
+// that already existed.
+struct ProjectTarget {
+    bool created;
+    string error;
+}
+
+fn prepare_project_target(string target) -> ProjectTarget {
+    match (try_file_info(target)) {
+        Ok(is_file, is_directory, is_symlink, executable, size) {
+            if (is_directory) {
+                return ProjectTarget { created = false, error = "" };
+            }
+            return ProjectTarget { created = false, error = "target is not a directory" };
+        }
+        Missing {
+            match (try_create_directory(target)) {
+                Ok {
+                    return ProjectTarget { created = true, error = "" };
+                }
+                Failed(message) {
+                    return ProjectTarget { created = false, error = message };
+                }
+            }
+        }
+        Failed(message) {
+            return ProjectTarget { created = false, error = message };
+        }
+    }
+}
+
+// cleanup_failed_project removes a partial output the failed build introduced,
+// and removes a target directory this invocation created once it is empty. A
+// pre-existing output or target is never removed.
+fn cleanup_failed_project(string output, bool output_existed, string target, bool target_created) -> string {
+    string notes = "";
+    if (!output_existed && path_exists(output)) {
+        match (try_remove(output)) {
+            Ok {}
+            Failed(message) {
+                notes = "       note: could not remove " + output + ": " + message;
+            }
+        }
+    }
+    if (target_created) {
+        match (try_remove(target)) {
+            Ok {}
+            Failed(message) {
+                if (notes != "") {
+                    notes = notes + "\n";
+                }
+                notes = notes + "       note: could not remove " + target + ": " + message;
+            }
+        }
+    }
+    return notes;
+}
+
+fn report_build_messages(string warnings, string notes) {
+    if (warnings != "") {
+        eprint(warnings);
+    }
+    if (notes != "") {
+        eprint(notes);
+    }
+}
+
+fn report_build_failure(string message, string output_text, string notes) {
+    eprint(message);
+    if (output_text != "") {
+        eprint(output_text);
+    }
+    if (notes != "") {
+        eprint(notes);
+    }
+}
+
+fn run_project_build() {
+    match (discover_project()) {
+        Failed(message) {
+            eprint("purr build: " + message);
+            exit(1);
+        }
+        Library(name, source) {
+            eprint("purr build: library builds are not implemented yet");
+            exit(1);
+        }
+        Binary(name, source, target, output) {
+            ProjectTarget prepared = prepare_project_target(target);
+            if (prepared.error != "") {
+                eprint("purr build: " + prepared.error);
+                exit(1);
+            }
+            bool output_existed = path_exists(output);
+            match (build_native(source, output)) {
+                Ok(warnings, notes) {
+                    report_build_messages(warnings, notes);
+                    print("built", output);
+                    exit(0);
+                }
+                Failed(message, output_text, notes) {
+                    report_build_failure(message, output_text, notes);
+                    string cleanup = cleanup_failed_project(output, output_existed,
+                        target, prepared.created);
+                    if (cleanup != "") {
+                        eprint(cleanup);
+                    }
+                    exit(1);
+                }
+            }
+        }
+    }
+}
+
+fn run_project_run() {
+    match (discover_project()) {
+        Failed(message) {
+            eprint("purr run: " + message);
+            exit(1);
+        }
+        Library(name, source) {
+            eprint("purr run: library projects cannot be run");
+            exit(1);
+        }
+        Binary(name, source, target, output) {
+            ProjectTarget prepared = prepare_project_target(target);
+            if (prepared.error != "") {
+                eprint("purr run: " + prepared.error);
+                exit(1);
+            }
+            bool output_existed = path_exists(output);
+            match (build_native(source, output)) {
+                Ok(warnings, notes) {
+                    report_build_messages(warnings, notes);
+                }
+                Failed(message, output_text, notes) {
+                    report_build_failure(message, output_text, notes);
+                    string cleanup = cleanup_failed_project(output, output_existed,
+                        target, prepared.created);
+                    if (cleanup != "") {
+                        eprint(cleanup);
+                    }
+                    exit(1);
+                }
+            }
+            match (try_run(output, new string[0])) {
+                Ok(status) {
+                    exit(status);
+                }
+                Failed(message) {
+                    eprint("purr run: " + message);
+                    exit(1);
+                }
+            }
+        }
+    }
+}
+
+fn cleanup_run_notes(string executable, string directory) -> string {
+    string notes = "";
+    if (path_exists(executable)) {
+        match (try_remove(executable)) {
+            Ok {}
+            Failed(message) {
+                notes = "       note: could not remove " + executable + ": " + message;
+            }
+        }
+    }
+    if (notes != "") {
+        notes = notes + "\n";
+    }
+    match (try_remove(directory)) {
+        Ok {}
+        Failed(message) {
+            notes = notes + "       note: could not remove " + directory + ": " + message;
+        }
+    }
+    return notes;
+}
+
+fn finish_run(string executable, string directory, int status) {
+    string notes = cleanup_run_notes(executable, directory);
+    if (notes != "") {
+        eprint(notes);
+    }
+    exit(status);
+}
+
+fn run_run(string[] arguments, int count) {
+    ParsedCommand parsed = parse_command_arguments(arguments, count);
+    if (!parsed.valid) {
+        if (!parsed.have_source && !parsed.have_output && path_exists("purr.toml")) {
+            run_project_run();
+            return;
+        }
+        eprint("purr run: " + parsed.error);
+        eprint("");
+        print_usage_to_stderr();
+        exit(2);
+    }
+    if (parsed.output != "") {
+        eprint("purr run: -o is not supported; run compiles to a temporary executable");
+        exit(2);
+    }
+    if (!ends_with(parsed.source, ".pcy")) {
+        eprint("purr run: " + quote_argument(parsed.source) +
+            " is not a Percy source file (expected a .pcy file)");
+        exit(2);
+    }
+
+    match (try_create_temp_directory("purr-run")) {
+        Failed(message) {
+            eprint("purr run: " + message);
+            exit(1);
+        }
+        Ok(directory) {
+            string executable = directory + "/program";
+            BuildResult result = build_native(parsed.source, executable);
+            match (result) {
+                Ok(warnings, notes) {
+                    if (warnings != "") {
+                        eprint(warnings);
+                    }
+                    if (notes != "") {
+                        eprint(notes);
+                    }
+                    match (try_run(executable, new string[0])) {
+                        Ok(status) {
+                            finish_run(executable, directory, status);
+                        }
+                        Failed(message) {
+                            eprint("purr run: " + message);
+                            finish_run(executable, directory, 1);
+                        }
+                    }
+                }
+                Failed(message, output_text, notes) {
+                    eprint(message);
+                    if (output_text != "") {
+                        eprint(output_text);
+                    }
+                    if (notes != "") {
+                        eprint(notes);
+                    }
+                    finish_run(executable, directory, 1);
+                }
+            }
+        }
+    }
+}
+
+fn new_usage_error() {
+    eprint("usage: purr new [--lib] <name>");
+    exit(2);
+}
+
+fn run_new(string[] arguments, int count) {
+    bool library = false;
+    bool have_name = false;
+    bool want_help = false;
+    bool bad = false;
+    string name = "";
+
+    int index = 2;
+    while (index < count) {
+        string argument = arguments[index];
+        if (argument == "-h" || argument == "--help") {
+            want_help = true;
+        } else if (argument == "--lib") {
+            if (library) {
+                bad = true;
+            } else {
+                library = true;
+            }
+        } else if (length(argument) > 0 && argument[0] == 45) { // '-'
+            bad = true;
+        } else if (have_name) {
+            bad = true;
+        } else {
+            name = argument;
+            have_name = true;
+        }
+        index++;
+    }
+
+    // Help wins over every other argument, matching the top-level help flags,
+    // which ignore extra arguments.
+    if (want_help) {
+        print(new_help_text());
+        exit(0);
+    }
+
+    if (bad || !have_name) {
+        new_usage_error();
+    }
+
+    match (new_project(name, library)) {
+        Created(message) {
+            eprint(message);
+        }
+        Failed(message) {
+            eprint(message);
+            exit(1);
+        }
+    }
+}
+
+public fn run_cli() {
+    string[] arguments = argv();
+    int count = length(arguments);
+
+    if (count <= 1) {
+        print_usage_to_stderr();
+        exit(2);
+    }
+
+    string command = arguments[1];
+    if (command == "help" || command == "-h" || command == "--help") {
+        print(usage_text());
+        exit(0);
+    }
+    if (command == "build") {
+        run_build(arguments, count);
+        return;
+    }
+    if (command == "new") {
+        run_new(arguments, count);
+        return;
+    }
+    if (command == "run") {
+        run_run(arguments, count);
+        return;
+    }
+
+    eprint("purr: unknown command " + quote_argument(command));
+    eprint("");
+    print_usage_to_stderr();
+    exit(2);
+}

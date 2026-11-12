@@ -1,19 +1,19 @@
 package main
 
-// Differential testing for the Kitten-written lexer in selfhost/lexer.
+// Differential testing for the Percy-written lexer in selfhost/lexer.
 //
 // This file lives in the CLI package because the harness needs the same build
 // pipeline and toolchain probe as the other integration tests: it compiles
-// selfhost/lexer/main.ktn with the bootstrap compiler and runs the resulting
+// selfhost/lexer/main.pcy with the bootstrap compiler and runs the resulting
 // executable once per corpus input.
 //
-// The reference is the Go lexer in kitten/lexer, which remains the production
-// front end. The Kitten lexer is expected to agree with it exactly on token
+// The reference is the Go lexer in percy/lexer, which remains the production
+// front end. The Percy lexer is expected to agree with it exactly on token
 // kinds, token text, line numbers, and positions for ASCII input. Two
 // differences are expected and are handled here rather than hidden:
 //
 //   - The reference lexer scans a []rune and counts columns in code points; the
-//     Kitten lexer scans bytes and counts columns in bytes, because Kitten
+//     Percy lexer scans bytes and counts columns in bytes, because Percy
 //     strings are byte sequences (SPEC.md 20.6). The harness normalizes the
 //     reference positions from rune columns to byte columns before comparing,
 //     so the comparison is exact wherever the two can be.
@@ -40,55 +40,55 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"kitten/lexer"
+	"percy/lexer"
 )
 
-// kittenLexerProgram is the driver program of the Kitten-written lexer.
-func kittenLexerProgram() string {
-	return filepath.Join("..", "..", "selfhost", "lexer", "main.ktn")
+// percyLexerProgram is the driver program of the Percy-written lexer.
+func percyLexerProgram() string {
+	return filepath.Join("..", "..", "selfhost", "lexer", "main.pcy")
 }
 
-// buildKittenLexer compiles the Kitten lexer and returns the executable path.
-func buildKittenLexer(t *testing.T) string {
+// buildPercyLexer compiles the Percy lexer and returns the executable path.
+func buildPercyLexer(t *testing.T) string {
 	t.Helper()
 
 	requireToolchain(t)
 
-	executable := filepath.Join(t.TempDir(), "kitten-lexer")
+	executable := filepath.Join(t.TempDir(), "percy-lexer")
 	var diagnostics bytes.Buffer
-	if err := buildExecutable(kittenLexerProgram(), executable, &diagnostics); err != nil {
-		t.Fatalf("building the Kitten lexer: %v\n%s", err, diagnostics.String())
+	if err := buildExecutable(percyLexerProgram(), executable, &diagnostics); err != nil {
+		t.Fatalf("building the Percy lexer: %v\n%s", err, diagnostics.String())
 	}
 	if warnings := strings.TrimSpace(diagnostics.String()); warnings != "" {
-		t.Fatalf("C compiler diagnostics while building the Kitten lexer:\n%s", warnings)
+		t.Fatalf("C compiler diagnostics while building the Percy lexer:\n%s", warnings)
 	}
 	return executable
 }
 
-// kittenToken is one token reported by the Kitten lexer.
-type kittenToken struct {
+// percyToken is one token reported by the Percy lexer.
+type percyToken struct {
 	kind   string
 	text   string
 	line   int
 	column int
 }
 
-// kittenError is the lexical error reported by the Kitten lexer.
-type kittenError struct {
+// percyError is the lexical error reported by the Percy lexer.
+type percyError struct {
 	line    int
 	column  int
 	message string
 }
 
-// runKittenLexer writes source to input.txt in directory and runs the Kitten
+// runPercyLexer writes source to input.txt in directory and runs the Percy
 // lexer there, returning its stdout. A lexical error is reported on stdout and
 // is not a process failure, so only an actual crash or a write to stderr is an
 // error here.
 //
-// The Kitten runtime does not expose command-line arguments, so the driver
+// The Percy runtime does not expose command-line arguments, so the driver
 // reads the fixed relative path "input.txt" and the working directory selects
 // the input.
-func runKittenLexer(executable, directory, source string) ([]byte, error) {
+func runPercyLexer(executable, directory, source string) ([]byte, error) {
 	if err := os.WriteFile(filepath.Join(directory, "input.txt"), []byte(source), 0o644); err != nil {
 		return nil, fmt.Errorf("writing input.txt: %v", err)
 	}
@@ -99,29 +99,29 @@ func runKittenLexer(executable, directory, source string) ([]byte, error) {
 	command.Stdout = &stdout
 	command.Stderr = &stderr
 	if err := command.Run(); err != nil {
-		return nil, fmt.Errorf("running the Kitten lexer: %v (stderr: %s)", err, stderr.String())
+		return nil, fmt.Errorf("running the Percy lexer: %v (stderr: %s)", err, stderr.String())
 	}
 	if stderr.Len() != 0 {
-		return nil, fmt.Errorf("the Kitten lexer wrote to stderr: %s", stderr.String())
+		return nil, fmt.Errorf("the Percy lexer wrote to stderr: %s", stderr.String())
 	}
 	return stdout.Bytes(), nil
 }
 
-// parseKittenOutput parses the driver's output format:
+// parsePercyOutput parses the driver's output format:
 //
 //	token <kind> <line> <column> <byte-length> <text>
 //	error <line> <column> <message>
 //
 // The text is last so that it may contain spaces, and its declared byte length
 // is checked against the bytes actually present.
-func parseKittenOutput(output []byte) ([]kittenToken, *kittenError, error) {
+func parsePercyOutput(output []byte) ([]percyToken, *percyError, error) {
 	text := string(output)
 	if text != "" && !strings.HasSuffix(text, "\n") {
 		return nil, nil, fmt.Errorf("output does not end with a newline: %q", text)
 	}
 
-	var tokens []kittenToken
-	var lexError *kittenError
+	var tokens []percyToken
+	var lexError *percyError
 	for _, line := range strings.Split(strings.TrimSuffix(text, "\n"), "\n") {
 		switch {
 		case line == "":
@@ -141,7 +141,7 @@ func parseKittenOutput(output []byte) ([]kittenToken, *kittenError, error) {
 			if len(fields[5]) != declared {
 				return nil, nil, fmt.Errorf("token line %q declares %d bytes of text but has %d", line, declared, len(fields[5]))
 			}
-			tokens = append(tokens, kittenToken{kind: fields[1], text: fields[5], line: lineNumber, column: column})
+			tokens = append(tokens, percyToken{kind: fields[1], text: fields[5], line: lineNumber, column: column})
 
 		case strings.HasPrefix(line, "error "):
 			fields := strings.SplitN(line, " ", 4)
@@ -156,7 +156,7 @@ func parseKittenOutput(output []byte) ([]kittenToken, *kittenError, error) {
 			if lexError != nil {
 				return nil, nil, fmt.Errorf("more than one error line, second is %q", line)
 			}
-			lexError = &kittenError{line: lineNumber, column: column, message: fields[3]}
+			lexError = &percyError{line: lineNumber, column: column, message: fields[3]}
 
 		default:
 			return nil, nil, fmt.Errorf("unrecognized output line %q", line)
@@ -354,7 +354,7 @@ func lexerCorpus(t *testing.T) []lexerCase {
 
 	// String literals: every supported escape, and every error form.
 	stringLiterals := []string{
-		`""`, `"hello"`, `"hello, kitten"`, `"a"`, `" "`, `"  "`, `"a b"`,
+		`""`, `"hello"`, `"hello, percy"`, `"a"`, `" "`, `"  "`, `"a b"`,
 		`"\n"`, `"\t"`, `"\""`, `"\\"`, `"a\nb\tc\"d\\e"`, `"\n\n\n"`, `"\\\\"`, `"\\n"`,
 		`"a\qb"`, `"\q"`, `"a\0b"`, `"a\ab"`, `"a\'b"`, `"a\ b"`,
 		`"abc`, `"abc\`, `"\`, `"""`, `"\"`, `"\\`, `"a\`,
@@ -424,18 +424,18 @@ func lexerCorpus(t *testing.T) []lexerCase {
 
 	// Every fixture in tests/, so that the comparison also covers realistic
 	// multi-line programs, including the multi-file module fixture, plus the
-	// Kitten lexer's own sources, which are the most realistic input there is.
-	fixtures, err := filepath.Glob(filepath.Join("..", "..", "tests", "*.ktn"))
+	// Percy lexer's own sources, which are the most realistic input there is.
+	fixtures, err := filepath.Glob(filepath.Join("..", "..", "tests", "*.pcy"))
 	if err != nil {
 		t.Fatalf("globbing fixtures: %v", err)
 	}
 	fixtures = append(fixtures,
-		filepath.Join("..", "..", "tests", "modules", "main.ktn"),
-		filepath.Join("..", "..", "tests", "modules", "geometry.ktn"),
-		filepath.Join("..", "..", "tests", "modules", "util", "text.ktn"),
-		filepath.Join("..", "..", "selfhost", "lexer", "tokens.ktn"),
-		filepath.Join("..", "..", "selfhost", "lexer", "lexer.ktn"),
-		filepath.Join("..", "..", "selfhost", "lexer", "main.ktn"),
+		filepath.Join("..", "..", "tests", "modules", "main.pcy"),
+		filepath.Join("..", "..", "tests", "modules", "geometry.pcy"),
+		filepath.Join("..", "..", "tests", "modules", "util", "text.pcy"),
+		filepath.Join("..", "..", "selfhost", "lexer", "tokens.pcy"),
+		filepath.Join("..", "..", "selfhost", "lexer", "lexer.pcy"),
+		filepath.Join("..", "..", "selfhost", "lexer", "main.pcy"),
 	)
 	sort.Strings(fixtures)
 	for _, fixture := range fixtures {
@@ -462,8 +462,8 @@ func describeCase(testCase lexerCase) string {
 	return fmt.Sprintf("%s %q", testCase.name, source)
 }
 
-// compareLexers checks the Kitten lexer's result against the reference lexer's.
-func compareLexers(t *testing.T, testCase lexerCase, kittenTokens []kittenToken, kittenError *kittenError) {
+// compareLexers checks the Percy lexer's result against the reference lexer's.
+func compareLexers(t *testing.T, testCase lexerCase, percyTokens []percyToken, percyError *percyError) {
 	t.Helper()
 
 	referenceTokens, referenceError, err := referenceLexer(testCase.source)
@@ -479,43 +479,43 @@ func compareLexers(t *testing.T, testCase lexerCase, kittenTokens []kittenToken,
 	compareMessage := asciiOnly
 
 	if referenceError != nil {
-		if kittenError == nil {
-			t.Errorf("%s: the reference lexer failed at %d:%d (%s) but the Kitten lexer succeeded with %d tokens",
-				describeCase(testCase), referenceError.Line, referenceError.Column, referenceError.Message, len(kittenTokens))
+		if percyError == nil {
+			t.Errorf("%s: the reference lexer failed at %d:%d (%s) but the Percy lexer succeeded with %d tokens",
+				describeCase(testCase), referenceError.Line, referenceError.Column, referenceError.Message, len(percyTokens))
 			return
 		}
-		if len(kittenTokens) != 0 {
-			t.Errorf("%s: the Kitten lexer reported a lexical error together with %d tokens",
-				describeCase(testCase), len(kittenTokens))
+		if len(percyTokens) != 0 {
+			t.Errorf("%s: the Percy lexer reported a lexical error together with %d tokens",
+				describeCase(testCase), len(percyTokens))
 		}
-		if kittenError.line != referenceError.Line || kittenError.column != referenceError.Column {
-			t.Errorf("%s: the Kitten lexer failed at %d:%d, want %d:%d",
-				describeCase(testCase), kittenError.line, kittenError.column, referenceError.Line, referenceError.Column)
+		if percyError.line != referenceError.Line || percyError.column != referenceError.Column {
+			t.Errorf("%s: the Percy lexer failed at %d:%d, want %d:%d",
+				describeCase(testCase), percyError.line, percyError.column, referenceError.Line, referenceError.Column)
 		}
-		if compareMessage && kittenError.message != referenceError.Message {
-			t.Errorf("%s: the Kitten lexer message is %q, want %q",
-				describeCase(testCase), kittenError.message, referenceError.Message)
+		if compareMessage && percyError.message != referenceError.Message {
+			t.Errorf("%s: the Percy lexer message is %q, want %q",
+				describeCase(testCase), percyError.message, referenceError.Message)
 		}
 		return
 	}
 
-	if kittenError != nil {
-		t.Errorf("%s: the Kitten lexer failed at %d:%d (%s) but the reference lexer succeeded with %d tokens",
-			describeCase(testCase), kittenError.line, kittenError.column, kittenError.message, len(referenceTokens))
+	if percyError != nil {
+		t.Errorf("%s: the Percy lexer failed at %d:%d (%s) but the reference lexer succeeded with %d tokens",
+			describeCase(testCase), percyError.line, percyError.column, percyError.message, len(referenceTokens))
 		return
 	}
 
-	if len(kittenTokens) != len(referenceTokens) {
-		t.Errorf("%s: the Kitten lexer produced %d tokens, want %d",
-			describeCase(testCase), len(kittenTokens), len(referenceTokens))
+	if len(percyTokens) != len(referenceTokens) {
+		t.Errorf("%s: the Percy lexer produced %d tokens, want %d",
+			describeCase(testCase), len(percyTokens), len(referenceTokens))
 	}
 
-	shared := len(kittenTokens)
+	shared := len(percyTokens)
 	if len(referenceTokens) < shared {
 		shared = len(referenceTokens)
 	}
 	for index := 0; index < shared; index++ {
-		got := kittenTokens[index]
+		got := percyTokens[index]
 		want := referenceTokens[index]
 		if got.kind != want.kind || got.line != want.line || got.column != want.column {
 			t.Errorf("%s: token %d is %s at %d:%d, want %s at %d:%d",
@@ -539,39 +539,39 @@ func isASCII(source string) bool {
 	return true
 }
 
-// TestKittenLexerMatchesReference runs the whole corpus through both lexers and
-// compares the results. It is the central check that the Kitten-written lexer
+// TestPercyLexerMatchesReference runs the whole corpus through both lexers and
+// compares the results. It is the central check that the Percy-written lexer
 // reproduces the reference lexer's behavior.
-func TestKittenLexerMatchesReference(t *testing.T) {
+func TestPercyLexerMatchesReference(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenLexer(t)
+	executable := buildPercyLexer(t)
 	directory := t.TempDir()
 	cases := lexerCorpus(t)
 	t.Logf("differential corpus: %d inputs", len(cases))
 
 	for _, testCase := range cases {
-		output, err := runKittenLexer(executable, directory, testCase.source)
+		output, err := runPercyLexer(executable, directory, testCase.source)
 		if err != nil {
 			t.Errorf("%s: %v", describeCase(testCase), err)
 			continue
 		}
-		kittenTokens, kittenError, err := parseKittenOutput(output)
+		percyTokens, percyError, err := parsePercyOutput(output)
 		if err != nil {
 			t.Errorf("%s: %v", describeCase(testCase), err)
 			continue
 		}
-		compareLexers(t, testCase, kittenTokens, kittenError)
+		compareLexers(t, testCase, percyTokens, percyError)
 	}
 }
 
-// TestKittenLexerOutputFormat pins the driver's output format with explicit
+// TestPercyLexerOutputFormat pins the driver's output format with explicit
 // expected output, so that a change to the format is caught even if both lexers
 // change together.
-func TestKittenLexerOutputFormat(t *testing.T) {
+func TestPercyLexerOutputFormat(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenLexer(t)
+	executable := buildPercyLexer(t)
 	directory := t.TempDir()
 
 	cases := []struct {
@@ -606,7 +606,7 @@ func TestKittenLexerOutputFormat(t *testing.T) {
 	}
 
 	for _, testCase := range cases {
-		output, err := runKittenLexer(executable, directory, testCase.source)
+		output, err := runPercyLexer(executable, directory, testCase.source)
 		if err != nil {
 			t.Fatalf("%s: %v", testCase.name, err)
 		}
@@ -617,7 +617,7 @@ func TestKittenLexerOutputFormat(t *testing.T) {
 }
 
 // repeatToSize builds a source of at least size bytes out of one representative
-// line of Kitten code.
+// line of Percy code.
 func repeatToSize(line string, size int) string {
 	var builder strings.Builder
 	builder.Grow(size + len(line))
@@ -627,16 +627,16 @@ func repeatToSize(line string, size int) string {
 	return builder.String()
 }
 
-// measureKittenLexer runs the Kitten lexer on source and returns the fastest of
+// measurePercyLexer runs the Percy lexer on source and returns the fastest of
 // several runs. The minimum is a more stable estimate than the mean, which is
 // sensitive to scheduling noise.
-func measureKittenLexer(t *testing.T, executable, directory, source string, repetitions int) time.Duration {
+func measurePercyLexer(t *testing.T, executable, directory, source string, repetitions int) time.Duration {
 	t.Helper()
 
 	best := time.Duration(0)
 	for index := 0; index < repetitions; index++ {
 		start := time.Now()
-		if _, err := runKittenLexer(executable, directory, source); err != nil {
+		if _, err := runPercyLexer(executable, directory, source); err != nil {
 			t.Fatalf("%v", err)
 		}
 		if elapsed := time.Since(start); best == 0 || elapsed < best {
@@ -664,7 +664,7 @@ func measureReferenceLexer(t *testing.T, source string, repetitions int) time.Du
 	return best
 }
 
-// TestKittenLexerScaling measures the Kitten lexer against the Go lexer on
+// TestPercyLexerScaling measures the Percy lexer against the Go lexer on
 // growing inputs, and checks that the two agree on the largest one.
 //
 // The measurements are logged rather than asserted: they document the cost of
@@ -675,24 +675,24 @@ func measureReferenceLexer(t *testing.T, source string, repetitions int) time.Du
 // the byte length, so the scanner's scanning work grows linearly with the input.
 // A growth factor of about 4 for a 4x input therefore indicates linear behavior;
 // the factors reported below are that plus allocation and collector overhead.
-func TestKittenLexerScaling(t *testing.T) {
+func TestPercyLexerScaling(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenLexer(t)
+	executable := buildPercyLexer(t)
 	directory := t.TempDir()
 	line := "    int value42 = compute(alpha, beta) + 3.5 * 2; // note\n"
 	const repetitions = 5
 
 	// Running the lexer on empty input measures process start-up, which is
 	// included in every measurement below.
-	startup := measureKittenLexer(t, executable, directory, "", repetitions)
+	startup := measurePercyLexer(t, executable, directory, "", repetitions)
 	t.Logf("process start-up baseline (empty input): %s", startup.Round(time.Microsecond))
 
 	previous := time.Duration(0)
 	for _, size := range []int{1 << 10, 1 << 12, 1 << 14, 1 << 16, 1 << 18} {
 		source := repeatToSize(line, size)
 
-		kittenElapsed := measureKittenLexer(t, executable, directory, source, repetitions)
+		percyElapsed := measurePercyLexer(t, executable, directory, source, repetitions)
 		goElapsed := measureReferenceLexer(t, source, repetitions)
 
 		referenceTokens, referenceError, err := referenceLexer(source)
@@ -702,22 +702,22 @@ func TestKittenLexerScaling(t *testing.T) {
 		if referenceError != nil {
 			t.Fatalf("size %d: the reference lexer failed: %v", size, referenceError)
 		}
-		output, err := runKittenLexer(executable, directory, source)
+		output, err := runPercyLexer(executable, directory, source)
 		if err != nil {
 			t.Fatalf("size %d: %v", size, err)
 		}
-		kittenTokens, kittenError, err := parseKittenOutput(output)
+		percyTokens, percyError, err := parsePercyOutput(output)
 		if err != nil {
 			t.Fatalf("size %d: %v", size, err)
 		}
-		if kittenError != nil {
-			t.Fatalf("size %d: the Kitten lexer failed: %v", size, kittenError)
+		if percyError != nil {
+			t.Fatalf("size %d: the Percy lexer failed: %v", size, percyError)
 		}
-		if len(kittenTokens) != len(referenceTokens) {
-			t.Fatalf("size %d: the Kitten lexer produced %d tokens, want %d", size, len(kittenTokens), len(referenceTokens))
+		if len(percyTokens) != len(referenceTokens) {
+			t.Fatalf("size %d: the Percy lexer produced %d tokens, want %d", size, len(percyTokens), len(referenceTokens))
 		}
 
-		net := kittenElapsed - startup
+		net := percyElapsed - startup
 		if net < 0 {
 			net = 0
 		}
@@ -725,9 +725,9 @@ func TestKittenLexerScaling(t *testing.T) {
 		if previous > 0 && net > 0 {
 			growth = fmt.Sprintf(", x%.1f for a x4 input", float64(net)/float64(previous))
 		}
-		t.Logf("bytes=%6d tokens=%6d  Go=%10s  Kitten total=%10s  net=%10s%s",
+		t.Logf("bytes=%6d tokens=%6d  Go=%10s  Percy total=%10s  net=%10s%s",
 			len(source), len(referenceTokens), goElapsed.Round(time.Microsecond),
-			kittenElapsed.Round(time.Microsecond), net.Round(time.Microsecond), growth)
+			percyElapsed.Round(time.Microsecond), net.Round(time.Microsecond), growth)
 		previous = net
 	}
 }

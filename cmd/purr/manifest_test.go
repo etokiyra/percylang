@@ -32,7 +32,7 @@ func buildManifestProbeWithGo(t *testing.T) string {
 	t.Helper()
 	output := filepath.Join(t.TempDir(), "manifest_probe_go")
 	var diagnostics bytes.Buffer
-	if err := buildExecutable(repoPath(t, "..", "..", "purr", "manifest_probe.ktn"), output, &diagnostics); err != nil {
+	if err := buildExecutable(repoPath(t, "..", "..", "purr", "manifest_probe.pcy"), output, &diagnostics); err != nil {
 		t.Fatalf("building manifest probe with Go pipeline: %v\n%s", err, diagnostics.String())
 	}
 	if warnings := strings.TrimSpace(diagnostics.String()); warnings != "" {
@@ -41,17 +41,17 @@ func buildManifestProbeWithGo(t *testing.T) string {
 	return output
 }
 
-func buildManifestProbeWithKitten(t *testing.T, stage1 string) string {
+func buildManifestProbeWithPercy(t *testing.T, stage1 string) string {
 	t.Helper()
-	output := filepath.Join(t.TempDir(), "manifest_probe_kitten")
+	output := filepath.Join(t.TempDir(), "manifest_probe_percy")
 	result := runExternal(t, wrapperPath(t), []string{
-		"build", repoPath(t, "..", "..", "purr", "manifest_probe.ktn"), "-o", output,
+		"build", repoPath(t, "..", "..", "purr", "manifest_probe.pcy"), "-o", output,
 	}, repoPath(t, "..", ".."), wrapperEnvironment(stage1, t))
 	if result.status != 0 || result.stderr != "" {
-		t.Fatalf("building manifest probe with Kitten pipeline: status %d, stderr %q", result.status, result.stderr)
+		t.Fatalf("building manifest probe with Percy pipeline: status %d, stderr %q", result.status, result.stderr)
 	}
 	if _, err := os.Stat(output); err != nil {
-		t.Fatalf("Kitten-pipeline probe was not produced: %v", err)
+		t.Fatalf("Percy-pipeline probe was not produced: %v", err)
 	}
 	return output
 }
@@ -367,21 +367,21 @@ func TestManifestPinned(t *testing.T) {
 	requireToolchain(t)
 	stage1 := buildStage1(t)
 	goProbe := buildManifestProbeWithGo(t)
-	kittenProbe := buildManifestProbeWithKitten(t, stage1)
+	percyProbe := buildManifestProbeWithPercy(t, stage1)
 	for _, testCase := range manifestPinnedCases {
 		expected := manifestExpected(testCase.text)
 		if expected.stdout != testCase.stdout || expected.stderr != testCase.stderr || expected.status != testCase.status {
 			t.Fatalf("%s: oracle disagrees with the pinned output", testCase.name)
 		}
 		checkManifestCase(t, goProbe, "Go", testCase)
-		checkManifestCase(t, kittenProbe, "Kitten", testCase)
+		checkManifestCase(t, percyProbe, "Percy", testCase)
 	}
 
-	probeSource, err := os.ReadFile(repoPath(t, "..", "..", "purr", "manifest_probe.ktn"))
+	probeSource, err := os.ReadFile(repoPath(t, "..", "..", "purr", "manifest_probe.pcy"))
 	if err != nil {
 		t.Fatalf("reading manifest probe: %v", err)
 	}
-	manifestSource, err := os.ReadFile(repoPath(t, "..", "..", "purr", "manifest.ktn"))
+	manifestSource, err := os.ReadFile(repoPath(t, "..", "..", "purr", "manifest.pcy"))
 	if err != nil {
 		t.Fatalf("reading manifest parser: %v", err)
 	}
@@ -389,11 +389,11 @@ func TestManifestPinned(t *testing.T) {
 	if !ok {
 		return
 	}
-	kittenC, err := runKittenUnit(buildKittenUnit(t), t.TempDir(), string(probeSource), string(manifestSource))
+	percyC, err := runPercyUnit(buildPercyUnit(t), t.TempDir(), string(probeSource), string(manifestSource))
 	if err != nil {
-		t.Fatalf("generating manifest probe C with Kitten pipeline: %v", err)
+		t.Fatalf("generating manifest probe C with Percy pipeline: %v", err)
 	}
-	if difference := unitDifference(kittenC, goC); difference != "" {
+	if difference := unitDifference(percyC, goC); difference != "" {
 		t.Fatalf("manifest probe C differs: %s", difference)
 	}
 }
@@ -414,7 +414,7 @@ func TestManifestRandomizedBothPipelines(t *testing.T) {
 	requireToolchain(t)
 	stage1 := buildStage1(t)
 	goProbe := buildManifestProbeWithGo(t)
-	kittenProbe := buildManifestProbeWithKitten(t, stage1)
+	percyProbe := buildManifestProbeWithPercy(t, stage1)
 	directory := t.TempDir()
 	path := filepath.Join(directory, "purr.toml")
 	random := rand.New(rand.NewSource(9062026))
@@ -428,7 +428,7 @@ func TestManifestRandomizedBothPipelines(t *testing.T) {
 		if err := os.WriteFile(path, []byte(source), 0o644); err != nil {
 			t.Fatalf("writing randomized manifest: %v", err)
 		}
-		for pipeline, executable := range map[string]string{"Go": goProbe, "Kitten": kittenProbe} {
+		for pipeline, executable := range map[string]string{"Go": goProbe, "Percy": percyProbe} {
 			result := runExternal(t, executable, []string{path}, directory, nil)
 			if result.stdout != expected.stdout || result.stderr != expected.stderr || result.status != expected.status {
 				t.Fatalf("random %d %s: input %q\nprobe stdout %q, stderr %q, status %d\noracle stdout %q, stderr %q, status %d",
@@ -519,11 +519,11 @@ func TestManifestPerformance(t *testing.T) {
 
 func TestManifestSanitizer(t *testing.T) {
 	requireToolchain(t)
-	probeSource, err := os.ReadFile(repoPath(t, "..", "..", "purr", "manifest_probe.ktn"))
+	probeSource, err := os.ReadFile(repoPath(t, "..", "..", "purr", "manifest_probe.pcy"))
 	if err != nil {
 		t.Fatalf("reading manifest probe: %v", err)
 	}
-	manifestSource, err := os.ReadFile(repoPath(t, "..", "..", "purr", "manifest.ktn"))
+	manifestSource, err := os.ReadFile(repoPath(t, "..", "..", "purr", "manifest.pcy"))
 	if err != nil {
 		t.Fatalf("reading manifest parser: %v", err)
 	}
@@ -537,7 +537,7 @@ func TestManifestSanitizer(t *testing.T) {
 	}
 	compileFlags, linkFlags := gcBuildFlags()
 	compileFlags = append(compileFlags, "-fsanitize=undefined")
-	executable, err := buildKittenRunProgram(t, compiler, compileFlags, linkFlags, text)
+	executable, err := buildPercyRunProgram(t, compiler, compileFlags, linkFlags, text)
 	if err != nil {
 		t.Skipf("undefined behavior sanitizer is unavailable with %s: %v", filepath.Base(compiler[0]), err)
 	}

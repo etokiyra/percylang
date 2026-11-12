@@ -418,11 +418,11 @@ func resetFileDirectoryRoot(t *testing.T, root string) {
 	}
 }
 
-func runKittenFileDirectory(t *testing.T, compiler, compileFlags, linkFlags []string, text string, index int, args []string) programResult {
+func runPercyFileDirectory(t *testing.T, compiler, compileFlags, linkFlags []string, text string, index int, args []string) programResult {
 	t.Helper()
 	result, err := buildAndRunProgramWithArgs(t, compiler, compileFlags, linkFlags, t.TempDir(), text, index, args)
 	if err != nil {
-		t.Fatalf("building and running the Kitten-generated program: %v", err)
+		t.Fatalf("building and running the Percy-generated program: %v", err)
 	}
 	return result
 }
@@ -450,7 +450,7 @@ func TestFileDirectoryRuntime(t *testing.T) {
 
 	root := t.TempDir()
 	sourceDirectory := t.TempDir()
-	sourcePath := filepath.Join(sourceDirectory, "file_directory.ktn")
+	sourcePath := filepath.Join(sourceDirectory, "file_directory.pcy")
 	if err := os.WriteFile(sourcePath, []byte(fileDirectorySource), 0o644); err != nil {
 		t.Fatalf("writing fixture: %v", err)
 	}
@@ -463,16 +463,16 @@ func TestFileDirectoryRuntime(t *testing.T) {
 		t.Fatalf("C compiler diagnostics: %s", warnings)
 	}
 
-	unitExecutable := buildKittenUnit(t)
-	kittenText, err := runKittenUnit(unitExecutable, t.TempDir(), fileDirectorySource, "")
+	unitExecutable := buildPercyUnit(t)
+	percyText, err := runPercyUnit(unitExecutable, t.TempDir(), fileDirectorySource, "")
 	if err != nil {
-		t.Fatalf("generating C with the Kitten pipeline: %v", err)
+		t.Fatalf("generating C with the Percy pipeline: %v", err)
 	}
 	_, _, referenceText, ok := checkProgram(t, "file directory runtime", fileDirectorySource, "")
 	if !ok {
 		return
 	}
-	if difference := unitDifference(kittenText, referenceText); difference != "" {
+	if difference := unitDifference(percyText, referenceText); difference != "" {
 		t.Fatalf("the file-directory translation unit differs: %s", difference)
 	}
 	compiler, err := discoverCompiler()
@@ -541,30 +541,30 @@ func TestFileDirectoryRuntime(t *testing.T) {
 
 			resetFileDirectoryRoot(t, root)
 			testCase.setup(t, root)
-			kittenResult := runKittenFileDirectory(t, compiler, compileFlags, linkFlags, kittenText, index, args)
-			kittenSideEffect := testCase.sideEffect(t, root)
+			percyResult := runPercyFileDirectory(t, compiler, compileFlags, linkFlags, percyText, index, args)
+			percySideEffect := testCase.sideEffect(t, root)
 
 			if goResult.status != 0 || goResult.stderr != "" || goResult.stdout != wantOutput {
 				t.Errorf("Go pipeline: status %d, stderr %q, stdout %q; want status 0, stderr %q, stdout %q",
 					goResult.status, goResult.stderr, goResult.stdout, "", wantOutput)
 			}
-			if kittenResult.status != 0 || kittenResult.stderr != "" || kittenResult.stdout != wantOutput {
-				t.Errorf("Kitten pipeline: status %d, stderr %q, stdout %q; want status 0, stderr %q, stdout %q",
-					kittenResult.status, kittenResult.stderr, kittenResult.stdout, "", wantOutput)
+			if percyResult.status != 0 || percyResult.stderr != "" || percyResult.stdout != wantOutput {
+				t.Errorf("Percy pipeline: status %d, stderr %q, stdout %q; want status 0, stderr %q, stdout %q",
+					percyResult.status, percyResult.stderr, percyResult.stdout, "", wantOutput)
 			}
 			if goSideEffect != wantSideEffect {
 				t.Errorf("Go pipeline side effect %q; want %q", goSideEffect, wantSideEffect)
 			}
-			if kittenSideEffect != wantSideEffect {
-				t.Errorf("Kitten pipeline side effect %q; want %q", kittenSideEffect, wantSideEffect)
+			if percySideEffect != wantSideEffect {
+				t.Errorf("Percy pipeline side effect %q; want %q", percySideEffect, wantSideEffect)
 			}
-			if goResult.stdout != kittenResult.stdout || goResult.stderr != kittenResult.stderr || goResult.status != kittenResult.status {
-				t.Errorf("pipelines disagree: Go stdout %q stderr %q status %d; Kitten stdout %q stderr %q status %d",
+			if goResult.stdout != percyResult.stdout || goResult.stderr != percyResult.stderr || goResult.status != percyResult.status {
+				t.Errorf("pipelines disagree: Go stdout %q stderr %q status %d; Percy stdout %q stderr %q status %d",
 					goResult.stdout, goResult.stderr, goResult.status,
-					kittenResult.stdout, kittenResult.stderr, kittenResult.status)
+					percyResult.stdout, percyResult.stderr, percyResult.status)
 			}
-			if goSideEffect != kittenSideEffect {
-				t.Errorf("pipelines disagree on side effects: Go %q; Kitten %q", goSideEffect, kittenSideEffect)
+			if goSideEffect != percySideEffect {
+				t.Errorf("pipelines disagree on side effects: Go %q; Percy %q", goSideEffect, percySideEffect)
 			}
 		})
 	}
@@ -591,7 +591,7 @@ func TestFileDirectoryNoDescriptorLeak(t *testing.T) {
 	}
 
 	directory := t.TempDir()
-	sourcePath := filepath.Join(directory, "leak.ktn")
+	sourcePath := filepath.Join(directory, "leak.pcy")
 	if err := os.WriteFile(sourcePath, []byte(fileDirectoryLeakSource), 0o644); err != nil {
 		t.Fatalf("writing fixture: %v", err)
 	}
@@ -631,10 +631,10 @@ func TestFileDirectoryNoDescriptorLeak(t *testing.T) {
 func TestFileDirectorySanitizer(t *testing.T) {
 	requireToolchain(t)
 
-	unitExecutable := buildKittenUnit(t)
-	kittenText, err := runKittenUnit(unitExecutable, t.TempDir(), fileDirectorySource, "")
+	unitExecutable := buildPercyUnit(t)
+	percyText, err := runPercyUnit(unitExecutable, t.TempDir(), fileDirectorySource, "")
 	if err != nil {
-		t.Fatalf("generating C with the Kitten pipeline: %v", err)
+		t.Fatalf("generating C with the Percy pipeline: %v", err)
 	}
 	compiler, err := discoverCompiler()
 	if err != nil {
@@ -643,7 +643,7 @@ func TestFileDirectorySanitizer(t *testing.T) {
 	compileFlags, linkFlags := gcBuildFlags()
 	compileFlags = append(compileFlags, "-fsanitize=undefined")
 
-	result, err := buildAndRunProgramWithArgs(t, compiler, compileFlags, linkFlags, t.TempDir(), kittenText, 0, []string{"list", t.TempDir()})
+	result, err := buildAndRunProgramWithArgs(t, compiler, compileFlags, linkFlags, t.TempDir(), percyText, 0, []string{"list", t.TempDir()})
 	if err != nil {
 		t.Skipf("undefined behavior sanitizer is unavailable with %s: %v", filepath.Base(compiler[0]), err)
 	}

@@ -1,0 +1,18 @@
+fn main() {
+    match (try_write_file("out.txt", "hello\n")) {
+        Ok {
+            print("wrote");
+        }
+        Failed(message) {
+            print("fail", message);
+        }
+    }
+    match (try_read_file("out.txt")) {
+        Ok(text) {
+            print("read", length(text), text);
+        }
+        Failed(message) {
+            print("readfail", message);
+        }
+    }
+}

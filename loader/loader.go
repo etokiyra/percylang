@@ -1,4 +1,4 @@
-// Package loader loads a Kitten program together with the modules it imports.
+// Package loader loads a Percy program together with the modules it imports.
 //
 // It performs file access, lexical analysis, and parsing for every source file
 // in a program, and resolves import paths. It does not perform semantic
@@ -16,8 +16,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"kitten/lexer"
-	"kitten/parser"
+	"percy/lexer"
+	"percy/parser"
 )
 
 // Error describes a failure to load a module. Path is the module's path and, for

@@ -1,0 +1,19 @@
+fn main() {
+    byte[] octets = string_to_bytes("ABC");
+    match (try_write_bytes("out.bin", octets)) {
+        Ok {
+            print("wrote");
+        }
+        Failed(message) {
+            print("fail", message);
+        }
+    }
+    match (try_read_file("out.bin")) {
+        Ok(text) {
+            print("read", length(text), text);
+        }
+        Failed(message) {
+            print("readfail", message);
+        }
+    }
+}

@@ -10,16 +10,16 @@ import (
 	"strings"
 	"testing"
 
-	"kitten/checker"
-	"kitten/codegen"
-	"kitten/lexer"
-	"kitten/loader"
-	"kitten/parser"
+	"percy/checker"
+	"percy/codegen"
+	"percy/lexer"
+	"percy/loader"
+	"percy/parser"
 )
 
 func runtimeMemorySource(t *testing.T) string {
 	t.Helper()
-	path := filepath.Join("..", "..", "runtime", "ktn", "memory.ktn")
+	path := filepath.Join("..", "..", "runtime", "pcy", "memory.pcy")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("reading %s: %v", path, err)
@@ -48,15 +48,15 @@ func runtimeModules(t *testing.T, source string) ([]*parser.Module, *checker.Res
 	return modules, checked
 }
 
-func runKittenWithRuntime(t *testing.T, executable, runtimeSource, root, imported string) string {
+func runPercyWithRuntime(t *testing.T, executable, runtimeSource, root, imported string) string {
 	t.Helper()
 	directory := t.TempDir()
 	if err := os.WriteFile(filepath.Join(directory, "runtime.txt"), []byte(runtimeSource), 0o644); err != nil {
 		t.Fatalf("writing runtime.txt: %v", err)
 	}
-	output, err := runKittenUnit(executable, directory, root, imported)
+	output, err := runPercyUnit(executable, directory, root, imported)
 	if err != nil {
-		t.Fatalf("running Kitten probe with runtime: %v", err)
+		t.Fatalf("running Percy probe with runtime: %v", err)
 	}
 	return output
 }
@@ -85,13 +85,13 @@ func TestRuntimeModuleMemoryHelper(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generating C: %v", err)
 	}
-	if !strings.Contains(generated, "ktn_rt_raw_copy") || !strings.Contains(generated, "copy_bytes") {
+	if !strings.Contains(generated, "pcy_rt_raw_copy") || !strings.Contains(generated, "copy_bytes") {
 		t.Fatalf("generated C does not contain the runtime helper and intrinsic:\n%s", generated)
 	}
 
-	unitExecutable := buildKittenUnit(t)
-	kittenText := runKittenWithRuntime(t, unitExecutable, runtimeMemorySource(t), source, "")
-	if difference := unitDifference(kittenText, generated); difference != "" {
+	unitExecutable := buildPercyUnit(t)
+	percyText := runPercyWithRuntime(t, unitExecutable, runtimeMemorySource(t), source, "")
+	if difference := unitDifference(percyText, generated); difference != "" {
 		t.Fatalf("runtime translation unit differs: %s", difference)
 	}
 	compiler, err := discoverCompiler()
@@ -129,9 +129,9 @@ func TestRuntimeModuleWithTempDirectory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generating C: %v", err)
 	}
-	unitExecutable := buildKittenUnit(t)
-	kittenText := runKittenWithRuntime(t, unitExecutable, runtimeMemorySource(t), source, "")
-	if difference := unitDifference(kittenText, generated); difference != "" {
+	unitExecutable := buildPercyUnit(t)
+	percyText := runPercyWithRuntime(t, unitExecutable, runtimeMemorySource(t), source, "")
+	if difference := unitDifference(percyText, generated); difference != "" {
 		t.Fatalf("runtime translation unit differs: %s", difference)
 	}
 }
@@ -203,9 +203,9 @@ public fn write_stderr(string text) -> int {
 	if err != nil {
 		t.Fatalf("generating intrinsics C: %v", err)
 	}
-	unitExecutable := buildKittenUnit(t)
-	kittenText := runKittenWithRuntime(t, unitExecutable, runtimeSource, source, "")
-	if difference := unitDifference(kittenText, generated); difference != "" {
+	unitExecutable := buildPercyUnit(t)
+	percyText := runPercyWithRuntime(t, unitExecutable, runtimeSource, source, "")
+	if difference := unitDifference(percyText, generated); difference != "" {
 		t.Fatalf("intrinsics translation unit differs: %s", difference)
 	}
 	compiler, err := discoverCompiler()
@@ -213,7 +213,7 @@ public fn write_stderr(string text) -> int {
 		t.Fatalf("discovering compiler: %v", err)
 	}
 	compileFlags, linkFlags := gcBuildFlags()
-	executable, err := buildKittenRunProgram(t, compiler, compileFlags, linkFlags, generated)
+	executable, err := buildPercyRunProgram(t, compiler, compileFlags, linkFlags, generated)
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -276,41 +276,41 @@ fn main() {
 	}
 }
 
-func TestRuntimeIntrinsicKittenErrors(t *testing.T) {
+func TestRuntimeIntrinsicPercyErrors(t *testing.T) {
 	requireToolchain(t)
-	checkerExecutable := buildKittenChecker(t)
+	checkerExecutable := buildPercyChecker(t)
 	userSource := "fn main() {\n    print(int_from_byte(raw_load8(0)));\n}\n"
 	wantNoHook, err := renderReferenceCheck(userSource, "")
 	if err != nil {
 		t.Fatalf("rendering no-hook reference: %v", err)
 	}
-	noHookOutput, err := runKittenChecker(checkerExecutable, t.TempDir(), userSource, "")
+	noHookOutput, err := runPercyChecker(checkerExecutable, t.TempDir(), userSource, "")
 	if err != nil {
-		t.Fatalf("running Kitten checker without hook: %v", err)
+		t.Fatalf("running Percy checker without hook: %v", err)
 	}
 	if noHookOutput != wantNoHook {
-		t.Errorf("Kitten no-hook raw_load8: got %q want %q", noHookOutput, wantNoHook)
+		t.Errorf("Percy no-hook raw_load8: got %q want %q", noHookOutput, wantNoHook)
 	}
 	wantWithHook, err := renderReferenceCheckWithRuntime(userSource, "", runtimeMemorySource(t))
 	if err != nil {
 		t.Fatalf("rendering hooked reference: %v", err)
 	}
-	if got := runKittenCheckerWithRuntime(t, checkerExecutable, runtimeMemorySource(t), userSource, ""); got != wantWithHook {
-		t.Errorf("Kitten hooked user raw_load8: got %q want %q", got, wantWithHook)
+	if got := runPercyCheckerWithRuntime(t, checkerExecutable, runtimeMemorySource(t), userSource, ""); got != wantWithHook {
+		t.Errorf("Percy hooked user raw_load8: got %q want %q", got, wantWithHook)
 	}
 	badRuntime := "public fn bad() {\n    raw_load8();\n}\n"
 	wantBad, err := renderReferenceCheckWithRuntime("fn main() {}\n", "", badRuntime)
 	if err != nil {
 		t.Fatalf("rendering bad-runtime reference: %v", err)
 	}
-	if got := runKittenCheckerWithRuntime(t, checkerExecutable, badRuntime, "fn main() {}\n", ""); got != wantBad {
-		t.Errorf("Kitten bad runtime arity: got %q want %q", got, wantBad)
+	if got := runPercyCheckerWithRuntime(t, checkerExecutable, badRuntime, "fn main() {}\n", ""); got != wantBad {
+		t.Errorf("Percy bad runtime arity: got %q want %q", got, wantBad)
 	}
 }
 
 func TestImportRuntimeModuleFails(t *testing.T) {
 	root := t.TempDir()
-	source := filepath.Join(root, "main.ktn")
+	source := filepath.Join(root, "main.pcy")
 	if err := os.WriteFile(source, []byte("import \"<runtime>\";\nfn main() {}\n"), 0o644); err != nil {
 		t.Fatalf("writing import fixture: %v", err)
 	}
@@ -343,28 +343,28 @@ func checkSingleSource(t *testing.T, source string) (*checker.Result, error) {
 
 var _ = errors.New
 
-func runKittenCheckerWithRuntime(t *testing.T, executable, runtimeSource, root, imported string) string {
+func runPercyCheckerWithRuntime(t *testing.T, executable, runtimeSource, root, imported string) string {
 	t.Helper()
 	directory := t.TempDir()
 	if err := os.WriteFile(filepath.Join(directory, "runtime.txt"), []byte(runtimeSource), 0o644); err != nil {
 		t.Fatalf("writing runtime.txt: %v", err)
 	}
-	output, err := runKittenChecker(executable, directory, root, imported)
+	output, err := runPercyChecker(executable, directory, root, imported)
 	if err != nil {
-		t.Fatalf("running Kitten checker with runtime: %v", err)
+		t.Fatalf("running Percy checker with runtime: %v", err)
 	}
 	return output
 }
 
-func runKittenSemanticsWithRuntime(t *testing.T, executable, runtimeSource, root, imported string) string {
+func runPercySemanticsWithRuntime(t *testing.T, executable, runtimeSource, root, imported string) string {
 	t.Helper()
 	directory := t.TempDir()
 	if err := os.WriteFile(filepath.Join(directory, "runtime.txt"), []byte(runtimeSource), 0o644); err != nil {
 		t.Fatalf("writing runtime.txt: %v", err)
 	}
-	output, err := runKittenSemantics(executable, directory, root, imported)
+	output, err := runPercySemantics(executable, directory, root, imported)
 	if err != nil {
-		t.Fatalf("running Kitten semantics with runtime: %v", err)
+		t.Fatalf("running Percy semantics with runtime: %v", err)
 	}
 	return output
 }
@@ -382,7 +382,7 @@ func TestRuntimeModuleCheckerAndSemantics(t *testing.T) {
 	if err != nil {
 		t.Fatalf("rendering reference checker result: %v", err)
 	}
-	gotCheck := runKittenCheckerWithRuntime(t, buildKittenChecker(t), runtimeSource, source, "")
+	gotCheck := runPercyCheckerWithRuntime(t, buildPercyChecker(t), runtimeSource, source, "")
 	if gotCheck != wantCheck {
 		t.Errorf("runtime checker output:\n got %q\nwant %q", gotCheck, wantCheck)
 	}
@@ -394,7 +394,7 @@ func TestRuntimeModuleCheckerAndSemantics(t *testing.T) {
 	if err != nil {
 		t.Fatalf("rendering reference semantic model: %v", err)
 	}
-	gotModel := runKittenSemanticsWithRuntime(t, buildKittenSemantics(t), runtimeSource, source, "")
+	gotModel := runPercySemanticsWithRuntime(t, buildPercySemantics(t), runtimeSource, source, "")
 	if difference := unitDifference(gotModel, wantModel); difference != "" {
 		t.Errorf("runtime semantic model differs: %s", difference)
 	}
@@ -432,8 +432,8 @@ public fn fail_zero(byte[] data) {
 	if err != nil {
 		t.Fatalf("generating negative-size C: %v", err)
 	}
-	kittenText := runKittenWithRuntime(t, buildKittenUnit(t), runtimeSource, source, "")
-	if difference := unitDifference(kittenText, generated); difference != "" {
+	percyText := runPercyWithRuntime(t, buildPercyUnit(t), runtimeSource, source, "")
+	if difference := unitDifference(percyText, generated); difference != "" {
 		t.Fatalf("negative-size translation unit differs: %s", difference)
 	}
 	compiler, err := discoverCompiler()
@@ -508,7 +508,7 @@ public fn exercise_words(byte[] data) {
 	}
 }
 
-func TestRuntimeModuleWithPreludeKitten(t *testing.T) {
+func TestRuntimeModuleWithPreludePercy(t *testing.T) {
 	requireToolchain(t)
 	source := `fn main() {
     try_read_file("x");
@@ -520,11 +520,67 @@ func TestRuntimeModuleWithPreludeKitten(t *testing.T) {
 	if err != nil {
 		t.Fatalf("rendering runtime+prelude reference: %v", err)
 	}
-	got := runKittenCheckerWithRuntime(t, buildKittenChecker(t), runtimeSource, source, "")
+	got := runPercyCheckerWithRuntime(t, buildPercyChecker(t), runtimeSource, source, "")
 	if got != want {
-		t.Errorf("Kitten runtime+prelude checker output:\n got %q\nwant %q", got, want)
+		t.Errorf("Percy runtime+prelude checker output:\n got %q\nwant %q", got, want)
 	}
 	if !strings.Contains(want, "ok modules 4 ") {
 		t.Errorf("runtime+prelude module count is not four: %q", want)
+	}
+}
+
+// TestRuntimeIoWriterBothPipelines checks the reserved runtime/pcy module and
+// its syscall-backed executable writer through the Go C pipeline and the
+// native backend. The file must exist, be executable, and hold the bytes.
+func TestRuntimeIoWriterBothPipelines(t *testing.T) {
+	requireToolchain(t)
+	goPurr := goPurrReference(t)
+	nativeProbe := buildNativeProbe(t)
+	directory := t.TempDir()
+	runtimeSource, err := os.ReadFile(repoPath(t, "..", "..", "runtime", "pcy", "io.pcy"))
+	if err != nil {
+		t.Fatalf("reading runtime io source: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(directory, "runtime", "pcy"), 0o755); err != nil {
+		t.Fatalf("creating runtime directory: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(directory, "runtime", "pcy", "io.pcy"), runtimeSource, 0o644); err != nil {
+		t.Fatalf("writing runtime io source: %v", err)
+	}
+	source := `import "runtime/pcy/io.pcy";
+fn main() {
+    byte[] data = new byte[2];
+    data[0] = byte_from_int(65);
+    data[1] = byte_from_int(66);
+    int result = write_executable("out.bin", data);
+    print("write", result);
+    match (try_file_info("out.bin")) {
+        Ok(is_file, is_directory, is_symlink, executable, size) { print(is_file, executable, size); }
+        Missing { print("missing"); }
+        Failed(message) { print(message); }
+    }
+}
+`
+	if err := os.WriteFile(filepath.Join(directory, "probe.pcy"), []byte(source), 0o644); err != nil {
+		t.Fatalf("writing probe: %v", err)
+	}
+	want := "write 0\ntrue true 2\n"
+
+	goRun := runExternal(t, goPurr, []string{"run", "probe.pcy"}, directory, nil)
+	if goRun.status != 0 || goRun.stderr != "" || goRun.stdout != want {
+		t.Fatalf("Go C pipeline: status %d, stdout %q, stderr %q", goRun.status, goRun.stdout, goRun.stderr)
+	}
+
+	elf := filepath.Join(directory, "probe-native")
+	lowered := runExternal(t, nativeProbe, []string{"lower", "probe.pcy", elf}, directory, nil)
+	if lowered.status != 0 || lowered.stderr != "" {
+		t.Fatalf("native lower: status %d, stderr %q", lowered.status, lowered.stderr)
+	}
+	if err := os.Chmod(elf, 0o755); err != nil {
+		t.Fatalf("chmod native probe: %v", err)
+	}
+	nativeRun := runExternal(t, elf, nil, directory, []string{"PATH=/nonexistent"})
+	if nativeRun.status != 0 || nativeRun.stderr != "" || nativeRun.stdout != want {
+		t.Fatalf("native pipeline: status %d, stdout %q, stderr %q", nativeRun.status, nativeRun.stdout, nativeRun.stderr)
 	}
 }

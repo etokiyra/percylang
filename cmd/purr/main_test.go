@@ -41,7 +41,7 @@ func probeToolchain() error {
 	}
 	defer os.RemoveAll(directory)
 
-	sourcePath := filepath.Join(directory, "probe.ktn")
+	sourcePath := filepath.Join(directory, "probe.pcy")
 	executablePath := filepath.Join(directory, "probe")
 	if err := os.WriteFile(sourcePath, []byte("fn main() {\n    print(\"probe\");\n}\n"), 0o644); err != nil {
 		return err
@@ -92,7 +92,7 @@ func compileAndRunSource(t *testing.T, source string) (string, string, int) {
 	t.Helper()
 
 	directory := t.TempDir()
-	sourcePath := filepath.Join(directory, "program.ktn")
+	sourcePath := filepath.Join(directory, "program.pcy")
 	if err := os.WriteFile(sourcePath, []byte(source), 0o644); err != nil {
 		t.Fatalf("writing source: %v", err)
 	}
@@ -106,16 +106,16 @@ func TestParseCommandArgs(t *testing.T) {
 		want    commandArgs
 		wantErr bool
 	}{
-		{name: "source only", args: []string{"main.ktn"}, want: commandArgs{source: "main.ktn"}},
-		{name: "output before", args: []string{"-o", "out", "main.ktn"}, want: commandArgs{source: "main.ktn", output: "out"}},
-		{name: "output after", args: []string{"main.ktn", "-o", "out"}, want: commandArgs{source: "main.ktn", output: "out"}},
-		{name: "output equals", args: []string{"main.ktn", "-o=out"}, want: commandArgs{source: "main.ktn", output: "out"}},
-		{name: "long output", args: []string{"--output", "out", "main.ktn"}, want: commandArgs{source: "main.ktn", output: "out"}},
-		{name: "double dash", args: []string{"--", "-weird-name.ktn"}, want: commandArgs{source: "-weird-name.ktn"}},
+		{name: "source only", args: []string{"main.pcy"}, want: commandArgs{source: "main.pcy"}},
+		{name: "output before", args: []string{"-o", "out", "main.pcy"}, want: commandArgs{source: "main.pcy", output: "out"}},
+		{name: "output after", args: []string{"main.pcy", "-o", "out"}, want: commandArgs{source: "main.pcy", output: "out"}},
+		{name: "output equals", args: []string{"main.pcy", "-o=out"}, want: commandArgs{source: "main.pcy", output: "out"}},
+		{name: "long output", args: []string{"--output", "out", "main.pcy"}, want: commandArgs{source: "main.pcy", output: "out"}},
+		{name: "double dash", args: []string{"--", "-weird-name.pcy"}, want: commandArgs{source: "-weird-name.pcy"}},
 		{name: "missing source", args: nil, wantErr: true},
-		{name: "too many sources", args: []string{"a.ktn", "b.ktn"}, wantErr: true},
-		{name: "missing output path", args: []string{"main.ktn", "-o"}, wantErr: true},
-		{name: "unknown option", args: []string{"--verbose", "main.ktn"}, wantErr: true},
+		{name: "too many sources", args: []string{"a.pcy", "b.pcy"}, wantErr: true},
+		{name: "missing output path", args: []string{"main.pcy", "-o"}, wantErr: true},
+		{name: "unknown option", args: []string{"--verbose", "main.pcy"}, wantErr: true},
 	}
 
 	for _, testCase := range cases {
@@ -140,9 +140,9 @@ func TestParseCommandArgs(t *testing.T) {
 
 func TestDefaultOutputPath(t *testing.T) {
 	cases := map[string]string{
-		"hello.ktn":            "hello",
-		"tests/hello.ktn":      "hello",
-		"/tmp/a/b/program.ktn": "program",
+		"hello.pcy":            "hello",
+		"tests/hello.pcy":      "hello",
+		"/tmp/a/b/program.pcy": "program",
 	}
 	for input, want := range cases {
 		if got := defaultOutputPath(input); got != want {
@@ -162,8 +162,8 @@ func TestUsageAndExitCodes(t *testing.T) {
 		{name: "help", args: []string{"--help"}, wantCode: exitSuccess, contains: "Usage:"},
 		{name: "unknown command", args: []string{"frobnicate"}, wantCode: exitUsage, contains: "unknown command"},
 		{name: "build missing source", args: []string{"build"}, wantCode: exitUsage, contains: "missing source file"},
-		{name: "build wrong extension", args: []string{"build", "main.txt"}, wantCode: exitUsage, contains: "not a Kitten source file"},
-		{name: "run with output flag", args: []string{"run", "main.ktn", "-o", "out"}, wantCode: exitUsage, contains: "-o is not supported"},
+		{name: "build wrong extension", args: []string{"build", "main.txt"}, wantCode: exitUsage, contains: "not a Percy source file"},
+		{name: "run with output flag", args: []string{"run", "main.pcy", "-o", "out"}, wantCode: exitUsage, contains: "-o is not supported"},
 	}
 
 	for _, testCase := range cases {
@@ -185,11 +185,11 @@ func TestUsageAndExitCodes(t *testing.T) {
 func TestFixturesEndToEnd(t *testing.T) {
 	requireToolchain(t)
 
-	fixtures := []string{"hello", "fizzbuzz", "math", "room", "strings", "arrays", "variants", "maps", "lexer_proof"}
+	fixtures := []string{"hello", "fizzbuzz", "math", "room", "strings", "arrays", "variants", "maps", "lexer_proof", "break_continue", "append"}
 	for _, name := range fixtures {
 		name := name
 		t.Run(name, func(t *testing.T) {
-			sourcePath := filepath.Join("..", "..", "tests", name+".ktn")
+			sourcePath := filepath.Join("..", "..", "tests", name+".pcy")
 			expectedPath := filepath.Join("..", "..", "tests", name+".expected")
 
 			expected, err := os.ReadFile(expectedPath)
@@ -215,7 +215,7 @@ func TestRunCommandForwardsOutput(t *testing.T) {
 	requireToolchain(t)
 
 	directory := t.TempDir()
-	sourcePath := filepath.Join(directory, "greet.ktn")
+	sourcePath := filepath.Join(directory, "greet.pcy")
 	if err := os.WriteFile(sourcePath, []byte("fn main() {\n    print(\"run works\");\n}\n"), 0o644); err != nil {
 		t.Fatalf("writing source: %v", err)
 	}
@@ -314,7 +314,7 @@ func runCompiledProgramInDir(t *testing.T, source, workingDirectory string) (str
 	t.Helper()
 
 	directory := t.TempDir()
-	sourcePath := filepath.Join(directory, "program.ktn")
+	sourcePath := filepath.Join(directory, "program.pcy")
 	if err := os.WriteFile(sourcePath, []byte(source), 0o644); err != nil {
 		t.Fatalf("writing source: %v", err)
 	}
@@ -536,7 +536,7 @@ func TestBuildWritesExecutableAtExplicitPath(t *testing.T) {
 	requireToolchain(t)
 
 	directory := t.TempDir()
-	sourcePath := filepath.Join(directory, "program.ktn")
+	sourcePath := filepath.Join(directory, "program.pcy")
 	if err := os.WriteFile(sourcePath, []byte("fn main() {\n    print(\"built\");\n}\n"), 0o644); err != nil {
 		t.Fatalf("writing source: %v", err)
 	}
@@ -562,7 +562,7 @@ func TestBuildUsesDefaultOutputPath(t *testing.T) {
 	requireToolchain(t)
 
 	directory := t.TempDir()
-	sourcePath := filepath.Join(directory, "default.ktn")
+	sourcePath := filepath.Join(directory, "default.pcy")
 	if err := os.WriteFile(sourcePath, []byte("fn main() {\n    print(\"default\");\n}\n"), 0o644); err != nil {
 		t.Fatalf("writing source: %v", err)
 	}
@@ -577,7 +577,7 @@ func TestBuildUsesDefaultOutputPath(t *testing.T) {
 	defer os.Chdir(originalDirectory)
 
 	var stdout, stderr bytes.Buffer
-	if code := run([]string{"build", "default.ktn"}, &stdout, &stderr); code != exitSuccess {
+	if code := run([]string{"build", "default.pcy"}, &stdout, &stderr); code != exitSuccess {
 		t.Fatalf("exit = %d, stderr: %s", code, stderr.String())
 	}
 	if _, err := os.Stat(filepath.Join(directory, "default")); err != nil {
@@ -593,7 +593,7 @@ func TestPathWithSpaces(t *testing.T) {
 	if err := os.MkdirAll(directory, 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	sourcePath := filepath.Join(directory, "hello program.ktn")
+	sourcePath := filepath.Join(directory, "hello program.pcy")
 	if err := os.WriteFile(sourcePath, []byte("fn main() {\n    print(\"spaced\");\n}\n"), 0o644); err != nil {
 		t.Fatalf("writing source: %v", err)
 	}
@@ -614,7 +614,7 @@ func TestPathWithSpaces(t *testing.T) {
 
 func TestSemanticErrorIsRejectedBeforeCompilation(t *testing.T) {
 	directory := t.TempDir()
-	sourcePath := filepath.Join(directory, "bad.ktn")
+	sourcePath := filepath.Join(directory, "bad.pcy")
 	if err := os.WriteFile(sourcePath, []byte("fn main() {\n    int x = y;\n}\n"), 0o644); err != nil {
 		t.Fatalf("writing source: %v", err)
 	}
@@ -638,7 +638,7 @@ func TestSemanticErrorIsRejectedBeforeCompilation(t *testing.T) {
 
 func TestSyntaxErrorIsRejected(t *testing.T) {
 	directory := t.TempDir()
-	sourcePath := filepath.Join(directory, "bad.ktn")
+	sourcePath := filepath.Join(directory, "bad.pcy")
 	if err := os.WriteFile(sourcePath, []byte("fn main() {\n    int x = ;\n}\n"), 0o644); err != nil {
 		t.Fatalf("writing source: %v", err)
 	}
@@ -654,7 +654,7 @@ func TestSyntaxErrorIsRejected(t *testing.T) {
 
 func TestMissingEntryPointIsReported(t *testing.T) {
 	directory := t.TempDir()
-	sourcePath := filepath.Join(directory, "library.ktn")
+	sourcePath := filepath.Join(directory, "library.pcy")
 	if err := os.WriteFile(sourcePath, []byte("fn helper() {\n}\n"), 0o644); err != nil {
 		t.Fatalf("writing source: %v", err)
 	}
@@ -672,7 +672,7 @@ func TestMissingCompilerIsReported(t *testing.T) {
 	t.Setenv("CC", "definitely-not-a-real-compiler-binary")
 
 	directory := t.TempDir()
-	sourcePath := filepath.Join(directory, "program.ktn")
+	sourcePath := filepath.Join(directory, "program.pcy")
 	if err := os.WriteFile(sourcePath, []byte("fn main() {\n}\n"), 0o644); err != nil {
 		t.Fatalf("writing source: %v", err)
 	}
@@ -692,7 +692,7 @@ func TestRunDoesNotLeakTemporaryDirectories(t *testing.T) {
 	before := temporaryBuildDirectories(t)
 
 	directory := t.TempDir()
-	sourcePath := filepath.Join(directory, "program.ktn")
+	sourcePath := filepath.Join(directory, "program.pcy")
 	if err := os.WriteFile(sourcePath, []byte("fn main() {\n    print(\"cleanup\");\n}\n"), 0o644); err != nil {
 		t.Fatalf("writing source: %v", err)
 	}
@@ -728,7 +728,7 @@ func temporaryBuildDirectories(t *testing.T) []string {
 func TestModuleFixtureEndToEnd(t *testing.T) {
 	requireToolchain(t)
 
-	sourcePath := filepath.Join("..", "..", "tests", "modules", "main.ktn")
+	sourcePath := filepath.Join("..", "..", "tests", "modules", "main.pcy")
 	expectedPath := filepath.Join("..", "..", "tests", "modules", "main.expected")
 	expected, err := os.ReadFile(expectedPath)
 	if err != nil {
@@ -751,9 +751,9 @@ func TestMultiModuleProgramInTemporaryProject(t *testing.T) {
 	requireToolchain(t)
 
 	project := t.TempDir()
-	writeSource(t, filepath.Join(project, "lib.ktn"), "public fn value() -> int {\n    return 42;\n}\n")
-	writeSource(t, filepath.Join(project, "sub", "helper.ktn"), "import \"../lib.ktn\";\npublic fn doubled() -> int {\n    return value() * 2;\n}\n")
-	mainPath := writeSource(t, filepath.Join(project, "main.ktn"), "import \"sub/helper.ktn\";\nfn main() {\n    print(doubled());\n}\n")
+	writeSource(t, filepath.Join(project, "lib.pcy"), "public fn value() -> int {\n    return 42;\n}\n")
+	writeSource(t, filepath.Join(project, "sub", "helper.pcy"), "import \"../lib.pcy\";\npublic fn doubled() -> int {\n    return value() * 2;\n}\n")
+	mainPath := writeSource(t, filepath.Join(project, "main.pcy"), "import \"sub/helper.pcy\";\nfn main() {\n    print(doubled());\n}\n")
 
 	// Build and run with a working directory unrelated to the project, to prove
 	// resolution is relative to the sources rather than the current directory.
@@ -822,21 +822,21 @@ func TestReadFileMissingIsFatal(t *testing.T) {
 
 func TestModuleMissingImportIsReported(t *testing.T) {
 	directory := t.TempDir()
-	mainPath := writeSource(t, filepath.Join(directory, "main.ktn"), "import \"nope.ktn\";\nfn main() {\n}\n")
+	mainPath := writeSource(t, filepath.Join(directory, "main.pcy"), "import \"nope.pcy\";\nfn main() {\n}\n")
 
 	var stdout, stderr bytes.Buffer
 	if code := run([]string{"build", mainPath, "-o", filepath.Join(directory, "out")}, &stdout, &stderr); code != exitFailure {
 		t.Fatalf("exit = %d, want %d", code, exitFailure)
 	}
-	if !strings.Contains(stderr.String(), "nope.ktn") {
+	if !strings.Contains(stderr.String(), "nope.pcy") {
 		t.Errorf("stderr %q does not name the missing module", stderr.String())
 	}
 }
 
 func TestModuleWithoutEntryPointIsRejected(t *testing.T) {
 	directory := t.TempDir()
-	writeSource(t, filepath.Join(directory, "lib.ktn"), "public fn value() -> int {\n    return 1;\n}\n")
-	mainPath := writeSource(t, filepath.Join(directory, "main.ktn"), "import \"lib.ktn\";\nfn helper() {\n}\n")
+	writeSource(t, filepath.Join(directory, "lib.pcy"), "public fn value() -> int {\n    return 1;\n}\n")
+	mainPath := writeSource(t, filepath.Join(directory, "main.pcy"), "import \"lib.pcy\";\nfn helper() {\n}\n")
 
 	var stdout, stderr bytes.Buffer
 	if code := run([]string{"build", mainPath, "-o", filepath.Join(directory, "out")}, &stdout, &stderr); code != exitFailure {
@@ -889,7 +889,7 @@ func TestVariantModulesInTemporaryProject(t *testing.T) {
 	requireToolchain(t)
 
 	project := t.TempDir()
-	writeSource(t, filepath.Join(project, "model.ktn"), `public enum Kind {
+	writeSource(t, filepath.Join(project, "model.pcy"), `public enum Kind {
     Integer,
     Text
 }
@@ -910,7 +910,7 @@ public fn amount(Value value) -> int {
     }
 }
 `)
-	mainPath := writeSource(t, filepath.Join(project, "main.ktn"), `import "model.ktn";
+	mainPath := writeSource(t, filepath.Join(project, "main.pcy"), `import "model.pcy";
 fn main() {
     Kind kind = Kind.Text;
     Value value = Value.Number { amount = 7 };
@@ -1014,7 +1014,7 @@ func TestMapModulesInTemporaryProject(t *testing.T) {
 	requireToolchain(t)
 
 	project := t.TempDir()
-	writeSource(t, filepath.Join(project, "symbols.ktn"), `public struct Symbol {
+	writeSource(t, filepath.Join(project, "symbols.pcy"), `public struct Symbol {
     int line;
 }
 public fn line_of(map[string]Symbol table, string name) -> int {
@@ -1024,7 +1024,7 @@ public fn line_of(map[string]Symbol table, string name) -> int {
     return -1;
 }
 `)
-	mainPath := writeSource(t, filepath.Join(project, "main.ktn"), `import "symbols.ktn";
+	mainPath := writeSource(t, filepath.Join(project, "main.pcy"), `import "symbols.pcy";
 fn main() {
     map[string]Symbol symbols = new map[string]Symbol;
     symbols["parse"] = Symbol { line = 42 };
@@ -1091,8 +1091,8 @@ func TestLexerWorkflowInTemporaryProject(t *testing.T) {
 	requireToolchain(t)
 
 	project := t.TempDir()
-	writeSource(t, filepath.Join(project, "input.ktn"), "fn main() {\n    int x = 42;\n}\n")
-	mainPath := writeSource(t, filepath.Join(project, "scan.ktn"), `fn is_letter(int octet) -> bool {
+	writeSource(t, filepath.Join(project, "input.pcy"), "fn main() {\n    int x = 42;\n}\n")
+	mainPath := writeSource(t, filepath.Join(project, "scan.pcy"), `fn is_letter(int octet) -> bool {
     return (octet >= 97 && octet <= 122) || (octet >= 65 && octet <= 90);
 }
 
@@ -1119,7 +1119,7 @@ fn count_words(string source) -> int {
 }
 
 fn main() {
-    string source = read_file("input.ktn");
+    string source = read_file("input.pcy");
     print("bytes:", length(source));
     print("words:", count_words(source));
     print("first:", substring(source, 0, 2));

@@ -1,4 +1,0 @@
-fn main() {
-    map[string]int marks = new map[string]int;
-    marks["one"] = 1;
-}

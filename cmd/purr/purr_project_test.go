@@ -1,6 +1,6 @@
 package main
 
-// Tests for purr-kt current-directory project mode.
+// Tests for purr-pcy current-directory project mode.
 
 import (
 	"os"
@@ -23,7 +23,7 @@ func writeBinaryProject(t *testing.T, root, name, source string) {
 	t.Helper()
 	writeProjectFile(t, filepath.Join(root, "purr.toml"),
 		"[package]\nname = \""+name+"\"\nversion = \"0.1.0\"\n")
-	writeProjectFile(t, filepath.Join(root, "src", "main.ktn"), source)
+	writeProjectFile(t, filepath.Join(root, "src", "main.pcy"), source)
 }
 
 func createNewProject(t *testing.T, purr, directory, name string, library bool) string {
@@ -34,7 +34,7 @@ func createNewProject(t *testing.T, purr, directory, name string, library bool) 
 		arguments = []string{"new", "--lib", name}
 		want = "     Created library " + name + "\n"
 	}
-	result := runPurrKTWithShell(t, "umask 022; exec \"$@\"", purr, directory, arguments)
+	result := runPurrPcyWithShell(t, "umask 022; exec \"$@\"", purr, directory, arguments)
 	if result.status != 0 || result.stdout != "" || result.stderr != want {
 		t.Fatalf("new %s: status %d, stdout %q, stderr %q; want status 0, stdout empty, stderr %q",
 			name, result.status, result.stdout, result.stderr, want)
@@ -55,12 +55,12 @@ func pathExists(t *testing.T, path string) bool {
 	return false
 }
 
-func TestKittenPurrProjectMode(t *testing.T) {
+func TestPercyPurrProjectMode(t *testing.T) {
 	requireToolchain(t)
 	stage1 := buildStage1(t)
 	purrs := map[string]string{
-		"Go-built":     buildPurrKTWithGo(t),
-		"Kitten-built": buildPurrKTWithKitten(t, stage1),
+		"Go-built":    buildPurrPcyWithGo(t),
+		"Percy-built": buildPurrPcyWithPercy(t, stage1),
 	}
 
 	t.Run("build and run", func(t *testing.T) {
@@ -74,7 +74,7 @@ func TestKittenPurrProjectMode(t *testing.T) {
 					t.Fatalf("new project already has a target directory")
 				}
 
-				build := runPurrKTWithShell(t, "umask 022; exec \"$@\"", purr, project, []string{"build"})
+				build := runPurrPcyWithShell(t, "umask 022; exec \"$@\"", purr, project, []string{"build"})
 				if build.status != 0 || build.stdout != "built target/demo\n" || build.stderr != "" {
 					t.Fatalf("project build: status %d, stdout %q, stderr %q",
 						build.status, build.stdout, build.stderr)
@@ -98,7 +98,7 @@ func TestKittenPurrProjectMode(t *testing.T) {
 				if run.status != 0 || run.stdout != "Hello, world!\n" || run.stderr != "" {
 					t.Errorf("built project: status %d, stdout %q, stderr %q", run.status, run.stdout, run.stderr)
 				}
-				run = runPurrKT(t, purr, project, []string{"run"})
+				run = runPurrPcy(t, purr, project, []string{"run"})
 				if run.status != 0 || run.stdout != "Hello, world!\n" || run.stderr != "" {
 					t.Errorf("project run: status %d, stdout %q, stderr %q", run.status, run.stdout, run.stderr)
 				}
@@ -110,7 +110,7 @@ func TestKittenPurrProjectMode(t *testing.T) {
 				if err := os.RemoveAll(target); err != nil {
 					t.Fatalf("removing target: %v", err)
 				}
-				rebuild := runPurrKTWithShell(t, "umask 022; exec \"$@\"", purr, project, []string{"build"})
+				rebuild := runPurrPcyWithShell(t, "umask 022; exec \"$@\"", purr, project, []string{"build"})
 				if rebuild.status != 0 || rebuild.stdout != "built target/demo\n" || rebuild.stderr != "" {
 					t.Errorf("rebuild after removing target: status %d, stdout %q, stderr %q",
 						rebuild.status, rebuild.stdout, rebuild.stderr)
@@ -128,7 +128,7 @@ func TestKittenPurrProjectMode(t *testing.T) {
 				directory := t.TempDir()
 				writeBinaryProject(t, directory, "status",
 					"fn main() {\n    print(\"seven\");\n    eprint(\"diagnostic\");\n    exit(7);\n}\n")
-				result := runPurrKT(t, purr, directory, []string{"run"})
+				result := runPurrPcy(t, purr, directory, []string{"run"})
 				if result.status != 7 || result.stdout != "seven\n" || result.stderr != "diagnostic\n" {
 					t.Errorf("project run: status %d, stdout %q, stderr %q",
 						result.status, result.stdout, result.stderr)
@@ -147,9 +147,9 @@ func TestKittenPurrProjectMode(t *testing.T) {
 
 				t.Run("no manifest", func(t *testing.T) {
 					directory := t.TempDir()
-					writeProjectFile(t, filepath.Join(directory, "src", "main.ktn"), source)
+					writeProjectFile(t, filepath.Join(directory, "src", "main.pcy"), source)
 					for _, command := range []string{"build", "run"} {
-						result := runPurrKT(t, purr, directory, []string{command})
+						result := runPurrPcy(t, purr, directory, []string{command})
 						want := "purr " + command + ": missing source file\n\n" + purrUsageText() + "\n"
 						if result.status != 2 || result.stdout != "" || result.stderr != want {
 							t.Errorf("%s: status %d, stdout %q, stderr %q; want status 2, stderr %q",
@@ -168,7 +168,7 @@ func TestKittenPurrProjectMode(t *testing.T) {
 					if err := os.Mkdir(child, 0o755); err != nil {
 						t.Fatalf("creating child directory: %v", err)
 					}
-					result := runPurrKT(t, purr, child, []string{"build"})
+					result := runPurrPcy(t, purr, child, []string{"build"})
 					want := "purr build: missing source file\n\n" + purrUsageText() + "\n"
 					if result.status != 2 || result.stdout != "" || result.stderr != want {
 						t.Errorf("status %d, stdout %q, stderr %q; want status 2, stderr %q",
@@ -183,9 +183,9 @@ func TestKittenPurrProjectMode(t *testing.T) {
 					directory := t.TempDir()
 					writeProjectFile(t, filepath.Join(directory, "purr.toml"),
 						"[package]\nname = \"bad name\"\nversion = \"0.1.0\"\n")
-					writeProjectFile(t, filepath.Join(directory, "src", "main.ktn"), source)
+					writeProjectFile(t, filepath.Join(directory, "src", "main.pcy"), source)
 					for _, command := range []string{"build", "run"} {
-						result := runPurrKT(t, purr, directory, []string{command})
+						result := runPurrPcy(t, purr, directory, []string{command})
 						prefix := "purr " + command + ": purr.toml:2:8: invalid package name "
 						if result.status != 1 || result.stdout != "" || !strings.HasPrefix(result.stderr, prefix) {
 							t.Errorf("%s: status %d, stdout %q, stderr %q; want status 1 and prefix %q",
@@ -200,11 +200,11 @@ func TestKittenPurrProjectMode(t *testing.T) {
 				t.Run("conflicting sources", func(t *testing.T) {
 					directory := t.TempDir()
 					writeBinaryProject(t, directory, "both", source)
-					writeProjectFile(t, filepath.Join(directory, "src", "lib.ktn"),
+					writeProjectFile(t, filepath.Join(directory, "src", "lib.pcy"),
 						"public fn add(int left, int right) -> int {\n    return left + right;\n}\n")
 					for _, command := range []string{"build", "run"} {
-						result := runPurrKT(t, purr, directory, []string{command})
-						want := "purr " + command + ": project has both src/main.ktn and src/lib.ktn\n"
+						result := runPurrPcy(t, purr, directory, []string{command})
+						want := "purr " + command + ": project has both src/main.pcy and src/lib.pcy\n"
 						if result.status != 1 || result.stdout != "" || result.stderr != want {
 							t.Errorf("%s: status %d, stdout %q, stderr %q; want status 1, stderr %q",
 								command, result.status, result.stdout, result.stderr, want)
@@ -217,8 +217,8 @@ func TestKittenPurrProjectMode(t *testing.T) {
 					writeProjectFile(t, filepath.Join(directory, "purr.toml"),
 						"[package]\nname = \"empty\"\nversion = \"0.1.0\"\n")
 					for _, command := range []string{"build", "run"} {
-						result := runPurrKT(t, purr, directory, []string{command})
-						want := "purr " + command + ": project has neither src/main.ktn nor src/lib.ktn\n"
+						result := runPurrPcy(t, purr, directory, []string{command})
+						want := "purr " + command + ": project has neither src/main.pcy nor src/lib.pcy\n"
 						if result.status != 1 || result.stdout != "" || result.stderr != want {
 							t.Errorf("%s: status %d, stdout %q, stderr %q; want status 1, stderr %q",
 								command, result.status, result.stdout, result.stderr, want)
@@ -229,12 +229,12 @@ func TestKittenPurrProjectMode(t *testing.T) {
 				t.Run("library is deferred", func(t *testing.T) {
 					directory := t.TempDir()
 					project := createNewProject(t, purr, directory, "kitty", true)
-					build := runPurrKT(t, purr, project, []string{"build"})
+					build := runPurrPcy(t, purr, project, []string{"build"})
 					if build.status != 1 || build.stdout != "" || build.stderr != "purr build: library builds are not implemented yet\n" {
 						t.Errorf("library build: status %d, stdout %q, stderr %q",
 							build.status, build.stdout, build.stderr)
 					}
-					run := runPurrKT(t, purr, project, []string{"run"})
+					run := runPurrPcy(t, purr, project, []string{"run"})
 					if run.status != 1 || run.stdout != "" || run.stderr != "purr run: library projects cannot be run\n" {
 						t.Errorf("library run: status %d, stdout %q, stderr %q",
 							run.status, run.stdout, run.stderr)
@@ -251,7 +251,7 @@ func TestKittenPurrProjectMode(t *testing.T) {
 					if err := os.WriteFile(target, []byte("keep"), 0o644); err != nil {
 						t.Fatalf("writing target file: %v", err)
 					}
-					result := runPurrKT(t, purr, directory, []string{"build"})
+					result := runPurrPcy(t, purr, directory, []string{"build"})
 					if result.status != 1 || result.stdout != "" || result.stderr != "purr build: target is not a directory\n" {
 						t.Errorf("target file: status %d, stdout %q, stderr %q",
 							result.status, result.stdout, result.stderr)
@@ -266,9 +266,9 @@ func TestKittenPurrProjectMode(t *testing.T) {
 					directory := t.TempDir()
 					writeBinaryProject(t, directory, "broken",
 						"fn main() {\n    int value = \"not an int\";\n}\n")
-					badSource := filepath.Join(directory, "src", "main.ktn")
+					badSource := filepath.Join(directory, "src", "main.pcy")
 					for _, command := range []string{"build", "run"} {
-						result := runPurrKT(t, purr, directory, []string{command})
+						result := runPurrPcy(t, purr, directory, []string{command})
 						if result.status != 1 || result.stdout != "" ||
 							!strings.Contains(result.stderr, badSource+":2:") {
 							t.Errorf("%s: status %d, stdout %q, stderr %q",
@@ -286,7 +286,7 @@ func TestKittenPurrProjectMode(t *testing.T) {
 						"fn main() {\n    int value = \"not an int\";\n}\n")
 					target := filepath.Join(directory, "target")
 					writeProjectFile(t, filepath.Join(target, "keep"), "keep")
-					result := runPurrKT(t, purr, directory, []string{"build"})
+					result := runPurrPcy(t, purr, directory, []string{"build"})
 					if result.status != 1 {
 						t.Fatalf("status %d, want 1", result.status)
 					}
@@ -302,7 +302,7 @@ func TestKittenPurrProjectMode(t *testing.T) {
 				t.Run("explicit source ignores the project", func(t *testing.T) {
 					directory := t.TempDir()
 					writeBinaryProject(t, directory, "explicit", source)
-					result := runPurrKT(t, purr, directory, []string{"build", "src/main.ktn", "-o", "explicit"})
+					result := runPurrPcy(t, purr, directory, []string{"build", "src/main.pcy", "-o", "explicit"})
 					if result.status != 0 || result.stdout != "built explicit\n" || result.stderr != "" {
 						t.Errorf("explicit build: status %d, stdout %q, stderr %q",
 							result.status, result.stdout, result.stderr)
@@ -313,7 +313,7 @@ func TestKittenPurrProjectMode(t *testing.T) {
 					if pathExists(t, filepath.Join(directory, "target")) {
 						t.Errorf("explicit source entered project mode")
 					}
-					run := runPurrKT(t, purr, directory, []string{"run", "src/main.ktn"})
+					run := runPurrPcy(t, purr, directory, []string{"run", "src/main.pcy"})
 					if run.status != 0 || run.stdout != "Hello, world!\n" || run.stderr != "" {
 						t.Errorf("explicit run: status %d, stdout %q, stderr %q", run.status, run.stdout, run.stderr)
 					}
@@ -325,7 +325,7 @@ func TestKittenPurrProjectMode(t *testing.T) {
 				t.Run("output option without source is not project mode", func(t *testing.T) {
 					directory := t.TempDir()
 					writeBinaryProject(t, directory, "option", source)
-					result := runPurrKT(t, purr, directory, []string{"build", "-o", "out"})
+					result := runPurrPcy(t, purr, directory, []string{"build", "-o", "out"})
 					want := "purr build: missing source file\n\n" + purrUsageText() + "\n"
 					if result.status != 2 || result.stdout != "" || result.stderr != want {
 						t.Errorf("status %d, stdout %q, stderr %q; want status 2, stderr %q",

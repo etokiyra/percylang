@@ -1,6 +1,6 @@
 package checker
 
-import "kitten/parser"
+import "percy/parser"
 
 // SymbolKind distinguishes the kinds of name a scope can hold.
 type SymbolKind int
@@ -127,6 +127,9 @@ const (
 
 	// BuiltinBytesToString returns a byte array as a string.
 	BuiltinBytesToString
+
+	// BuiltinPush appends one element to an array and returns the new length.
+	BuiltinPush
 )
 
 // Function is a resolved function signature, either user-defined or built-in.

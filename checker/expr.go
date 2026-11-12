@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"kitten/parser"
+	"percy/parser"
 )
 
 // checkExpr checks an expression and returns its type. Every expression and
@@ -528,6 +528,8 @@ func (c *checker) checkCall(expression *parser.CallExpr, scope *Scope) (*Type, e
 		return c.checkMapHasCall(expression, function, scope)
 	case BuiltinSubstring:
 		return c.checkSubstringCall(expression, function, scope)
+	case BuiltinPush:
+		return c.checkPushCall(expression, function, scope)
 	}
 
 	if len(expression.Arguments) != len(function.ParameterTypes) {
@@ -729,6 +731,34 @@ func (c *checker) checkMapHasCall(expression *parser.CallExpr, function *Functio
 		return nil, c.errorAt(TypeMismatch, keyArgument.Pos(), "map key must be %s, found %s", mapType.Key, keyType)
 	}
 	return BoolType, nil
+}
+
+// checkPushCall checks a call to the built-in push, which appends one value to
+// an array and returns the array's new length. The value's type must match the
+// array's element type exactly, like assignment.
+func (c *checker) checkPushCall(expression *parser.CallExpr, function *Function, scope *Scope) (*Type, error) {
+	if len(expression.Arguments) != 2 {
+		return nil, c.errorAt(BadCall, expression.OpenParen, "function %q expects 2 arguments, got %d", function.Name, len(expression.Arguments))
+	}
+
+	arrayArgument := expression.Arguments[0]
+	arrayType, err := c.checkExpr(arrayArgument, scope)
+	if err != nil {
+		return nil, err
+	}
+	if !arrayType.IsArray() {
+		return nil, c.errorAt(TypeMismatch, arrayArgument.Pos(), "%q expects an array as its first argument, found %s", function.Name, arrayType)
+	}
+
+	valueArgument := expression.Arguments[1]
+	valueType, err := c.checkExpr(valueArgument, scope)
+	if err != nil {
+		return nil, err
+	}
+	if err := c.requireSameType(TypeMismatch, valueType, arrayType.Element, valueArgument.Pos(), fmt.Sprintf("appended element of %q", function.Name)); err != nil {
+		return nil, err
+	}
+	return IntType, nil
 }
 
 // checkSubstringCall checks a call to the built-in substring, which takes a

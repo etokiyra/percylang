@@ -1,0 +1,10 @@
+// purr.pcy - the Percy-written purr entry point.
+//
+// This is the sidecar Percy implementation, built as purr-pcy. The Go CLI
+// remains the authoritative purr while build and run are still stubs.
+
+import "purr/cli.pcy";
+
+fn main() {
+    run_cli();
+}

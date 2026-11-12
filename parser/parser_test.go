@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"kitten/lexer"
+	"percy/lexer"
 )
 
 // at is a short constructor for expected positions, keeping the tables below
@@ -192,7 +192,7 @@ func TestFunctionDeclaration(t *testing.T) {
 
 func TestFunctionWithCall(t *testing.T) {
 	source := `fn main() {
-    print("hello, kitten");
+    print("hello, percy");
 }
 `
 	assertProgram(t, source, &Program{Declarations: []Decl{
@@ -206,7 +206,7 @@ func TestFunctionWithCall(t *testing.T) {
 						OpenParen: at(2, 10),
 						Callee:    &Identifier{At: at(2, 5), Name: "print"},
 						Arguments: []Expr{
-							&StringLiteral{At: at(2, 11), Text: `"hello, kitten"`},
+							&StringLiteral{At: at(2, 11), Text: `"hello, percy"`},
 						},
 					},
 				},
@@ -284,7 +284,7 @@ func TestVariableDeclarations(t *testing.T) {
     int score = 5;
     float temperature = 21.5;
     bool is_ready = true;
-    string username = "kitten";
+    string username = "percy";
 }
 `
 	assertProgram(t, source, &Program{Declarations: []Decl{
@@ -295,7 +295,7 @@ func TestVariableDeclarations(t *testing.T) {
 				&VarDeclStmt{At: at(2, 5), Name: "score", Type: &TypeRef{At: at(2, 5), Name: "int"}, Initializer: &IntLiteral{At: at(2, 17), Text: "5"}},
 				&VarDeclStmt{At: at(3, 5), Name: "temperature", Type: &TypeRef{At: at(3, 5), Name: "float"}, Initializer: &FloatLiteral{At: at(3, 25), Text: "21.5"}},
 				&VarDeclStmt{At: at(4, 5), Name: "is_ready", Type: &TypeRef{At: at(4, 5), Name: "bool"}, Initializer: &BoolLiteral{At: at(4, 21), Value: true}},
-				&VarDeclStmt{At: at(5, 5), Name: "username", Type: &TypeRef{At: at(5, 5), Name: "string"}, Initializer: &StringLiteral{At: at(5, 23), Text: `"kitten"`}},
+				&VarDeclStmt{At: at(5, 5), Name: "username", Type: &TypeRef{At: at(5, 5), Name: "string"}, Initializer: &StringLiteral{At: at(5, 23), Text: `"percy"`}},
 			}},
 		},
 	}})
@@ -587,7 +587,7 @@ func TestLiteralNodes(t *testing.T) {
     int count = 42;
     float ratio = 3.5;
     bool ready = false;
-    string name = "kitten";
+    string name = "percy";
 }
 `
 	program, err := ParseSource(source)
@@ -928,7 +928,7 @@ func TestParseErrors(t *testing.T) {
 		},
 		{
 			name:     "import without a semicolon",
-			source:   "import \"a.ktn\"",
+			source:   "import \"a.pcy\"",
 			line:     1,
 			column:   15,
 			contains: "';'",
@@ -1068,10 +1068,10 @@ func TestParseFixtures(t *testing.T) {
 		declarationCount  int
 		firstIsStructDecl bool
 	}{
-		{name: "hello.ktn", declarationCount: 1},
-		{name: "fizzbuzz.ktn", declarationCount: 1},
-		{name: "math.ktn", declarationCount: 3},
-		{name: "room.ktn", declarationCount: 3, firstIsStructDecl: true},
+		{name: "hello.pcy", declarationCount: 1},
+		{name: "fizzbuzz.pcy", declarationCount: 1},
+		{name: "math.pcy", declarationCount: 3},
+		{name: "room.pcy", declarationCount: 3, firstIsStructDecl: true},
 	}
 
 	for _, fixture := range fixtures {
@@ -1100,7 +1100,7 @@ func TestParseFixtures(t *testing.T) {
 }
 
 func TestParseFixtureMathShape(t *testing.T) {
-	path := filepath.Join("..", "tests", "math.ktn")
+	path := filepath.Join("..", "tests", "math.pcy")
 	source, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("reading fixture %s: %v", path, err)
@@ -1125,7 +1125,7 @@ func TestParseFixtureMathShape(t *testing.T) {
 }
 
 func TestImportDeclaration(t *testing.T) {
-	program, err := ParseSource("import \"geometry.ktn\";\nimport \"sub/text.ktn\";\n")
+	program, err := ParseSource("import \"geometry.pcy\";\nimport \"sub/text.pcy\";\n")
 	if err != nil {
 		t.Fatalf("ParseSource error: %v", err)
 	}
@@ -1137,8 +1137,8 @@ func TestImportDeclaration(t *testing.T) {
 	if !ok {
 		t.Fatalf("declaration 0 is %T, want *ImportDecl", program.Declarations[0])
 	}
-	if first.Path != "geometry.ktn" {
-		t.Errorf("path = %q, want %q", first.Path, "geometry.ktn")
+	if first.Path != "geometry.pcy" {
+		t.Errorf("path = %q, want %q", first.Path, "geometry.pcy")
 	}
 	if first.At != at(1, 1) {
 		t.Errorf("position = %v, want 1:1", first.At)
@@ -1148,8 +1148,8 @@ func TestImportDeclaration(t *testing.T) {
 	if !ok {
 		t.Fatalf("declaration 1 is %T, want *ImportDecl", program.Declarations[1])
 	}
-	if second.Path != "sub/text.ktn" {
-		t.Errorf("path = %q, want %q", second.Path, "sub/text.ktn")
+	if second.Path != "sub/text.pcy" {
+		t.Errorf("path = %q, want %q", second.Path, "sub/text.pcy")
 	}
 	if second.At != at(2, 1) {
 		t.Errorf("position = %v, want 2:1", second.At)
@@ -1157,7 +1157,7 @@ func TestImportDeclaration(t *testing.T) {
 }
 
 func TestImportPathDecodesEscapes(t *testing.T) {
-	program, err := ParseSource(`import "a\\b.ktn";`)
+	program, err := ParseSource(`import "a\\b.pcy";`)
 	if err != nil {
 		t.Fatalf("ParseSource error: %v", err)
 	}
@@ -1165,8 +1165,8 @@ func TestImportPathDecodesEscapes(t *testing.T) {
 	if !ok {
 		t.Fatalf("declaration is %T, want *ImportDecl", program.Declarations[0])
 	}
-	if importDeclaration.Path != `a\b.ktn` {
-		t.Errorf("path = %q, want %q", importDeclaration.Path, `a\b.ktn`)
+	if importDeclaration.Path != `a\b.pcy` {
+		t.Errorf("path = %q, want %q", importDeclaration.Path, `a\b.pcy`)
 	}
 }
 

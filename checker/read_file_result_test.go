@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"kitten/lexer"
-	"kitten/parser"
+	"percy/lexer"
+	"percy/parser"
 )
 
 // parseTestModule parses one source into a module with the given identity.

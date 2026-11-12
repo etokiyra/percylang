@@ -1,0 +1,10 @@
+fn main() {
+    match (try_write_file("missing/out.txt", "hello")) {
+        Ok {
+            print("wrote");
+        }
+        Failed(message) {
+            print("fail", message);
+        }
+    }
+}

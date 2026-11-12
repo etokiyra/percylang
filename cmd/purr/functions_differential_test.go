@@ -1,7 +1,7 @@
 package main
 
-// Differential testing for the Kitten-written statement and function-body emitter
-// (selfhost/codegen/statements.ktn, driven by selfhost/functions.ktn).
+// Differential testing for the Percy-written statement and function-body emitter
+// (selfhost/codegen/statements.pcy, driven by selfhost/functions.pcy).
 //
 // The probe renders the body of every function and prints the pooled string
 // literal declarations those bodies produced, then the definitions themselves, in
@@ -16,7 +16,7 @@ package main
 // Both boundaries are structural. The pool's lines are the only ones beginning
 // with a pooled literal declaration, a definition is a prototype with " {" in
 // place of ";", and the entry point is the line `int main(int argc, char **argv) {`, which no
-// generated name can be because a Kitten `main` is emitted as `ktn_fn_main`.
+// generated name can be because a Percy `main` is emitted as `pcy_fn_main`.
 //
 // A program is only compared when the reference can generate it and this emitter
 // can render it in full. When a body needs an expression kind this phase does not
@@ -39,26 +39,26 @@ import (
 	"testing"
 	"time"
 
-	"kitten/checker"
-	"kitten/parser"
-	"kitten/runtime"
+	"percy/checker"
+	"percy/parser"
+	"percy/runtime"
 )
 
-// kittenFunctionsProgram is the driver program that prints function definitions.
-func kittenFunctionsProgram() string {
-	return filepath.Join("..", "..", "selfhost", "functions.ktn")
+// percyFunctionsProgram is the driver program that prints function definitions.
+func percyFunctionsProgram() string {
+	return filepath.Join("..", "..", "selfhost", "functions.pcy")
 }
 
-// buildKittenFunctions builds the function probe. It fails if the build produces
+// buildPercyFunctions builds the function probe. It fails if the build produces
 // any C diagnostic, so the probe must compile warning-free.
-func buildKittenFunctions(t *testing.T) string {
+func buildPercyFunctions(t *testing.T) string {
 	t.Helper()
 
 	requireToolchain(t)
 
-	executable := filepath.Join(t.TempDir(), "kitten-functions")
+	executable := filepath.Join(t.TempDir(), "percy-functions")
 	var diagnostics bytes.Buffer
-	if err := buildExecutable(kittenFunctionsProgram(), executable, &diagnostics); err != nil {
+	if err := buildExecutable(percyFunctionsProgram(), executable, &diagnostics); err != nil {
 		t.Fatalf("building the function probe: %v\n%s", err, diagnostics.String())
 	}
 	if warnings := strings.TrimSpace(diagnostics.String()); warnings != "" {
@@ -67,8 +67,8 @@ func buildKittenFunctions(t *testing.T) string {
 	return executable
 }
 
-// runKittenFunctions writes the modules and runs the function probe.
-func runKittenFunctions(executable, directory, root, imported string) (string, error) {
+// runPercyFunctions writes the modules and runs the function probe.
+func runPercyFunctions(executable, directory, root, imported string) (string, error) {
 	if err := os.WriteFile(filepath.Join(directory, "input.txt"), []byte(root), 0o644); err != nil {
 		return "", fmt.Errorf("writing input.txt: %v", err)
 	}
@@ -117,7 +117,7 @@ func splitFunctionOutput(t *testing.T, output string) (string, string) {
 func runFunctionProbe(t *testing.T, executable, directory, root, imported string) (string, string) {
 	t.Helper()
 
-	output, err := runKittenFunctions(executable, directory, root, imported)
+	output, err := runPercyFunctions(executable, directory, root, imported)
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -627,13 +627,13 @@ fn main() {
 	}}
 }
 
-// TestKittenFunctionsNumberMatchTemporaries checks that the temporaries a match
+// TestPercyFunctionsNumberMatchTemporaries checks that the temporaries a match
 // statement needs are numbered once per translation unit, in emission order, which
 // is what makes their names unique and deterministic and what the reference does.
-func TestKittenFunctionsNumberMatchTemporaries(t *testing.T) {
+func TestPercyFunctionsNumberMatchTemporaries(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenFunctions(t)
+	executable := buildPercyFunctions(t)
 	directory := t.TempDir()
 
 	root := `enum Kind { A, B }
@@ -666,23 +666,23 @@ fn main() {
 	if difference := functionDifference(pool, bodies, referenceLiteralPool(t, generated), referenceFunctionDefinitions(t, generated)); difference != "" {
 		t.Fatalf("%s", difference)
 	}
-	for index, name := range []string{"ktn_match_0", "ktn_match_1", "ktn_match_2"} {
-		if !strings.Contains(bodies, name+" = ktn_var_kind;") {
+	for index, name := range []string{"pcy_match_0", "pcy_match_1", "pcy_match_2"} {
+		if !strings.Contains(bodies, name+" = pcy_var_kind;") {
 			t.Errorf("the temporaries are not numbered in emission order: %s is missing\n%s", name, bodies)
 		}
 		_ = index
 	}
-	if strings.Contains(bodies, "ktn_match_3") {
+	if strings.Contains(bodies, "pcy_match_3") {
 		t.Errorf("a fourth temporary was numbered for three matches:\n%s", bodies)
 	}
 }
 
-// TestKittenFunctionsMatchReference compares the probe's pooled declarations and
+// TestPercyFunctionsMatchReference compares the probe's pooled declarations and
 // function definitions with the reference generator's for each targeted program.
-func TestKittenFunctionsMatchReference(t *testing.T) {
+func TestPercyFunctionsMatchReference(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenFunctions(t)
+	executable := buildPercyFunctions(t)
 	directory := t.TempDir()
 
 	programs := 0
@@ -743,14 +743,14 @@ func countDefinitions(bodies string) int {
 
 // --- Corpus ------------------------------------------------------------------
 
-// TestKittenFunctionsCorpus runs the probe over the checker corpus. Every program
+// TestPercyFunctionsCorpus runs the probe over the checker corpus. Every program
 // the checker rejects must be reported with the checker's own error; every valid
 // program whose bodies the reference can generate must have its pool and
 // definitions match the reference byte for byte.
-func TestKittenFunctionsCorpus(t *testing.T) {
+func TestPercyFunctionsCorpus(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenFunctions(t)
+	executable := buildPercyFunctions(t)
 	directory := t.TempDir()
 
 	comparedPrograms := 0
@@ -771,7 +771,7 @@ func TestKittenFunctionsCorpus(t *testing.T) {
 				t.Errorf("%s: the reference checker returned %T", testCase.name, checkError)
 				continue
 			}
-			got, err := runKittenFunctions(executable, directory, testCase.root, testCase.imported)
+			got, err := runPercyFunctions(executable, directory, testCase.root, testCase.imported)
 			if err != nil {
 				t.Errorf("%s: %v", testCase.name, err)
 				continue
@@ -786,7 +786,7 @@ func TestKittenFunctionsCorpus(t *testing.T) {
 
 		// The reference validates the entry point before it emits anything, which
 		// this phase does not implement, and non-ASCII input shifts the positions
-		// the probe reports, because Kitten counts bytes.
+		// the probe reports, because Percy counts bytes.
 		if !referenceAcceptsEntryPoint(modules, checked) || !isASCII(testCase.root) || !isASCII(testCase.imported) {
 			skipped++
 			continue
@@ -797,7 +797,7 @@ func TestKittenFunctionsCorpus(t *testing.T) {
 			continue
 		}
 
-		got, err := runKittenFunctions(executable, directory, testCase.root, testCase.imported)
+		got, err := runPercyFunctions(executable, directory, testCase.root, testCase.imported)
 		if err != nil {
 			t.Errorf("%s: %v", testCase.name, err)
 			continue
@@ -831,14 +831,14 @@ func TestKittenFunctionsCorpus(t *testing.T) {
 
 // --- Assignment cases --------------------------------------------------------
 
-// TestKittenFunctionsAssignmentsMatchReference renders assignments in every
+// TestPercyFunctionsAssignmentsMatchReference renders assignments in every
 // statement position and compares the whole pool and body region with the
 // reference's. A body that contains an assignment is no longer rejected: it is
 // emitted and compared like every other body.
-func TestKittenFunctionsAssignmentsMatchReference(t *testing.T) {
+func TestPercyFunctionsAssignmentsMatchReference(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenFunctions(t)
+	executable := buildPercyFunctions(t)
 	directory := t.TempDir()
 
 	cases := []struct {
@@ -869,7 +869,7 @@ func TestKittenFunctionsAssignmentsMatchReference(t *testing.T) {
 			t.Errorf("%s: the reference rejected the program: %v", testCase.description, generationError)
 			continue
 		}
-		got, err := runKittenFunctions(executable, directory, testCase.root, "")
+		got, err := runPercyFunctions(executable, directory, testCase.root, "")
 		if err != nil {
 			t.Errorf("%s: %v", testCase.description, err)
 			continue
@@ -895,12 +895,12 @@ func TestKittenFunctionsAssignmentsMatchReference(t *testing.T) {
 	t.Logf("assignment bodies: %d programs over %d lines compared byte for byte", programs, lines)
 }
 
-// TestKittenFunctionsRejectInvalidPrograms checks that a program the front end
+// TestPercyFunctionsRejectInvalidPrograms checks that a program the front end
 // rejects is reported with the front end's own error and produces no definitions.
-func TestKittenFunctionsRejectInvalidPrograms(t *testing.T) {
+func TestPercyFunctionsRejectInvalidPrograms(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenFunctions(t)
+	executable := buildPercyFunctions(t)
 	directory := t.TempDir()
 
 	cases := []struct {
@@ -917,7 +917,7 @@ func TestKittenFunctionsRejectInvalidPrograms(t *testing.T) {
 	}
 
 	for _, testCase := range cases {
-		got, err := runKittenFunctions(executable, directory, testCase.root, "")
+		got, err := runPercyFunctions(executable, directory, testCase.root, "")
 		if err != nil {
 			t.Errorf("%s: %v", testCase.description, err)
 			continue
@@ -925,7 +925,7 @@ func TestKittenFunctionsRejectInvalidPrograms(t *testing.T) {
 		if !strings.HasPrefix(got, testCase.wantPrefix) {
 			t.Errorf("%s: expected a %q report, got:\n%s", testCase.description, testCase.wantPrefix, got)
 		}
-		if strings.Contains(got, "ktn_fn_") {
+		if strings.Contains(got, "pcy_fn_") {
 			t.Errorf("%s: a rejected program produced definitions:\n%s", testCase.description, got)
 		}
 	}
@@ -947,15 +947,15 @@ func functionDifference(pool, bodies, wantPool, wantBodies string) string {
 	return ""
 }
 
-// TestKittenFunctionsComparisonIsSensitive checks that the comparison the tests
+// TestPercyFunctionsComparisonIsSensitive checks that the comparison the tests
 // above rely on rejects the kinds of difference it is meant to catch: a changed
 // indentation, a dropped pair of parentheses, reordered statements and functions,
 // and a reordered pool. It corrupts a correct probe output and requires the
 // comparison to notice, so a comparison that accepted everything could not pass.
-func TestKittenFunctionsComparisonIsSensitive(t *testing.T) {
+func TestPercyFunctionsComparisonIsSensitive(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenFunctions(t)
+	executable := buildPercyFunctions(t)
 	directory := t.TempDir()
 
 	root := `fn mixed(int limit) -> int {
@@ -987,7 +987,7 @@ fn main() {
 	if difference := functionDifference(pool, bodies, wantPool, wantBodies); difference != "" {
 		t.Fatalf("the uncorrupted output already differs: %s", difference)
 	}
-	if wantPool == "" || strings.Count(wantPool, "ktn_literal_") < 2 {
+	if wantPool == "" || strings.Count(wantPool, "pcy_literal_") < 2 {
 		t.Fatalf("the sensitivity program must pool at least two literals:\n%s", wantPool)
 	}
 
@@ -997,12 +997,12 @@ fn main() {
 		bodies      string
 	}{
 		{"identical output", wantPool, wantBodies},
-		{"changed indentation", wantPool, strings.Replace(wantBodies, "    int64_t ktn_var_index = 0;", "  int64_t ktn_var_index = 0;", 1)},
-		{"dropped parentheses", wantPool, strings.Replace(wantBodies, "(ktn_var_index < ktn_var_limit)", "ktn_var_index < ktn_var_limit", 1)},
-		{"reordered statements", wantPool, swapLines(wantBodies, "ktn_var_index = 0;", "return 0;")},
-		{"reordered functions", wantPool, swapLines(wantBodies, "int64_t ktn_fn_mixed", "int64_t ktn_fn_other")},
-		{"reordered pool", swapLines(wantPool, "ktn_literal_1", "ktn_literal_2"), wantBodies},
-		{"dropped definition", wantPool, strings.Replace(wantBodies, "\nint64_t ktn_fn_other(void) {\n    return 1;\n}\n", "", 1)},
+		{"changed indentation", wantPool, strings.Replace(wantBodies, "    int64_t pcy_var_index = 0;", "  int64_t pcy_var_index = 0;", 1)},
+		{"dropped parentheses", wantPool, strings.Replace(wantBodies, "(pcy_var_index < pcy_var_limit)", "pcy_var_index < pcy_var_limit", 1)},
+		{"reordered statements", wantPool, swapLines(wantBodies, "pcy_var_index = 0;", "return 0;")},
+		{"reordered functions", wantPool, swapLines(wantBodies, "int64_t pcy_fn_mixed", "int64_t pcy_fn_other")},
+		{"reordered pool", swapLines(wantPool, "pcy_literal_1", "pcy_literal_2"), wantBodies},
+		{"dropped definition", wantPool, strings.Replace(wantBodies, "\nint64_t pcy_fn_other(void) {\n    return 1;\n}\n", "", 1)},
 	}
 	for _, corruption := range corruptions {
 		difference := functionDifference(corruption.pool, corruption.bodies, wantPool, wantBodies)
@@ -1047,7 +1047,7 @@ func swapLines(text, first, second string) string {
 
 // --- Execution ---------------------------------------------------------------
 
-// TestKittenFunctionsCompileAndRun compiles and runs the code this emitter
+// TestPercyFunctionsCompileAndRun compiles and runs the code this emitter
 // produces, under both compilers.
 //
 // The unit it runs is not a translation unit this phase emits: it is the
@@ -1059,10 +1059,10 @@ func swapLines(text, first, second string) string {
 // written out by hand rather than read from the reference, so a textual agreement
 // is not what is being checked: the generated code is compiled, linked against the
 // runtime, executed, and its output compared with the values the source implies.
-func TestKittenFunctionsCompileAndRun(t *testing.T) {
+func TestPercyFunctionsCompileAndRun(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenFunctions(t)
+	executable := buildPercyFunctions(t)
 	probeDirectory := t.TempDir()
 
 	root := `fn count(int limit) -> int {
@@ -1113,17 +1113,17 @@ fn main() {
 	// generated functions, and prints what they return.
 	entry := `#include <stdio.h>
 
-static const ktn_string prefix = { 5, "world" };
+static const pcy_string prefix = { 5, "world" };
 
 int main(void) {
-    ktn_rt_init();
-    printf("%lld\n", (long long)ktn_fn_count(3));
-    printf("%lld\n", (long long)ktn_fn_choose(20));
-    printf("%lld\n", (long long)ktn_fn_choose(7));
-    printf("%lld\n", (long long)ktn_fn_choose(0));
-    printf("%lld\n", (long long)ktn_fn_describe(2));
-    ktn_rt_print_string(ktn_fn_greeting((&prefix)));
-    ktn_rt_print_newline();
+    pcy_rt_init();
+    printf("%lld\n", (long long)pcy_fn_count(3));
+    printf("%lld\n", (long long)pcy_fn_choose(20));
+    printf("%lld\n", (long long)pcy_fn_choose(7));
+    printf("%lld\n", (long long)pcy_fn_choose(0));
+    printf("%lld\n", (long long)pcy_fn_describe(2));
+    pcy_rt_print_string(pcy_fn_greeting((&prefix)));
+    pcy_rt_print_newline();
     return 0;
 }
 `
@@ -1204,12 +1204,12 @@ func nestedStatementProgram(depth int) string {
 	return builder.String()
 }
 
-// TestKittenFunctionsScaling measures emitting a deeply nested body and checks the
+// TestPercyFunctionsScaling measures emitting a deeply nested body and checks the
 // definitions still agree with the reference at each depth.
-func TestKittenFunctionsScaling(t *testing.T) {
+func TestPercyFunctionsScaling(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenFunctions(t)
+	executable := buildPercyFunctions(t)
 	directory := t.TempDir()
 
 	previous := time.Duration(0)

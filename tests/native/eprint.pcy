@@ -1,0 +1,12 @@
+fn value() -> int {
+    eprint("inner");
+    return 5;
+}
+
+fn main() {
+    eprint("one", 2, true, byte_from_int(7));
+    eprint("a");
+    eprint("b");
+    print("out", value());
+    eprint("done", value());
+}

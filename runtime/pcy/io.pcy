@@ -1,0 +1,99 @@
+//
+// Percy runtime memory helpers.
+//
+// This file is part of the Percy language runtime, which is compiled into
+// programs that opt into the compiler-reserved <runtime> module. It is licensed
+// permissively, unlike the compiler itself, so that programs compiled with
+// Percy can be distributed under any terms the author chooses. See LICENSE in
+// runtime/csrc.
+//
+// SPDX-License-Identifier: MIT
+//
+// Copyright (c) 2026 etokiyra
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+// IN THE SOFTWARE.
+//
+
+// write_executable writes data to path with mode 0755, creating or
+// truncating the file. It returns 0 on success or a negative errno. The path
+// is copied into a NUL-terminated byte array because constructed strings are
+// not guaranteed to carry a terminator in every runtime.
+public fn write_executable(string path, byte[] data) -> int {
+    byte[] terminated = new byte[length(path) + 1];
+    int index = 0;
+    while (index < length(path)) {
+        terminated[index] = byte_from_int(path[index]);
+        index++;
+    }
+    terminated[length(path)] = byte_from_int(0);
+    int descriptor = syscall(2, address_of(terminated), 577, 493, 0, 0, 0);
+    if (descriptor < 0) {
+        return descriptor;
+    }
+    int total = 0;
+    while (total < length(data)) {
+        int written = syscall(1, descriptor, address_of(data) + total, length(data) - total, 0, 0, 0);
+        if (written <= 0) {
+            syscall(3, descriptor, 0, 0, 0, 0, 0);
+            if (written < 0) {
+                return written;
+            }
+            return -5;
+        }
+        total = total + written;
+    }
+    int closed = syscall(3, descriptor, 0, 0, 0, 0, 0);
+    if (closed < 0) {
+        return closed;
+    }
+    return 0;
+}
+
+// write_bytes writes data to path with mode 0644, creating or truncating the
+// file. It is the non-executable sibling of write_executable.
+public fn write_bytes(string path, byte[] data) -> int {
+    byte[] terminated = new byte[length(path) + 1];
+    int index = 0;
+    while (index < length(path)) {
+        terminated[index] = byte_from_int(path[index]);
+        index++;
+    }
+    terminated[length(path)] = byte_from_int(0);
+    int descriptor = syscall(2, address_of(terminated), 577, 420, 0, 0, 0);
+    if (descriptor < 0) {
+        return descriptor;
+    }
+    int total = 0;
+    while (total < length(data)) {
+        int written = syscall(1, descriptor, address_of(data) + total, length(data) - total, 0, 0, 0);
+        if (written <= 0) {
+            syscall(3, descriptor, 0, 0, 0, 0, 0);
+            if (written < 0) {
+                return written;
+            }
+            return -5;
+        }
+        total = total + written;
+    }
+    int closed = syscall(3, descriptor, 0, 0, 0, 0, 0);
+    if (closed < 0) {
+        return closed;
+    }
+    return 0;
+}

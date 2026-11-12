@@ -1,4 +1,0 @@
-import "imported.ktn";
-fn main() {
-    imported();
-}

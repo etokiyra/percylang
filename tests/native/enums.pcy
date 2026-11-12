@@ -1,0 +1,30 @@
+enum Color {
+    Red,
+    Green,
+    Blue
+}
+
+struct Tag {
+    Color color;
+    int count;
+}
+
+fn pick() -> Color {
+    return Color.Green;
+}
+
+fn is_blue(Color color) -> bool {
+    return color == Color.Blue;
+}
+
+fn main() {
+    Color color = Color.Blue;
+    print(color == Color.Blue);
+    print(color == Color.Red);
+    Color picked = pick();
+    print(picked == Color.Green);
+    print(is_blue(color));
+    Tag tag = Tag { color = Color.Red, count = 3 };
+    print(tag.color == Color.Red);
+    print(tag.count);
+}

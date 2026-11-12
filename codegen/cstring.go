@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"strings"
 
-	"kitten/lexer"
+	"percy/lexer"
 )
 
-// cStringLiteral converts a Kitten string literal token into a safe C string
+// cStringLiteral converts a Percy string literal token into a safe C string
 // literal and its byte length.
 //
-// The Kitten token text includes the surrounding quotation marks and the
+// The Percy token text includes the surrounding quotation marks and the
 // escapes exactly as written, so this function decodes those escapes with the
 // lexer and then re-encodes the resulting bytes for C. Re-encoding (rather than
 // copying the source text) guarantees the generated C is well-formed: quotes,
@@ -20,8 +20,8 @@ import (
 // The returned length is the number of decoded bytes, excluding the NUL
 // terminator that C appends to the literal, and is what the generated string
 // object stores as its length.
-func cStringLiteral(kittenLiteral string) (escaped string, length int, err error) {
-	decoded, err := lexer.DecodeString(kittenLiteral)
+func cStringLiteral(percyLiteral string) (escaped string, length int, err error) {
+	decoded, err := lexer.DecodeString(percyLiteral)
 	if err != nil {
 		return "", 0, err
 	}

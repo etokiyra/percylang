@@ -1,20 +1,20 @@
 package main
 
-// Differential testing for the fixtures under tests/ through the Kitten-written
-// translation-unit emitter (selfhost/codegen/unit.ktn, driven by selfhost/unit.ktn).
+// Differential testing for the fixtures under tests/ through the Percy-written
+// translation-unit emitter (selfhost/codegen/unit.pcy, driven by selfhost/unit.pcy).
 //
-// Each fixture is handed to the Kitten backend, which prints a whole C translation
+// Each fixture is handed to the Percy backend, which prints a whole C translation
 // unit. A fixture the backend can compile is required to match the reference
 // generator's unit byte for byte, then to be compiled against the real runtime and
 // run, matching its own expected output. A fixture that still needs an expression
-// kind the Kitten backend does not implement must report exactly that kind, so a
+// kind the Percy backend does not implement must report exactly that kind, so a
 // program that is not generated can never look like one that is.
 //
 // The C compiler is the one the environment selects (CC), so running the suite
 // under GCC and under Clang checks both, exactly as the program tests do.
 //
 // The nine top-level fixtures are single file. The modules/ fixture is a
-// module-loader case and is not part of this list, because the Kitten backend has
+// module-loader case and is not part of this list, because the Percy backend has
 // no module loader yet. Every top-level fixture is generated, compiled, and run;
 // there is no unimplemented expression kind left to block one.
 
@@ -24,8 +24,8 @@ import (
 	"strings"
 	"testing"
 
-	"kitten/checker"
-	"kitten/codegen"
+	"percy/checker"
+	"percy/codegen"
 )
 
 // fixtureNames lists the nine top-level fixtures under tests/, in a stable order.
@@ -33,13 +33,13 @@ func fixtureNames() []string {
 	return []string{"hello", "fizzbuzz", "math", "room", "strings", "arrays", "variants", "maps", "lexer_proof"}
 }
 
-// TestKittenFixturesThroughKittenBackend compiles every fixture with the Kitten
+// TestPercyFixturesThroughPercyBackend compiles every fixture with the Percy
 // backend, compares the unit with the reference generator's, and compiles and runs
 // the ones it can generate.
-func TestKittenFixturesThroughKittenBackend(t *testing.T) {
+func TestPercyFixturesThroughPercyBackend(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenUnit(t)
+	executable := buildPercyUnit(t)
 	probeDirectory := t.TempDir()
 
 	compiler, err := discoverCompiler()
@@ -50,7 +50,7 @@ func TestKittenFixturesThroughKittenBackend(t *testing.T) {
 
 	generatedFixtures := 0
 	for _, name := range fixtureNames() {
-		sourcePath := filepath.Join("..", "..", "tests", name+".ktn")
+		sourcePath := filepath.Join("..", "..", "tests", name+".pcy")
 		source, err := os.ReadFile(sourcePath)
 		if err != nil {
 			t.Fatalf("reading %s: %v", sourcePath, err)
@@ -60,7 +60,7 @@ func TestKittenFixturesThroughKittenBackend(t *testing.T) {
 			t.Fatalf("reading the expected output for %s: %v", name, err)
 		}
 
-		got, err := runKittenUnit(executable, probeDirectory, string(source), "")
+		got, err := runPercyUnit(executable, probeDirectory, string(source), "")
 		if err != nil {
 			t.Errorf("%s: %v", name, err)
 			continue
@@ -87,12 +87,12 @@ func TestKittenFixturesThroughKittenBackend(t *testing.T) {
 			continue
 		}
 		if difference := unitDifference(got, referenceText); difference != "" {
-			t.Errorf("%s: the Kitten unit differs from the reference: %s", name, difference)
+			t.Errorf("%s: the Percy unit differs from the reference: %s", name, difference)
 			continue
 		}
 
-		// The two units are identical, so compiling and running the Kitten text is a
-		// test of the Kitten backend's own output. Compiling the reference text as
+		// The two units are identical, so compiling and running the Percy text is a
+		// test of the Percy backend's own output. Compiling the reference text as
 		// well would compare a program with itself.
 		programDirectory := t.TempDir()
 		result, err := buildAndRunProgram(t, compiler, compileFlags, linkFlags, programDirectory, got, 0)
@@ -114,6 +114,6 @@ func TestKittenFixturesThroughKittenBackend(t *testing.T) {
 	if generatedFixtures != len(fixtureNames()) {
 		t.Fatalf("%d of %d fixtures were generated and run, want all %d", generatedFixtures, len(fixtureNames()), len(fixtureNames()))
 	}
-	t.Logf("fixtures: %d of %d compile, run, and match their expected output through the Kitten backend under %s",
+	t.Logf("fixtures: %d of %d compile, run, and match their expected output through the Percy backend under %s",
 		generatedFixtures, len(fixtureNames()), filepath.Base(compiler[0]))
 }

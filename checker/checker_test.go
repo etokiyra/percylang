@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"kitten/lexer"
-	"kitten/parser"
+	"percy/lexer"
+	"percy/parser"
 )
 
 // checkSource runs source through lexing, parsing, and checking. It is the
@@ -86,7 +86,7 @@ func TestValidPrograms(t *testing.T) {
     int score = 5;
     float temperature = 21.5;
     bool is_ready = true;
-    string username = "kitten";
+    string username = "percy";
 }
 `,
 		},
@@ -1299,6 +1299,46 @@ func TestErrorCases(t *testing.T) {
 			contains: "must return a value",
 		},
 		{
+			name:     "push on a non-array",
+			source:   "fn main() {\n    int value = 1;\n    push(value, 1);\n}\n",
+			kind:     TypeMismatch,
+			line:     3,
+			column:   10,
+			contains: "\"push\" expects an array as its first argument, found int",
+		},
+		{
+			name:     "push of a mismatched element",
+			source:   "fn main() {\n    int[] values = new int[0];\n    push(values, \"x\");\n}\n",
+			kind:     TypeMismatch,
+			line:     3,
+			column:   18,
+			contains: "appended element of \"push\": expected int, found string",
+		},
+		{
+			name:     "push with one argument",
+			source:   "fn main() {\n    int[] values = new int[0];\n    push(values);\n}\n",
+			kind:     BadCall,
+			line:     3,
+			column:   9,
+			contains: "expects 2 arguments, got 1",
+		},
+		{
+			name:     "break outside a loop",
+			source:   "fn main() {\n    break;\n}\n",
+			kind:     InvalidLoopControl,
+			line:     2,
+			column:   5,
+			contains: "break is only valid inside a loop",
+		},
+		{
+			name:     "continue outside a loop",
+			source:   "fn main() {\n    continue;\n}\n",
+			kind:     InvalidLoopControl,
+			line:     2,
+			column:   5,
+			contains: "continue is only valid inside a loop",
+		},
+		{
 			name:     "void variable",
 			source:   "fn main() {\n    void v = 1;\n}\n",
 			kind:     InvalidType,
@@ -1446,7 +1486,7 @@ func TestUserDefinedPrintShadowsBuiltin(t *testing.T) {
 }
 
 func TestFixtures(t *testing.T) {
-	fixtures := []string{"hello.ktn", "fizzbuzz.ktn", "math.ktn", "room.ktn"}
+	fixtures := []string{"hello.pcy", "fizzbuzz.pcy", "math.pcy", "room.pcy"}
 
 	for _, name := range fixtures {
 		name := name
@@ -1705,7 +1745,7 @@ func modulesFromSources(t *testing.T, sources ...string) []*parser.Module {
 			t.Fatalf("parsing module %d: %v", index, err)
 		}
 		modules = append(modules, &parser.Module{
-			Path:    fmt.Sprintf("module%d.ktn", index),
+			Path:    fmt.Sprintf("module%d.pcy", index),
 			ID:      index,
 			Program: program,
 		})
@@ -1807,7 +1847,7 @@ private fn helper() -> int {
 
 func TestModulePublicFunctionCallsAnotherModule(t *testing.T) {
 	assertModulesOK(t,
-		`import "lib.ktn";
+		`import "lib.pcy";
 fn main() {
     print(combined());
 }
@@ -1835,8 +1875,8 @@ func TestModulePrivateFunctionAccessIsRejected(t *testing.T) {
 }
 `,
 	)
-	if checkError.File != "module0.ktn" {
-		t.Errorf("error file = %q, want module0.ktn", checkError.File)
+	if checkError.File != "module0.pcy" {
+		t.Errorf("error file = %q, want module0.pcy", checkError.File)
 	}
 }
 

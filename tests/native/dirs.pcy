@@ -1,0 +1,42 @@
+fn main() {
+    match (try_remove("pcy_native_dir")) {
+        Ok {
+            print("preclean ok");
+        }
+        Failed(message) {
+            print("preclean", message);
+        }
+    }
+    match (try_create_directory("pcy_native_dir")) {
+        Ok {
+            print("made");
+        }
+        Failed(message) {
+            print("mkfail", message);
+        }
+    }
+    match (try_create_directory("pcy_native_dir")) {
+        Ok {
+            print("made twice");
+        }
+        Failed(message) {
+            print("exists", message);
+        }
+    }
+    match (try_remove("pcy_native_dir")) {
+        Ok {
+            print("removed");
+        }
+        Failed(message) {
+            print("removefail", message);
+        }
+    }
+    match (try_remove("pcy_native_dir")) {
+        Ok {
+            print("removed twice");
+        }
+        Failed(message) {
+            print("missing", message);
+        }
+    }
+}

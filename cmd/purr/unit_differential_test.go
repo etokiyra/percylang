@@ -1,7 +1,7 @@
 package main
 
-// Differential testing for the Kitten-written translation unit emitter
-// (selfhost/codegen/unit.ktn, driven by selfhost/unit.ktn).
+// Differential testing for the Percy-written translation unit emitter
+// (selfhost/codegen/unit.pcy, driven by selfhost/unit.pcy).
 //
 // The driver prints the whole C translation unit, so one comparison per program
 // covers the generated-file header, the declaration sections, the pooled string
@@ -30,27 +30,27 @@ import (
 	"testing"
 	"time"
 
-	"kitten/checker"
-	"kitten/codegen"
-	"kitten/parser"
-	"kitten/runtime"
+	"percy/checker"
+	"percy/codegen"
+	"percy/parser"
+	"percy/runtime"
 )
 
-// kittenUnitProgram is the driver program that prints a translation unit.
-func kittenUnitProgram() string {
-	return filepath.Join("..", "..", "selfhost", "unit.ktn")
+// percyUnitProgram is the driver program that prints a translation unit.
+func percyUnitProgram() string {
+	return filepath.Join("..", "..", "selfhost", "unit.pcy")
 }
 
-// buildKittenUnit builds the unit probe. It fails if the build produces any C
+// buildPercyUnit builds the unit probe. It fails if the build produces any C
 // diagnostic, so the probe must compile warning-free.
-func buildKittenUnit(t *testing.T) string {
+func buildPercyUnit(t *testing.T) string {
 	t.Helper()
 
 	requireToolchain(t)
 
-	executable := filepath.Join(t.TempDir(), "kitten-unit")
+	executable := filepath.Join(t.TempDir(), "percy-unit")
 	var diagnostics bytes.Buffer
-	if err := buildExecutable(kittenUnitProgram(), executable, &diagnostics); err != nil {
+	if err := buildExecutable(percyUnitProgram(), executable, &diagnostics); err != nil {
 		t.Fatalf("building the unit probe: %v\n%s", err, diagnostics.String())
 	}
 	if warnings := strings.TrimSpace(diagnostics.String()); warnings != "" {
@@ -59,8 +59,8 @@ func buildKittenUnit(t *testing.T) string {
 	return executable
 }
 
-// runKittenUnit writes the modules and runs the unit probe.
-func runKittenUnit(executable, directory, root, imported string) (string, error) {
+// runPercyUnit writes the modules and runs the unit probe.
+func runPercyUnit(executable, directory, root, imported string) (string, error) {
 	if err := os.WriteFile(filepath.Join(directory, "input.txt"), []byte(root), 0o644); err != nil {
 		return "", fmt.Errorf("writing input.txt: %v", err)
 	}
@@ -304,6 +304,23 @@ func unitCases() []unitCase {
 fn main() {
     stop(1 + 2);
     exit(-1);
+}
+`,
+	}, {
+		description: "array push across element kinds",
+		root: `fn main() {
+    int[] numbers = new int[1];
+    push(numbers, 2);
+    push(numbers, 3);
+    string[] names = new string[0];
+    push(names, "a" + "b");
+    bool[] flags = new bool[0];
+    push(flags, true);
+    byte[] bytes = new byte[0];
+    push(bytes, byte_from_int(65));
+    float[] reals = new float[0];
+    push(reals, 1.25);
+    print(length(numbers), numbers[2], names[0], flags[0], bytes[0], reals[0]);
 }
 `,
 	}, {
@@ -1124,13 +1141,13 @@ fn main() {
 	}}
 }
 
-// TestKittenUnitMatchesReference compares the whole generated translation unit with
+// TestPercyUnitMatchesReference compares the whole generated translation unit with
 // the reference generator's for each targeted program, and the error for each
 // program the reference rejects.
-func TestKittenUnitMatchesReference(t *testing.T) {
+func TestPercyUnitMatchesReference(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenUnit(t)
+	executable := buildPercyUnit(t)
 	directory := t.TempDir()
 
 	units := 0
@@ -1141,7 +1158,7 @@ func TestKittenUnitMatchesReference(t *testing.T) {
 		if !ok {
 			continue
 		}
-		got, err := runKittenUnit(executable, directory, testCase.root, testCase.imported)
+		got, err := runPercyUnit(executable, directory, testCase.root, testCase.imported)
 		if err != nil {
 			t.Errorf("%s: %v", testCase.description, err)
 			continue
@@ -1219,15 +1236,15 @@ func prepareUnit(t *testing.T, description, root, imported string) ([]*parser.Mo
 
 // --- Corpus ------------------------------------------------------------------
 
-// TestKittenUnitCorpus compares whole translation units over the checker corpus.
+// TestPercyUnitCorpus compares whole translation units over the checker corpus.
 // Every program the checker rejects must be reported with the checker's own error;
 // every program with an invalid entry point must be reported with the reference's
 // failure for the same reason; and every other program's unit must match the
 // reference byte for byte.
-func TestKittenUnitCorpus(t *testing.T) {
+func TestPercyUnitCorpus(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenUnit(t)
+	executable := buildPercyUnit(t)
 	directory := t.TempDir()
 
 	units := 0
@@ -1248,7 +1265,7 @@ func TestKittenUnitCorpus(t *testing.T) {
 				t.Errorf("%s: the reference checker returned %T", testCase.name, checkError)
 				continue
 			}
-			got, err := runKittenUnit(executable, directory, testCase.root, testCase.imported)
+			got, err := runPercyUnit(executable, directory, testCase.root, testCase.imported)
 			if err != nil {
 				t.Errorf("%s: %v", testCase.name, err)
 				continue
@@ -1261,14 +1278,14 @@ func TestKittenUnitCorpus(t *testing.T) {
 			continue
 		}
 
-		// A non-ASCII input shifts the positions the probe reports, because Kitten
+		// A non-ASCII input shifts the positions the probe reports, because Percy
 		// counts bytes.
 		if !isASCII(testCase.root) || !isASCII(testCase.imported) {
 			skipped++
 			continue
 		}
 
-		got, err := runKittenUnit(executable, directory, testCase.root, testCase.imported)
+		got, err := runPercyUnit(executable, directory, testCase.root, testCase.imported)
 		if err != nil {
 			t.Errorf("%s: %v", testCase.name, err)
 			continue
@@ -1332,14 +1349,14 @@ func entryPointError(modules []*parser.Module, checked *checker.Result) error {
 
 // --- Comparison sensitivity --------------------------------------------------
 
-// TestKittenUnitComparisonIsSensitive checks that the whole-unit comparison rejects
+// TestPercyUnitComparisonIsSensitive checks that the whole-unit comparison rejects
 // the kinds of difference it is meant to catch. It corrupts a correct unit and
 // requires the comparison to notice, so a comparison that accepted everything could
 // not pass.
-func TestKittenUnitComparisonIsSensitive(t *testing.T) {
+func TestPercyUnitComparisonIsSensitive(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenUnit(t)
+	executable := buildPercyUnit(t)
 	directory := t.TempDir()
 
 	root := `struct Point {
@@ -1363,7 +1380,7 @@ fn main() {
 	if !ok {
 		t.Fatalf("the reference rejected the program")
 	}
-	got, err := runKittenUnit(executable, directory, root, "")
+	got, err := runPercyUnit(executable, directory, root, "")
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -1377,14 +1394,14 @@ fn main() {
 	}{
 		{"identical unit", generated},
 		{"a missing blank line", strings.Replace(generated, "\n\n", "\n", 1)},
-		{"an extra blank line", strings.Replace(generated, "#include \"kitten_runtime.h\"\n\n", "#include \"kitten_runtime.h\"\n\n\n", 1)},
-		{"a changed literal number", strings.Replace(generated, "ktn_literal_1", "ktn_literal_2", 1)},
-		{"a reordered function", swapLines(generated, "int64_t ktn_fn_describe", "const ktn_string * ktn_fn_label")},
-		{"a changed entry point line", strings.Replace(generated, "    ktn_fn_main();", "    ktn_fn_main;", 1)},
-		{"a changed argument capture line", strings.Replace(generated, "    ktn_rt_set_args(argc, argv);", "    ktn_rt_set_args(argc);", 1)},
-		{"a dropped function definition", strings.Replace(generated, "\nvoid ktn_fn_main(void) {\n}\n", "\n", 1)},
-		{"a removed declaration section", strings.Replace(generated, "typedef struct ktn_s_Point ktn_s_Point;\n", "", 1)},
-		{"a dropped include", strings.Replace(generated, "#include \"kitten_runtime.h\"\n", "", 1)},
+		{"an extra blank line", strings.Replace(generated, "#include \"percy_runtime.h\"\n\n", "#include \"percy_runtime.h\"\n\n\n", 1)},
+		{"a changed literal number", strings.Replace(generated, "pcy_literal_1", "pcy_literal_2", 1)},
+		{"a reordered function", swapLines(generated, "int64_t pcy_fn_describe", "const pcy_string * pcy_fn_label")},
+		{"a changed entry point line", strings.Replace(generated, "    pcy_fn_main();", "    pcy_fn_main;", 1)},
+		{"a changed argument capture line", strings.Replace(generated, "    pcy_rt_set_args(argc, argv);", "    pcy_rt_set_args(argc);", 1)},
+		{"a dropped function definition", strings.Replace(generated, "\nvoid pcy_fn_main(void) {\n}\n", "\n", 1)},
+		{"a removed declaration section", strings.Replace(generated, "typedef struct pcy_s_Point pcy_s_Point;\n", "", 1)},
+		{"a dropped include", strings.Replace(generated, "#include \"percy_runtime.h\"\n", "", 1)},
 	}
 	for _, corruption := range corruptions {
 		difference := unitDifference(corruption.text, generated)
@@ -1484,21 +1501,21 @@ fn main() {
 	}}
 }
 
-// TestKittenUnitCompileAndRun compiles, links, and runs the complete units this
+// TestPercyUnitCompileAndRun compiles, links, and runs the complete units this
 // phase generates, under both compilers, and compares their observable behavior with
 // the reference's.
 //
 // Both units are generated independently - one by the reference generator and one by
-// the Kitten-written one - and are required to be identical before either is
+// the Percy-written one - and are required to be identical before either is
 // compiled, so the comparison is of two generated units rather than of one text
 // compiled twice. Both units compile with the project's flags, link against the
 // runtime, run, exit with status 0, write nothing to stderr, and print exactly what
 // the source implies. The assignment case also checks that a compound assignment to
 // an element whose index is a call evaluates that call once.
-func TestKittenUnitCompileAndRun(t *testing.T) {
+func TestPercyUnitCompileAndRun(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenUnit(t)
+	executable := buildPercyUnit(t)
 	probeDirectory := t.TempDir()
 
 	compiler, err := discoverCompiler()
@@ -1518,12 +1535,12 @@ func TestKittenUnitCompileAndRun(t *testing.T) {
 			t.Errorf("%s: the reference rejected the program: %v", testCase.description, generationError)
 			continue
 		}
-		kittenText, err := runKittenUnit(executable, probeDirectory, testCase.root, "")
+		percyText, err := runPercyUnit(executable, probeDirectory, testCase.root, "")
 		if err != nil {
 			t.Errorf("%s: %v", testCase.description, err)
 			continue
 		}
-		if difference := unitDifference(kittenText, referenceText); difference != "" {
+		if difference := unitDifference(percyText, referenceText); difference != "" {
 			t.Errorf("%s: the translation unit differs: %s", testCase.description, difference)
 			continue
 		}
@@ -1531,7 +1548,7 @@ func TestKittenUnitCompileAndRun(t *testing.T) {
 		// Both texts are identical, and each is compiled and run from its own
 		// directory so that neither result can mask the other.
 		outputs := make([]string, 0, 2)
-		for index, text := range []string{referenceText, kittenText} {
+		for index, text := range []string{referenceText, percyText} {
 			directory := t.TempDir()
 			if err := os.WriteFile(filepath.Join(directory, "program.c"), []byte(text), 0o644); err != nil {
 				t.Fatalf("writing program.c: %v", err)
@@ -1586,23 +1603,23 @@ func prepareUnitExpectingSuccess(t *testing.T, description, root, imported strin
 
 // --- State isolation and performance -----------------------------------------
 
-// TestKittenUnitIsDeterministic checks that generation depends only on its input:
+// TestPercyUnitIsDeterministic checks that generation depends only on its input:
 // the same program must produce the same bytes after a different program.
-func TestKittenUnitIsDeterministic(t *testing.T) {
+func TestPercyUnitIsDeterministic(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenUnit(t)
+	executable := buildPercyUnit(t)
 	directory := t.TempDir()
 
 	root := "struct S {\n    int a;\n}\nfn value(int x) -> int {\n    string s = \"text\";\n    return x + 1;\n}\nfn main() {\n}\n"
-	first, err := runKittenUnit(executable, directory, root, "")
+	first, err := runPercyUnit(executable, directory, root, "")
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
-	if _, err := runKittenUnit(executable, directory, "enum E { A }\nfn other(E e) -> int {\n    match (e) {\n        A { return 1; }\n    }\n}\nfn main() {\n}\n", ""); err != nil {
+	if _, err := runPercyUnit(executable, directory, "enum E { A }\nfn other(E e) -> int {\n    match (e) {\n        A { return 1; }\n    }\n}\nfn main() {\n}\n", ""); err != nil {
 		t.Fatalf("%v", err)
 	}
-	second, err := runKittenUnit(executable, directory, root, "")
+	second, err := runPercyUnit(executable, directory, root, "")
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -1613,7 +1630,7 @@ func TestKittenUnitIsDeterministic(t *testing.T) {
 	// The same root with a different imported module must still produce the same
 	// unit as the single-module program, because an empty module contributes
 	// nothing and no state leaks between runs.
-	withEmpty, err := runKittenUnit(executable, directory, root, "")
+	withEmpty, err := runPercyUnit(executable, directory, root, "")
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -1633,12 +1650,12 @@ func programWithFunctions(count int) string {
 	return builder.String()
 }
 
-// TestKittenUnitScaling measures generating a whole translation unit of growing size
+// TestPercyUnitScaling measures generating a whole translation unit of growing size
 // and checks it still matches the reference.
-func TestKittenUnitScaling(t *testing.T) {
+func TestPercyUnitScaling(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenUnit(t)
+	executable := buildPercyUnit(t)
 	directory := t.TempDir()
 
 	previous := time.Duration(0)
@@ -1660,7 +1677,7 @@ func TestKittenUnitScaling(t *testing.T) {
 		var got string
 		for repetition := 0; repetition < 3; repetition++ {
 			start := time.Now()
-			rendered, err := runKittenUnit(executable, directory, root, "")
+			rendered, err := runPercyUnit(executable, directory, root, "")
 			if err != nil {
 				t.Fatalf("%d functions: %v", count, err)
 			}

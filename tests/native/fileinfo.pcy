@@ -1,0 +1,63 @@
+fn show(bool is_file, bool is_directory, bool is_symlink, bool executable, int size) {
+    print(is_file, is_directory, is_symlink, executable, size);
+}
+
+fn main() {
+    match (try_remove("pcy_info_file")) {
+        Ok { }
+        Failed(message) { }
+    }
+    match (try_remove("pcy_info_dir")) {
+        Ok { }
+        Failed(message) { }
+    }
+    match (try_write_file("pcy_info_file", "hello")) {
+        Ok {
+            print("wrote");
+        }
+        Failed(message) {
+            print("write fail", message);
+        }
+    }
+    match (try_create_directory("pcy_info_dir")) {
+        Ok {
+            print("made");
+        }
+        Failed(message) {
+            print("mkdir fail", message);
+        }
+    }
+    match (try_file_info("pcy_info_file")) {
+        Ok(is_file, is_directory, is_symlink, executable, size) {
+            show(is_file, is_directory, is_symlink, executable, size);
+        }
+        Missing {
+            print("file missing");
+        }
+        Failed(message) {
+            print("file fail", message);
+        }
+    }
+    match (try_file_info("pcy_info_dir")) {
+        Ok(is_file, is_directory, is_symlink, executable, size) {
+            show(is_file, is_directory, is_symlink, executable, size);
+        }
+        Missing {
+            print("dir missing");
+        }
+        Failed(message) {
+            print("dir fail", message);
+        }
+    }
+    match (try_file_info("pcy_info_absent")) {
+        Ok(is_file, is_directory, is_symlink, executable, size) {
+            show(is_file, is_directory, is_symlink, executable, size);
+        }
+        Missing {
+            print("absent missing");
+        }
+        Failed(message) {
+            print("absent fail", message);
+        }
+    }
+}

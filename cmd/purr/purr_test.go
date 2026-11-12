@@ -36,7 +36,7 @@ func TestPurrUsageText(t *testing.T) {
 			t.Errorf("usage does not contain %q:\n%s", expected, noArguments.stderr)
 		}
 	}
-	for _, unexpected := range []string{"kitten build", "kitten run"} {
+	for _, unexpected := range []string{"percy build", "percy run"} {
 		if strings.Contains(noArguments.stderr, unexpected) {
 			t.Errorf("usage still contains %q:\n%s", unexpected, noArguments.stderr)
 		}

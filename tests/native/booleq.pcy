@@ -1,0 +1,5 @@
+fn main() {
+    print(true == true, true == false, false == false, true != false);
+    bool value = true;
+    print(value == true, value != false);
+}

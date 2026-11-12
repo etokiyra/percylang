@@ -1,4 +1,4 @@
-// Package lexer turns Kitten source text into a stream of tokens.
+// Package lexer turns Percy source text into a stream of tokens.
 //
 // The public entry point is Lex, which scans an entire source string and
 // returns the tokens it contains, followed by a single EOF token. Lex stops at
@@ -19,21 +19,23 @@ const eof = rune(-1)
 // keywords maps reserved words and built-in type names to their token kinds.
 // Words absent from this map, including "print", lex as Ident.
 var keywords = map[string]Kind{
-	"struct":  Struct,
-	"if":      If,
-	"else":    Else,
-	"while":   While,
-	"for":     For,
-	"return":  Return,
-	"fn":      Fn,
-	"new":     New,
-	"import":  Import,
-	"public":  Public,
-	"private": Private,
-	"enum":    Enum,
-	"union":   Union,
-	"match":   Match,
-	"map":     Map,
+	"struct":   Struct,
+	"if":       If,
+	"else":     Else,
+	"while":    While,
+	"for":      For,
+	"break":    Break,
+	"continue": Continue,
+	"return":   Return,
+	"fn":       Fn,
+	"new":      New,
+	"import":   Import,
+	"public":   Public,
+	"private":  Private,
+	"enum":     Enum,
+	"union":    Union,
+	"match":    Match,
+	"map":      Map,
 
 	"int":    TypeInt,
 	"float":  TypeFloat,

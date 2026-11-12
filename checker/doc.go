@@ -1,5 +1,5 @@
 // Package checker performs semantic analysis and static type checking on a
-// parsed Kitten program.
+// parsed Percy program.
 //
 // The public entry points are Check, which checks a single *parser.Program, and
 // CheckModules, which checks a program split across several modules. Both return

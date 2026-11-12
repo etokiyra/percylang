@@ -1,13 +1,13 @@
-// Command purr compiles Kitten source files into native executables.
+// Command purr compiles Percy source files into native executables.
 //
 // The pipeline is: source -> lexer -> parser -> checker -> C code generation ->
-// C compiler/linker -> native executable, linked against the Kitten runtime and
+// C compiler/linker -> native executable, linked against the Percy runtime and
 // the Boehm garbage collector.
 //
 // Usage:
 //
-//	purr build <file.ktn> [-o <output>]   Compile a source file
-//	purr run <file.ktn>                   Compile and run a source file
+//	purr build <file.pcy> [-o <output>]   Compile a source file
+//	purr run <file.pcy>                   Compile and run a source file
 //
 // Exit codes:
 //
@@ -25,27 +25,27 @@ import (
 	"path/filepath"
 	"strings"
 
-	"kitten/checker"
-	"kitten/codegen"
-	"kitten/loader"
-	"kitten/parser"
-	"kitten/runtime"
+	"percy/checker"
+	"percy/codegen"
+	"percy/loader"
+	"percy/parser"
+	"percy/runtime"
 )
 
-const usageText = `Kitten compiler
+const usageText = `Percy compiler
 
 Usage:
-  purr build <file.ktn> [-o <output>]   Compile a Kitten source file
-  purr run <file.ktn>                   Compile and run a Kitten source file
+  purr build <file.pcy> [-o <output>]   Compile a Percy source file
+  purr run <file.pcy>                   Compile and run a Percy source file
 
 Options:
   -o, --output <path>   Write the executable to <path> (build only)
 
 The C compiler is taken from CC, or discovered as cc, gcc, or clang.
-Kitten programs are linked against the Boehm garbage collector (libgc).`
+Percy programs are linked against the Boehm garbage collector (libgc).`
 
-// sourceExtension is the required extension for Kitten source files.
-const sourceExtension = ".ktn"
+// sourceExtension is the required extension for Percy source files.
+const sourceExtension = ".pcy"
 
 // Exit codes.
 const (
@@ -137,7 +137,7 @@ func runBuild(args []string, stdout, stderr io.Writer) int {
 		return exitUsage
 	}
 	if !strings.HasSuffix(parsed.source, sourceExtension) {
-		fmt.Fprintf(stderr, "purr build: %q is not a Kitten source file (expected a %s file)\n", parsed.source, sourceExtension)
+		fmt.Fprintf(stderr, "purr build: %q is not a Percy source file (expected a %s file)\n", parsed.source, sourceExtension)
 		return exitUsage
 	}
 
@@ -168,7 +168,7 @@ func runRun(args []string, stdout, stderr io.Writer) int {
 		return exitUsage
 	}
 	if !strings.HasSuffix(parsed.source, sourceExtension) {
-		fmt.Fprintf(stderr, "purr run: %q is not a Kitten source file (expected a %s file)\n", parsed.source, sourceExtension)
+		fmt.Fprintf(stderr, "purr run: %q is not a Percy source file (expected a %s file)\n", parsed.source, sourceExtension)
 		return exitUsage
 	}
 
@@ -367,7 +367,7 @@ func diagnostic(err error) (parser.Position, string, bool) {
 }
 
 // defaultOutputPath returns the executable path used when -o is not given: the
-// source file's base name without the .ktn extension, in the current directory.
+// source file's base name without the .pcy extension, in the current directory.
 func defaultOutputPath(sourcePath string) string {
 	base := strings.TrimSuffix(filepath.Base(sourcePath), sourceExtension)
 	if base == "" || base == "." {

@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"kitten/checker"
-	"kitten/lexer"
-	"kitten/parser"
+	"percy/checker"
+	"percy/lexer"
+	"percy/parser"
 )
 
 // generateSource runs a source program through the frontend and code generator.
@@ -42,22 +42,22 @@ func assertContains(t *testing.T, generated, substring string) {
 }
 
 // literalRef returns the C expression that refers to the pooled static object
-// holding the given Kitten string literal, which generated C declares as
+// holding the given Percy string literal, which generated C declares as
 //
-//	static const ktn_string ktn_literal_N = { LENGTH, "TEXT" };
+//	static const pcy_string pcy_literal_N = { LENGTH, "TEXT" };
 //
 // Tests use it so that they can refer to a literal without depending on its
-// number in the pool. The argument is the literal as written in Kitten source,
+// number in the pool. The argument is the literal as written in Percy source,
 // including its quotation marks.
-func literalRef(t *testing.T, generated, kittenLiteral string) string {
+func literalRef(t *testing.T, generated, percyLiteral string) string {
 	t.Helper()
 
-	escaped, _, err := cStringLiteral(kittenLiteral)
+	escaped, _, err := cStringLiteral(percyLiteral)
 	if err != nil {
-		t.Fatalf("cStringLiteral(%q): %v", kittenLiteral, err)
+		t.Fatalf("cStringLiteral(%q): %v", percyLiteral, err)
 	}
 	for _, line := range strings.Split(generated, "\n") {
-		if !strings.HasPrefix(line, "static const ktn_string "+literalPrefix) {
+		if !strings.HasPrefix(line, "static const pcy_string "+literalPrefix) {
 			continue
 		}
 		if !strings.Contains(line, escaped+" };") {
@@ -69,17 +69,17 @@ func literalRef(t *testing.T, generated, kittenLiteral string) string {
 		}
 		return "(&" + fields[3] + ")"
 	}
-	t.Fatalf("generated C has no pooled literal for %q\n--- generated ---\n%s", kittenLiteral, generated)
+	t.Fatalf("generated C has no pooled literal for %q\n--- generated ---\n%s", percyLiteral, generated)
 	return ""
 }
 
 func TestGeneratedIncludesRuntimeHeader(t *testing.T) {
 	generated := generateSource(t, "fn main() {\n}\n")
-	assertContains(t, generated, `#include "kitten_runtime.h"`)
+	assertContains(t, generated, `#include "percy_runtime.h"`)
 	assertContains(t, generated, "int main(int argc, char **argv) {")
-	assertContains(t, generated, "ktn_rt_init();")
-	assertContains(t, generated, "ktn_rt_set_args(argc, argv);")
-	assertContains(t, generated, "ktn_fn_main();")
+	assertContains(t, generated, "pcy_rt_init();")
+	assertContains(t, generated, "pcy_rt_set_args(argc, argv);")
+	assertContains(t, generated, "pcy_fn_main();")
 }
 
 func TestTypeMapping(t *testing.T) {
@@ -95,13 +95,13 @@ fn main() {
     print(a, b, c, d);
 }
 `)
-	assertContains(t, generated, "int64_t ktn_var_a")
-	assertContains(t, generated, "double ktn_var_b")
-	assertContains(t, generated, "bool ktn_var_c")
-	assertContains(t, generated, "const ktn_string * ktn_var_d")
-	assertContains(t, generated, "ktn_s_Point * ktn_var_p")
-	assertContains(t, generated, "struct ktn_s_Point {")
-	assertContains(t, generated, "int64_t ktn_f_x;")
+	assertContains(t, generated, "int64_t pcy_var_a")
+	assertContains(t, generated, "double pcy_var_b")
+	assertContains(t, generated, "bool pcy_var_c")
+	assertContains(t, generated, "const pcy_string * pcy_var_d")
+	assertContains(t, generated, "pcy_s_Point * pcy_var_p")
+	assertContains(t, generated, "struct pcy_s_Point {")
+	assertContains(t, generated, "int64_t pcy_f_x;")
 }
 
 func TestIdentifierMappingAvoidsCKeywords(t *testing.T) {
@@ -115,11 +115,11 @@ fn main() {
     print(w.case);
 }
 `)
-	// Kitten identifiers that are C keywords must not leak into C.
-	assertContains(t, generated, "int64_t ktn_var_double")
-	assertContains(t, generated, "int64_t ktn_var_for_in_c")
-	assertContains(t, generated, "ktn_f_case")
-	assertContains(t, generated, "->ktn_f_case")
+	// Percy identifiers that are C keywords must not leak into C.
+	assertContains(t, generated, "int64_t pcy_var_double")
+	assertContains(t, generated, "int64_t pcy_var_for_in_c")
+	assertContains(t, generated, "pcy_f_case")
+	assertContains(t, generated, "->pcy_f_case")
 	if strings.Contains(generated, "->case") {
 		t.Errorf("generated C used an unmapped field name\n%s", generated)
 	}
@@ -127,9 +127,9 @@ fn main() {
 
 func TestFunctionAndMainNamesDoNotCollide(t *testing.T) {
 	generated := generateSource(t, "fn main() {\n}\n")
-	// The Kitten main function and the C entry point are distinct symbols.
-	assertContains(t, generated, "void ktn_fn_main(void);")
-	assertContains(t, generated, "void ktn_fn_main(void) {")
+	// The Percy main function and the C entry point are distinct symbols.
+	assertContains(t, generated, "void pcy_fn_main(void);")
+	assertContains(t, generated, "void pcy_fn_main(void) {")
 	assertContains(t, generated, "int main(int argc, char **argv) {")
 }
 
@@ -138,12 +138,12 @@ func TestPrintExpansion(t *testing.T) {
     print("text", 1, 2.5, true);
 }
 `)
-	assertContains(t, generated, `ktn_rt_print_string(`+literalRef(t, generated, `"text"`)+`)`)
-	assertContains(t, generated, "ktn_rt_print_space()")
-	assertContains(t, generated, "ktn_rt_print_int(1)")
-	assertContains(t, generated, "ktn_rt_print_float(2.5)")
-	assertContains(t, generated, "ktn_rt_print_bool(true)")
-	assertContains(t, generated, "ktn_rt_print_newline()")
+	assertContains(t, generated, `pcy_rt_print_string(`+literalRef(t, generated, `"text"`)+`)`)
+	assertContains(t, generated, "pcy_rt_print_space()")
+	assertContains(t, generated, "pcy_rt_print_int(1)")
+	assertContains(t, generated, "pcy_rt_print_float(2.5)")
+	assertContains(t, generated, "pcy_rt_print_bool(true)")
+	assertContains(t, generated, "pcy_rt_print_newline()")
 }
 
 func TestStringEqualityUsesRuntimeHelper(t *testing.T) {
@@ -155,8 +155,8 @@ func TestStringEqualityUsesRuntimeHelper(t *testing.T) {
 `)
 	first := literalRef(t, generated, `"a"`)
 	second := literalRef(t, generated, `"b"`)
-	assertContains(t, generated, `ktn_rt_string_equal(`+first+`, `+second+`)`)
-	assertContains(t, generated, `!ktn_rt_string_equal(`+first+`, `+second+`)`)
+	assertContains(t, generated, `pcy_rt_string_equal(`+first+`, `+second+`)`)
+	assertContains(t, generated, `!pcy_rt_string_equal(`+first+`, `+second+`)`)
 }
 
 func TestStringConcatenationUsesRuntimeHelper(t *testing.T) {
@@ -169,9 +169,9 @@ func TestStringConcatenationUsesRuntimeHelper(t *testing.T) {
     print(literal, variables, mixed);
 }
 `)
-	assertContains(t, generated, `ktn_rt_string_concat(`+literalRef(t, generated, `"a"`)+`, `+literalRef(t, generated, `"b"`)+`)`)
-	assertContains(t, generated, "ktn_rt_string_concat(ktn_var_first, ktn_var_second)")
-	assertContains(t, generated, `ktn_rt_string_concat(ktn_var_first, `+literalRef(t, generated, `"!"`)+`)`)
+	assertContains(t, generated, `pcy_rt_string_concat(`+literalRef(t, generated, `"a"`)+`, `+literalRef(t, generated, `"b"`)+`)`)
+	assertContains(t, generated, "pcy_rt_string_concat(pcy_var_first, pcy_var_second)")
+	assertContains(t, generated, `pcy_rt_string_concat(pcy_var_first, `+literalRef(t, generated, `"!"`)+`)`)
 }
 
 func TestStringCompoundAssignmentLowersToAppend(t *testing.T) {
@@ -180,7 +180,7 @@ func TestStringCompoundAssignmentLowersToAppend(t *testing.T) {
     text += "b";
 }
 `)
-	assertContains(t, generated, `ktn_rt_string_append(&(ktn_var_text), `+literalRef(t, generated, `"b"`)+`)`)
+	assertContains(t, generated, `pcy_rt_string_append(&(pcy_var_text), `+literalRef(t, generated, `"b"`)+`)`)
 }
 
 func TestStringTypeMappingIsLengthCarryingPointer(t *testing.T) {
@@ -194,11 +194,11 @@ fn main() {
 	// A string is a pointer to the runtime's length-carrying string type, and
 	// the literal it is initialized from is a static object of that type whose
 	// length the compiler computed from the decoded bytes.
-	assertContains(t, generated, "const ktn_string * ktn_var_text")
-	assertContains(t, generated, "static const ktn_string "+literalPrefix)
+	assertContains(t, generated, "const pcy_string * pcy_var_text")
+	assertContains(t, generated, "static const pcy_string "+literalPrefix)
 	assertContains(t, generated, `{ 1, "a" };`)
-	assertContains(t, generated, "const ktn_string * ktn_fn_name(void)")
-	assertContains(t, generated, "const ktn_string * ktn_fn_name(void) {")
+	assertContains(t, generated, "const pcy_string * pcy_fn_name(void)")
+	assertContains(t, generated, "const pcy_string * pcy_fn_name(void) {")
 }
 
 func TestArrayCreationAndIndexing(t *testing.T) {
@@ -210,10 +210,10 @@ func TestArrayCreationAndIndexing(t *testing.T) {
     print(length(values), first);
 }
 `)
-	assertContains(t, generated, "ktn_rt_array_new(3, sizeof(int64_t))")
-	assertContains(t, generated, "(*((int64_t *)ktn_rt_array_at(ktn_var_values, 0))) = 1")
-	assertContains(t, generated, "ktn_rt_i64_add_assign(&((*((int64_t *)ktn_rt_array_at(ktn_var_values, 1)))), 2)")
-	assertContains(t, generated, "ktn_rt_array_length(ktn_var_values)")
+	assertContains(t, generated, "pcy_rt_array_new(3, sizeof(int64_t))")
+	assertContains(t, generated, "(*((int64_t *)pcy_rt_array_at(pcy_var_values, 0))) = 1")
+	assertContains(t, generated, "pcy_rt_i64_add_assign(&((*((int64_t *)pcy_rt_array_at(pcy_var_values, 1)))), 2)")
+	assertContains(t, generated, "pcy_rt_array_length(pcy_var_values)")
 }
 
 func TestArrayTypeMapping(t *testing.T) {
@@ -225,8 +225,8 @@ fn main() {
     print(length(identity(items)));
 }
 `)
-	assertContains(t, generated, "ktn_array * ktn_fn_identity(ktn_array * ktn_var_values)")
-	assertContains(t, generated, "ktn_array * ktn_var_items = ktn_rt_array_new(2, sizeof(int64_t))")
+	assertContains(t, generated, "pcy_array * pcy_fn_identity(pcy_array * pcy_var_values)")
+	assertContains(t, generated, "pcy_array * pcy_var_items = pcy_rt_array_new(2, sizeof(int64_t))")
 }
 
 func TestNestedArrayTypeMapping(t *testing.T) {
@@ -236,9 +236,9 @@ func TestNestedArrayTypeMapping(t *testing.T) {
     grid[0][0] = 7;
 }
 `)
-	assertContains(t, generated, "ktn_rt_array_new(2, sizeof(ktn_array *))")
-	assertContains(t, generated, "ktn_rt_array_new(3, sizeof(int64_t))")
-	assertContains(t, generated, "(*((int64_t *)ktn_rt_array_at((*((ktn_array * *)ktn_rt_array_at(ktn_var_grid, 0))), 0))) = 7")
+	assertContains(t, generated, "pcy_rt_array_new(2, sizeof(pcy_array *))")
+	assertContains(t, generated, "pcy_rt_array_new(3, sizeof(int64_t))")
+	assertContains(t, generated, "(*((int64_t *)pcy_rt_array_at((*((pcy_array * *)pcy_rt_array_at(pcy_var_grid, 0))), 0))) = 7")
 }
 
 func TestStringArrayAppendTakesSlotAddress(t *testing.T) {
@@ -249,7 +249,7 @@ func TestStringArrayAppendTakesSlotAddress(t *testing.T) {
 `)
 	// The append receives the address of the element slot, so the index is
 	// evaluated once.
-	assertContains(t, generated, `ktn_rt_string_append(&((*((const ktn_string * *)ktn_rt_array_at(ktn_var_words, 0)))), `+literalRef(t, generated, `"x"`)+`)`)
+	assertContains(t, generated, `pcy_rt_string_append(&((*((const pcy_string * *)pcy_rt_array_at(pcy_var_words, 0)))), `+literalRef(t, generated, `"x"`)+`)`)
 }
 
 func TestForwardReferencesAreEmittedBeforeUse(t *testing.T) {
@@ -263,15 +263,15 @@ fn helper() -> int {
     return 1;
 }
 `)
-	prototype := strings.Index(generated, "int64_t ktn_fn_later(void);")
-	definition := strings.Index(generated, "int64_t ktn_fn_later(void) {")
+	prototype := strings.Index(generated, "int64_t pcy_fn_later(void);")
+	definition := strings.Index(generated, "int64_t pcy_fn_later(void) {")
 	if prototype < 0 || definition < 0 {
 		t.Fatalf("expected prototype and definition of later\n%s", generated)
 	}
 	if prototype > definition {
 		t.Errorf("prototype of later appears after its definition\n%s", generated)
 	}
-	assertContains(t, generated, "int64_t ktn_fn_helper(void) {")
+	assertContains(t, generated, "int64_t pcy_fn_helper(void) {")
 }
 
 func TestForwardStructReferences(t *testing.T) {
@@ -289,8 +289,8 @@ fn main() {
 }
 `)
 	// The typedef for Point must precede the body of Line.
-	pointTypedef := strings.Index(generated, "typedef struct ktn_s_Point ktn_s_Point;")
-	lineBody := strings.Index(generated, "struct ktn_s_Line {")
+	pointTypedef := strings.Index(generated, "typedef struct pcy_s_Point pcy_s_Point;")
+	lineBody := strings.Index(generated, "struct pcy_s_Line {")
 	if pointTypedef < 0 || lineBody < 0 {
 		t.Fatalf("expected Point typedef and Line body\n%s", generated)
 	}
@@ -310,7 +310,7 @@ fn main() {
 }
 `)
 	// Values are reordered into declaration order: first, then second.
-	assertContains(t, generated, "ktn_new_Pair(1, 2)")
+	assertContains(t, generated, "pcy_new_Pair(1, 2)")
 }
 
 func TestControlFlowEmission(t *testing.T) {
@@ -329,10 +329,10 @@ func TestControlFlowEmission(t *testing.T) {
     }
 }
 `)
-	assertContains(t, generated, "if (ktn_var_total > 0) {")
+	assertContains(t, generated, "if (pcy_var_total > 0) {")
 	assertContains(t, generated, "else {")
-	assertContains(t, generated, "while (ktn_var_total != 5) {")
-	assertContains(t, generated, "for (int64_t ktn_var_index = 0; (ktn_var_index < 3); ktn_rt_i64_post_inc(&(ktn_var_index))) {")
+	assertContains(t, generated, "while (pcy_var_total != 5) {")
+	assertContains(t, generated, "for (int64_t pcy_var_index = 0; (pcy_var_index < 3); pcy_rt_i64_post_inc(&(pcy_var_index))) {")
 }
 
 func TestCompoundAssignmentAndIncrement(t *testing.T) {
@@ -344,10 +344,10 @@ func TestCompoundAssignmentAndIncrement(t *testing.T) {
     --value;
 }
 `)
-	assertContains(t, generated, "ktn_rt_i64_add_assign(&(ktn_var_value), 2)")
-	assertContains(t, generated, "ktn_rt_i64_sub_assign(&(ktn_var_value), 1)")
-	assertContains(t, generated, "ktn_rt_i64_post_inc(&(ktn_var_value))")
-	assertContains(t, generated, "ktn_rt_i64_pre_dec(&(ktn_var_value))")
+	assertContains(t, generated, "pcy_rt_i64_add_assign(&(pcy_var_value), 2)")
+	assertContains(t, generated, "pcy_rt_i64_sub_assign(&(pcy_var_value), 1)")
+	assertContains(t, generated, "pcy_rt_i64_post_inc(&(pcy_var_value))")
+	assertContains(t, generated, "pcy_rt_i64_pre_dec(&(pcy_var_value))")
 }
 
 func TestEmptyBlocksAndVoidFunctions(t *testing.T) {
@@ -357,8 +357,8 @@ fn main() {
     noop();
 }
 `)
-	assertContains(t, generated, "void ktn_fn_noop(void) {")
-	assertContains(t, generated, "ktn_fn_noop();")
+	assertContains(t, generated, "void pcy_fn_noop(void) {")
+	assertContains(t, generated, "pcy_fn_noop();")
 }
 
 func TestGenerationIsDeterministic(t *testing.T) {
@@ -640,7 +640,7 @@ func TestStringLiteralPoolIsShared(t *testing.T) {
     print(first, second, other);
 }
 `)
-	if count := strings.Count(generated, "static const ktn_string "+literalPrefix); count != 2 {
+	if count := strings.Count(generated, "static const pcy_string "+literalPrefix); count != 2 {
 		t.Errorf("generated C declares %d literals, want 2 for 3 uses of 2 distinct literals", count)
 	}
 	assertContains(t, generated, `{ 4, "same" };`)
@@ -666,7 +666,7 @@ func generateModules(t *testing.T, sources ...string) (string, error) {
 			t.Fatalf("parsing module %d: %v", index, err)
 		}
 		modules = append(modules, &parser.Module{
-			Path:    fmt.Sprintf("module%d.ktn", index),
+			Path:    fmt.Sprintf("module%d.pcy", index),
 			ID:      index,
 			Program: program,
 		})
@@ -704,13 +704,13 @@ private fn factor() -> int {
 	}
 
 	// Root-module names keep their plain form.
-	assertContains(t, generated, "void ktn_fn_main(void)")
+	assertContains(t, generated, "void pcy_fn_main(void)")
 	// Imported declarations are prefixed with the module ID.
-	assertContains(t, generated, "ktn_s_1_Point")
-	assertContains(t, generated, "ktn_new_1_Point")
-	assertContains(t, generated, "ktn_fn_1_scale")
-	assertContains(t, generated, "ktn_fn_1_helper")
-	assertContains(t, generated, "ktn_fn_1_factor")
+	assertContains(t, generated, "pcy_s_1_Point")
+	assertContains(t, generated, "pcy_new_1_Point")
+	assertContains(t, generated, "pcy_fn_1_scale")
+	assertContains(t, generated, "pcy_fn_1_helper")
+	assertContains(t, generated, "pcy_fn_1_factor")
 }
 
 func TestPrivateNamesAcrossModulesDoNotCollideInC(t *testing.T) {
@@ -730,8 +730,8 @@ private fn helper() -> int {
 	if err != nil {
 		t.Fatalf("generating: %v", err)
 	}
-	assertContains(t, generated, "int64_t ktn_fn_helper(void)")
-	assertContains(t, generated, "const ktn_string * ktn_fn_1_helper(void)")
+	assertContains(t, generated, "int64_t pcy_fn_helper(void)")
+	assertContains(t, generated, "const pcy_string * pcy_fn_1_helper(void)")
 }
 
 func TestEntryPointMustBeInTheRootModule(t *testing.T) {
@@ -791,10 +791,10 @@ fn main() {
     print(kind == Kind.A);
 }
 `)
-	assertContains(t, generated, "typedef int64_t ktn_e_Kind;")
-	assertContains(t, generated, "ktn_ec_Kind_A = 0,")
-	assertContains(t, generated, "ktn_ec_Kind_B = 1,")
-	assertContains(t, generated, "ktn_var_kind == ktn_ec_Kind_A")
+	assertContains(t, generated, "typedef int64_t pcy_e_Kind;")
+	assertContains(t, generated, "pcy_ec_Kind_A = 0,")
+	assertContains(t, generated, "pcy_ec_Kind_B = 1,")
+	assertContains(t, generated, "pcy_var_kind == pcy_ec_Kind_A")
 }
 
 func TestUnionGeneration(t *testing.T) {
@@ -810,17 +810,19 @@ fn main() {
     }
 }
 `)
-	assertContains(t, generated, "struct ktn_s_Box {")
-	assertContains(t, generated, "int64_t ktn_tag;")
-	assertContains(t, generated, "int64_t ktn_v_Full_value;")
-	assertContains(t, generated, "const ktn_string * ktn_v_Full_label;")
-	assertContains(t, generated, "ktn_uc_Box_Full = 0,")
-	assertContains(t, generated, "ktn_uc_Box_Empty = 1,")
-	assertContains(t, generated, `ktn_new_Box_Full(1, `+literalRef(t, generated, `"x"`)+`)`)
-	assertContains(t, generated, "switch (ktn_match_0->ktn_tag)")
-	assertContains(t, generated, "case ktn_uc_Box_Full:")
-	assertContains(t, generated, "ktn_var_value = ktn_match_0->ktn_v_Full_value;")
-	assertContains(t, generated, "ktn_new_Box_Empty(void)")
+	assertContains(t, generated, "struct pcy_s_Box {")
+	assertContains(t, generated, "int64_t pcy_tag;")
+	assertContains(t, generated, "int64_t pcy_v_Full_value;")
+	assertContains(t, generated, "const pcy_string * pcy_v_Full_label;")
+	assertContains(t, generated, "pcy_uc_Box_Full = 0,")
+	assertContains(t, generated, "pcy_uc_Box_Empty = 1,")
+	assertContains(t, generated, `pcy_new_Box_Full(1, `+literalRef(t, generated, `"x"`)+`)`)
+	// Match arms form an if/else-if chain on the tag so a user `break` inside
+	// an arm targets the enclosing loop rather than the match.
+	assertContains(t, generated, "if (pcy_match_0->pcy_tag == pcy_uc_Box_Full)")
+	assertContains(t, generated, "} else if (pcy_match_0->pcy_tag == pcy_uc_Box_Empty)")
+	assertContains(t, generated, "pcy_var_value = pcy_match_0->pcy_v_Full_value;")
+	assertContains(t, generated, "pcy_new_Box_Empty(void)")
 }
 
 func TestRecursiveUnionGeneration(t *testing.T) {
@@ -837,9 +839,9 @@ fn main() {
 `)
 	// The union struct refers to itself through pointer fields, which the
 	// forward typedef makes possible.
-	assertContains(t, generated, "typedef struct ktn_s_Tree ktn_s_Tree;")
-	assertContains(t, generated, "ktn_s_Tree * ktn_v_Node_left;")
-	assertContains(t, generated, "ktn_s_Tree * ktn_v_Node_right;")
+	assertContains(t, generated, "typedef struct pcy_s_Tree pcy_s_Tree;")
+	assertContains(t, generated, "pcy_s_Tree * pcy_v_Node_left;")
+	assertContains(t, generated, "pcy_s_Tree * pcy_v_Node_right;")
 }
 
 func TestEnumNamesAreMangledByModule(t *testing.T) {
@@ -864,10 +866,10 @@ public fn describe(Kind kind) -> string {
 	if err != nil {
 		t.Fatalf("generating: %v", err)
 	}
-	assertContains(t, generated, "typedef int64_t ktn_e_1_Kind;")
-	assertContains(t, generated, "ktn_ec_1_Kind_B = 1,")
-	assertContains(t, generated, "ktn_fn_1_describe")
-	assertContains(t, generated, "ktn_var_kind = ktn_ec_1_Kind_B")
+	assertContains(t, generated, "typedef int64_t pcy_e_1_Kind;")
+	assertContains(t, generated, "pcy_ec_1_Kind_B = 1,")
+	assertContains(t, generated, "pcy_fn_1_describe")
+	assertContains(t, generated, "pcy_var_kind = pcy_ec_1_Kind_B")
 }
 
 func TestUnionNamesAreMangledByModule(t *testing.T) {
@@ -892,9 +894,9 @@ public fn unwrap(Box box) -> int {
 	if err != nil {
 		t.Fatalf("generating: %v", err)
 	}
-	assertContains(t, generated, "struct ktn_s_1_Box {")
-	assertContains(t, generated, "ktn_uc_1_Box_Full = 0,")
-	assertContains(t, generated, "ktn_new_1_Box_Full(1)")
+	assertContains(t, generated, "struct pcy_s_1_Box {")
+	assertContains(t, generated, "pcy_uc_1_Box_Full = 0,")
+	assertContains(t, generated, "pcy_new_1_Box_Full(1)")
 }
 
 func TestVariantGenerationIsDeterministic(t *testing.T) {
@@ -929,12 +931,12 @@ func TestMapGeneration(t *testing.T) {
     print(table["a"], has(table, "z"), length(table));
 }
 `)
-	assertContains(t, generated, "ktn_map * ktn_var_table = ktn_rt_map_new(sizeof(int64_t))")
-	assertContains(t, generated, `ktn_rt_map_set(ktn_var_table, `+literalRef(t, generated, `"a"`)+`, &(int64_t){ 1 })`)
-	assertContains(t, generated, `ktn_rt_i64_add_assign(&((*((int64_t *)ktn_rt_map_at(ktn_var_table, `+literalRef(t, generated, `"b"`)+`)))), 2)`)
-	assertContains(t, generated, `(*((int64_t *)ktn_rt_map_at(ktn_var_table, `+literalRef(t, generated, `"a"`)+`)))`)
-	assertContains(t, generated, `ktn_rt_map_has(ktn_var_table, `+literalRef(t, generated, `"z"`)+`)`)
-	assertContains(t, generated, "ktn_rt_map_length(ktn_var_table)")
+	assertContains(t, generated, "pcy_map * pcy_var_table = pcy_rt_map_new(sizeof(int64_t))")
+	assertContains(t, generated, `pcy_rt_map_set(pcy_var_table, `+literalRef(t, generated, `"a"`)+`, &(int64_t){ 1 })`)
+	assertContains(t, generated, `pcy_rt_i64_add_assign(&((*((int64_t *)pcy_rt_map_at(pcy_var_table, `+literalRef(t, generated, `"b"`)+`)))), 2)`)
+	assertContains(t, generated, `(*((int64_t *)pcy_rt_map_at(pcy_var_table, `+literalRef(t, generated, `"a"`)+`)))`)
+	assertContains(t, generated, `pcy_rt_map_has(pcy_var_table, `+literalRef(t, generated, `"z"`)+`)`)
+	assertContains(t, generated, "pcy_rt_map_length(pcy_var_table)")
 }
 
 func TestMapValueSizesInGeneratedC(t *testing.T) {
@@ -950,12 +952,12 @@ fn main() {
     print(length(labels), length(kinds), length(entries), length(groups), length(flags), length(ratios));
 }
 `)
-	assertContains(t, generated, "ktn_rt_map_new(sizeof(const ktn_string *))")
-	assertContains(t, generated, "ktn_rt_map_new(sizeof(ktn_e_Kind))")
-	assertContains(t, generated, "ktn_rt_map_new(sizeof(ktn_s_Entry *))")
-	assertContains(t, generated, "ktn_rt_map_new(sizeof(ktn_array *))")
-	assertContains(t, generated, "ktn_rt_map_new(sizeof(bool))")
-	assertContains(t, generated, "ktn_rt_map_new(sizeof(double))")
+	assertContains(t, generated, "pcy_rt_map_new(sizeof(const pcy_string *))")
+	assertContains(t, generated, "pcy_rt_map_new(sizeof(pcy_e_Kind))")
+	assertContains(t, generated, "pcy_rt_map_new(sizeof(pcy_s_Entry *))")
+	assertContains(t, generated, "pcy_rt_map_new(sizeof(pcy_array *))")
+	assertContains(t, generated, "pcy_rt_map_new(sizeof(bool))")
+	assertContains(t, generated, "pcy_rt_map_new(sizeof(double))")
 }
 
 func TestMapTypeMapping(t *testing.T) {
@@ -972,8 +974,8 @@ fn main() {
     print(count(empty(), "a"));
 }
 `)
-	assertContains(t, generated, "int64_t ktn_fn_count(ktn_map * ktn_var_table, const ktn_string * ktn_var_key)")
-	assertContains(t, generated, "ktn_map * ktn_fn_empty(void)")
+	assertContains(t, generated, "int64_t pcy_fn_count(pcy_map * pcy_var_table, const pcy_string * pcy_var_key)")
+	assertContains(t, generated, "pcy_map * pcy_fn_empty(void)")
 }
 
 func TestMapGenerationIsDeterministic(t *testing.T) {
@@ -1005,12 +1007,12 @@ fn main() {
     print(length("abc"), "abc"[1], first_word("hi there"));
 }
 `)
-	assertContains(t, generated, `ktn_rt_string_length(`+literalRef(t, generated, `"abc"`)+`)`)
-	assertContains(t, generated, `ktn_rt_string_at(`+literalRef(t, generated, `"abc"`)+`, 1)`)
-	assertContains(t, generated, `ktn_var_size = ktn_rt_string_length(ktn_var_source)`)
-	assertContains(t, generated, `ktn_rt_substring(ktn_var_source, 0, ktn_var_position)`)
+	assertContains(t, generated, `pcy_rt_string_length(`+literalRef(t, generated, `"abc"`)+`)`)
+	assertContains(t, generated, `pcy_rt_string_at(`+literalRef(t, generated, `"abc"`)+`, 1)`)
+	assertContains(t, generated, `pcy_var_size = pcy_rt_string_length(pcy_var_source)`)
+	assertContains(t, generated, `pcy_rt_substring(pcy_var_source, 0, pcy_var_position)`)
 	// String indexing is a byte read, not an l-value.
-	assertContains(t, generated, `ktn_rt_string_at(ktn_var_source, ktn_var_position) != 32`)
+	assertContains(t, generated, `pcy_rt_string_at(pcy_var_source, pcy_var_position) != 32`)
 }
 
 func TestConditionParenthesesAreNotRedundant(t *testing.T) {
@@ -1034,11 +1036,11 @@ func TestConditionParenthesesAreNotRedundant(t *testing.T) {
 `)
 	// A parenthesized comparison is not wrapped in a second pair, which Clang
 	// reports as a redundant comparison in an if condition.
-	assertContains(t, generated, "if (ktn_var_n == 0) {")
-	assertContains(t, generated, "while (ktn_var_n != 2) {")
+	assertContains(t, generated, "if (pcy_var_n == 0) {")
+	assertContains(t, generated, "while (pcy_var_n != 2) {")
 	// A bare identifier is wrapped so that it is parenthesized.
-	assertContains(t, generated, "if (ktn_var_flag) {")
+	assertContains(t, generated, "if (pcy_var_flag) {")
 	// An assignment keeps its own parenthesization, so C's -Wparentheses is
 	// satisfied.
-	assertContains(t, generated, "if ((ktn_var_flag = ktn_var_other)) {")
+	assertContains(t, generated, "if ((pcy_var_flag = pcy_var_other)) {")
 }

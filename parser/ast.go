@@ -1,6 +1,6 @@
 package parser
 
-// This file defines the Kitten abstract syntax tree (AST).
+// This file defines the Percy abstract syntax tree (AST).
 //
 // The AST is a faithful, position-annotated record of the syntax accepted by
 // the parser. It deliberately contains no semantic information: it does not
@@ -96,7 +96,7 @@ type Module struct {
 
 // ImportDecl imports another module by a path relative to the importing file:
 //
-//	import "geometry.ktn";
+//	import "geometry.pcy";
 type ImportDecl struct {
 	At   Position
 	Path string // decoded import path, relative to the importing file
@@ -334,6 +334,22 @@ type ReturnStmt struct {
 // Pos reports the position of the "return" keyword.
 func (s *ReturnStmt) Pos() Position { return s.At }
 
+// BreakStmt exits the innermost enclosing loop.
+type BreakStmt struct {
+	At Position
+}
+
+// Pos reports the position of the "break" keyword.
+func (s *BreakStmt) Pos() Position { return s.At }
+
+// ContinueStmt begins the next iteration of the innermost enclosing loop.
+type ContinueStmt struct {
+	At Position
+}
+
+// Pos reports the position of the "continue" keyword.
+func (s *ContinueStmt) Pos() Position { return s.At }
+
 // MatchStmt inspects which variant an enum or union value holds:
 //
 //	match (scrutinee) {
@@ -366,14 +382,16 @@ type MatchArm struct {
 // Pos reports where the variant name begins.
 func (a *MatchArm) Pos() Position { return a.At }
 
-func (*BlockStmt) stmtNode()   {}
-func (*VarDeclStmt) stmtNode() {}
-func (*ExprStmt) stmtNode()    {}
-func (*IfStmt) stmtNode()      {}
-func (*WhileStmt) stmtNode()   {}
-func (*ForStmt) stmtNode()     {}
-func (*ReturnStmt) stmtNode()  {}
-func (*MatchStmt) stmtNode()   {}
+func (*BlockStmt) stmtNode()    {}
+func (*VarDeclStmt) stmtNode()  {}
+func (*ExprStmt) stmtNode()     {}
+func (*IfStmt) stmtNode()       {}
+func (*WhileStmt) stmtNode()    {}
+func (*ForStmt) stmtNode()      {}
+func (*ReturnStmt) stmtNode()   {}
+func (*BreakStmt) stmtNode()    {}
+func (*ContinueStmt) stmtNode() {}
+func (*MatchStmt) stmtNode()    {}
 
 // Identifier is a reference to a name. Whether the name is defined, and what it
 // refers to, are deferred to the checker.

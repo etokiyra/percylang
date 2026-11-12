@@ -1,0 +1,47 @@
+fn show(string[] entries) {
+    print(length(entries));
+    for (int i = 0; i < length(entries); i++) {
+        print(entries[i]);
+    }
+}
+
+fn main() {
+    match (try_remove("pcy_list_dir/a.txt")) { Ok { } Failed(message) { } }
+    match (try_remove("pcy_list_dir/one.txt")) { Ok { } Failed(message) { } }
+    match (try_remove("pcy_list_dir/two.txt")) { Ok { } Failed(message) { } }
+    match (try_remove("pcy_list_dir")) { Ok { } Failed(message) { } }
+    match (try_remove("pcy_list_file")) { Ok { } Failed(message) { } }
+
+    match (try_create_directory("pcy_list_dir")) {
+        Ok { print("made"); }
+        Failed(message) { print("mkdir", message); }
+    }
+    match (try_write_file("pcy_list_dir/two.txt", "2")) {
+        Ok { }
+        Failed(message) { print("write two", message); }
+    }
+    match (try_write_file("pcy_list_dir/one.txt", "1")) {
+        Ok { }
+        Failed(message) { print("write one", message); }
+    }
+    match (try_write_file("pcy_list_dir/a.txt", "a")) {
+        Ok { }
+        Failed(message) { print("write a", message); }
+    }
+    match (try_list_directory("pcy_list_dir")) {
+        Ok(entries) { show(entries); }
+        Failed(message) { print("list fail", message); }
+    }
+    match (try_list_directory("pcy_list_absent")) {
+        Ok(entries) { show(entries); }
+        Failed(message) { print("absent fail", message); }
+    }
+    match (try_write_file("pcy_list_file", "x")) {
+        Ok { }
+        Failed(message) { print("write file", message); }
+    }
+    match (try_list_directory("pcy_list_file")) {
+        Ok(entries) { show(entries); }
+        Failed(message) { print("file fail", message); }
+    }
+}

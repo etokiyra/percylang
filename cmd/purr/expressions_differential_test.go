@@ -1,7 +1,7 @@
 package main
 
-// Differential testing for the Kitten-written core expression emitter
-// (selfhost/codegen/expressions.ktn, driven by selfhost/expressions.ktn).
+// Differential testing for the Percy-written core expression emitter
+// (selfhost/codegen/expressions.pcy, driven by selfhost/expressions.pcy).
 //
 // The probe prints one line per expression node, in the order the reference
 // generator renders bodies. The harness walks the same AST in that same order and
@@ -37,28 +37,28 @@ import (
 	"testing"
 	"time"
 
-	"kitten/checker"
-	"kitten/codegen"
-	"kitten/lexer"
-	"kitten/parser"
+	"percy/checker"
+	"percy/codegen"
+	"percy/lexer"
+	"percy/parser"
 )
 
-// kittenExpressionsProgram is the driver program that prints expression
+// percyExpressionsProgram is the driver program that prints expression
 // renderings.
-func kittenExpressionsProgram() string {
-	return filepath.Join("..", "..", "selfhost", "expressions.ktn")
+func percyExpressionsProgram() string {
+	return filepath.Join("..", "..", "selfhost", "expressions.pcy")
 }
 
-// buildKittenExpressions builds the expression probe. It fails if the build
+// buildPercyExpressions builds the expression probe. It fails if the build
 // produces any C diagnostic, so the probe must compile warning-free.
-func buildKittenExpressions(t *testing.T) string {
+func buildPercyExpressions(t *testing.T) string {
 	t.Helper()
 
 	requireToolchain(t)
 
-	executable := filepath.Join(t.TempDir(), "kitten-expressions")
+	executable := filepath.Join(t.TempDir(), "percy-expressions")
 	var diagnostics bytes.Buffer
-	if err := buildExecutable(kittenExpressionsProgram(), executable, &diagnostics); err != nil {
+	if err := buildExecutable(percyExpressionsProgram(), executable, &diagnostics); err != nil {
 		t.Fatalf("building the expression probe: %v\n%s", err, diagnostics.String())
 	}
 	if warnings := strings.TrimSpace(diagnostics.String()); warnings != "" {
@@ -67,8 +67,8 @@ func buildKittenExpressions(t *testing.T) string {
 	return executable
 }
 
-// runKittenExpressions writes the modules and runs the expression probe.
-func runKittenExpressions(executable, directory, root, imported string) (string, error) {
+// runPercyExpressions writes the modules and runs the expression probe.
+func runPercyExpressions(executable, directory, root, imported string) (string, error) {
 	if err := os.WriteFile(filepath.Join(directory, "input.txt"), []byte(root), 0o644); err != nil {
 		return "", fmt.Errorf("writing input.txt: %v", err)
 	}
@@ -104,7 +104,7 @@ const probeSeparator = "=== literal pool ==="
 func runProbe(t *testing.T, executable, directory, root, imported string) (string, string) {
 	t.Helper()
 
-	output, err := runKittenExpressions(executable, directory, root, imported)
+	output, err := runPercyExpressions(executable, directory, root, imported)
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -131,7 +131,7 @@ func splitProbeOutput(t *testing.T, output string) (string, string) {
 //
 // The reference expands a print statement into one comma-expression line:
 //
-//	(ktn_rt_print_int(ARG), ktn_rt_print_space(), ktn_rt_print_string(ARG), ktn_rt_print_newline());
+//	(pcy_rt_print_int(ARG), pcy_rt_print_space(), pcy_rt_print_string(ARG), pcy_rt_print_newline());
 //
 // so a line that begins with a print helper carries that statement's arguments in
 // order, and the helpers that separate and terminate values carry none.
@@ -141,7 +141,7 @@ func printArgumentTexts(t *testing.T, generated string) []string {
 	var texts []string
 	for _, line := range strings.Split(generated, "\n") {
 		trimmed := strings.TrimSpace(line)
-		if !strings.HasPrefix(trimmed, "(ktn_rt_print_") {
+		if !strings.HasPrefix(trimmed, "(pcy_rt_print_") {
 			continue
 		}
 		texts = append(texts, printHelperArguments(trimmed)...)
@@ -155,7 +155,7 @@ func printHelperArguments(line string) []string {
 	var texts []string
 	index := 0
 	for index < len(line) {
-		at := strings.Index(line[index:], "ktn_rt_print_")
+		at := strings.Index(line[index:], "pcy_rt_print_")
 		if at < 0 {
 			return texts
 		}
@@ -172,7 +172,7 @@ func printHelperArguments(line string) []string {
 		if close < 0 {
 			return texts
 		}
-		if name != "ktn_rt_print_space" && name != "ktn_rt_print_newline" {
+		if name != "pcy_rt_print_space" && name != "pcy_rt_print_newline" {
 			texts = append(texts, line[open+1:close])
 		}
 		index = close + 1
@@ -506,6 +506,9 @@ func (w *expressionWalk) statement(statement parser.Stmt) {
 			w.expression(node.Increment, "")
 		}
 		w.statement(node.Body)
+
+	case *parser.BreakStmt:
+	case *parser.ContinueStmt:
 
 	case *parser.ReturnStmt:
 		if node.Value != nil {
@@ -876,8 +879,8 @@ fn main() {
     print(values[2]);
     map[string]int counts = new map[string]int;
     print(counts["a"]);
-    print("kitten"[0]);
-    print("kitten"[5]);
+    print("percy"[0]);
+    print("percy"[5]);
     int[][] grid = new int[][2];
     print(grid[0][0]);
     print(grid[1][1]);
@@ -1267,12 +1270,12 @@ fn main() {
 	}}
 }
 
-// TestKittenExpressionsMatchReference compares the probe's rendering of every
+// TestPercyExpressionsMatchReference compares the probe's rendering of every
 // expression of each targeted program with the reference generator's.
-func TestKittenExpressionsMatchReference(t *testing.T) {
+func TestPercyExpressionsMatchReference(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenExpressions(t)
+	executable := buildPercyExpressions(t)
 	directory := t.TempDir()
 
 	compared := 0
@@ -1298,15 +1301,15 @@ func TestKittenExpressionsMatchReference(t *testing.T) {
 	t.Logf("core expressions: %d targeted programs, %d of %d expected lines compared", len(expressionCases()), compared, lines)
 }
 
-// TestKittenExpressionsEveryKind checks that the targeted corpus really renders
+// TestPercyExpressionsEveryKind checks that the targeted corpus really renders
 // every expression kind this phase adds, so one of them cannot silently regress to
 // a failure while the corpus comparison still passes for other reasons. A kind is
 // counted only when the probe reports it as a rendering, never as a propagated
 // failure.
-func TestKittenExpressionsEveryKind(t *testing.T) {
+func TestPercyExpressionsEveryKind(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenExpressions(t)
+	executable := buildPercyExpressions(t)
 	directory := t.TempDir()
 
 	rendered := make(map[string]bool)
@@ -1326,12 +1329,12 @@ func TestKittenExpressionsEveryKind(t *testing.T) {
 	}
 }
 
-// TestKittenExpressionsEveryOperator checks that the targeted corpus really prints
+// TestPercyExpressionsEveryOperator checks that the targeted corpus really prints
 // every unary and binary operator the language defines, so an operator cannot
 // disappear from the corpus unnoticed. The operators are read from the lexer's
 // tokens, so an operator inside a string literal or a comment cannot satisfy the
 // check.
-func TestKittenExpressionsEveryOperator(t *testing.T) {
+func TestPercyExpressionsEveryOperator(t *testing.T) {
 	operators := []string{"+", "-", "*", "/", "%", "<", "<=", ">", ">=", "==", "!=", "&&", "||", "!", "++", "--"}
 
 	used := make(map[string]bool)
@@ -1408,16 +1411,16 @@ fn main() {
 `
 }
 
-// TestKittenExpressionsEveryKindRenders checks that a program using every kind
+// TestPercyExpressionsEveryKindRenders checks that a program using every kind
 // produces renderings only, with no failure at all, so an unimplemented kind
 // cannot hide behind another expression's report.
-func TestKittenExpressionsEveryKindRenders(t *testing.T) {
+func TestPercyExpressionsEveryKindRenders(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenExpressions(t)
+	executable := buildPercyExpressions(t)
 	directory := t.TempDir()
 
-	got, err := runKittenExpressions(executable, directory, allKindsSource(), "")
+	got, err := runPercyExpressions(executable, directory, allKindsSource(), "")
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -1445,18 +1448,18 @@ func TestKittenExpressionsEveryKindRenders(t *testing.T) {
 
 	// A string literal renders as a reference to its pooled object, and the
 	// program's literal is interned.
-	if !strings.Contains(expressions, "string (&ktn_literal_1)") {
+	if !strings.Contains(expressions, "string (&pcy_literal_1)") {
 		t.Errorf("the string literal was not rendered as a pooled reference:\n%s", expressions)
 	}
-	if !strings.Contains(pool, `static const ktn_string ktn_literal_1 = { 4, "text" };`) {
+	if !strings.Contains(pool, `static const pcy_string pcy_literal_1 = { 4, "text" };`) {
 		t.Errorf("the string literal was not pooled:\n%s", pool)
 	}
 }
 
-// TestKittenExpressionsAllKindsAgreeWithTheReference checks that the all-kinds
+// TestPercyExpressionsAllKindsAgreeWithTheReference checks that the all-kinds
 // program is generated and checked by the reference without complaint, so a
 // failure would be this generator's rather than the language's.
-func TestKittenExpressionsAllKindsAgreeWithTheReference(t *testing.T) {
+func TestPercyExpressionsAllKindsAgreeWithTheReference(t *testing.T) {
 	requireToolchain(t)
 
 	if _, _, _, ok := checkProgram(t, "all kinds", allKindsSource(), ""); !ok {
@@ -1466,14 +1469,14 @@ func TestKittenExpressionsAllKindsAgreeWithTheReference(t *testing.T) {
 
 // --- Corpus ------------------------------------------------------------------
 
-// TestKittenExpressionsCorpus runs the probe over the checker corpus. Every
+// TestPercyExpressionsCorpus runs the probe over the checker corpus. Every
 // program the checker rejects must be reported with the checker's own error, and
 // every program it accepts must produce exactly the expected lines, of which the
 // extractable ones are compared byte for byte.
-func TestKittenExpressionsCorpus(t *testing.T) {
+func TestPercyExpressionsCorpus(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenExpressions(t)
+	executable := buildPercyExpressions(t)
 	directory := t.TempDir()
 
 	programs := 0
@@ -1495,7 +1498,7 @@ func TestKittenExpressionsCorpus(t *testing.T) {
 				t.Errorf("%s: the reference checker returned %T", testCase.name, checkError)
 				continue
 			}
-			got, err := runKittenExpressions(executable, directory, testCase.root, testCase.imported)
+			got, err := runPercyExpressions(executable, directory, testCase.root, testCase.imported)
 			if err != nil {
 				t.Errorf("%s: %v", testCase.name, err)
 				continue
@@ -1510,7 +1513,7 @@ func TestKittenExpressionsCorpus(t *testing.T) {
 
 		// The reference validates the entry point before it emits anything, which
 		// this phase does not implement, and a non-ASCII input shifts the positions
-		// the probe reports, because Kitten counts bytes.
+		// the probe reports, because Percy counts bytes.
 		if !referenceAcceptsEntryPoint(modules, checked) || !isASCII(testCase.root) || !isASCII(testCase.imported) {
 			skipped++
 			continue
@@ -1526,7 +1529,7 @@ func TestKittenExpressionsCorpus(t *testing.T) {
 		if want := referenceLiteralPool(t, generated); pool != want {
 			t.Errorf("%s: literal pool differs\n--- probe ---\n%s--- reference ---\n%s", testCase.name, pool, want)
 		}
-		poolEntries += strings.Count(pool, "static const ktn_string ")
+		poolEntries += strings.Count(pool, "static const pcy_string ")
 		outcome := compareExpressions(t, testCase.name, expressions, expected)
 		compared += outcome.compared
 		lines += outcome.lines
@@ -1543,14 +1546,14 @@ func TestKittenExpressionsCorpus(t *testing.T) {
 
 // --- Floating-point syntax ---------------------------------------------------
 
-// TestKittenExpressionsFloatSyntax documents the floating-point forms the language
+// TestPercyExpressionsFloatSyntax documents the floating-point forms the language
 // can express and checks the emitter echoes each of them verbatim.
 //
 // The reference never reformats a floating-point literal: it emits the source
 // spelling, so no rounding, no exponent form, and no change of precision can be
 // introduced by generation. The forms the language cannot express are checked as a
 // lexical boundary rather than tested as inputs.
-func TestKittenExpressionsFloatSyntax(t *testing.T) {
+func TestPercyExpressionsFloatSyntax(t *testing.T) {
 	requireToolchain(t)
 
 	// A decimal point begins a float literal only when a digit follows it.
@@ -1576,7 +1579,7 @@ func TestKittenExpressionsFloatSyntax(t *testing.T) {
 		t.Errorf("\"1e5\" did not lex as an integer followed by an identifier: %v", tokens)
 	}
 
-	executable := buildKittenExpressions(t)
+	executable := buildPercyExpressions(t)
 	directory := t.TempDir()
 
 	root := `fn main() {
@@ -1623,23 +1626,23 @@ func TestKittenExpressionsFloatSyntax(t *testing.T) {
 
 // --- Determinism, format, and cost -------------------------------------------
 
-// TestKittenExpressionsIsDeterministic checks that the probe depends only on its
+// TestPercyExpressionsIsDeterministic checks that the probe depends only on its
 // input: the same program must produce the same bytes after a different program.
-func TestKittenExpressionsIsDeterministic(t *testing.T) {
+func TestPercyExpressionsIsDeterministic(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenExpressions(t)
+	executable := buildPercyExpressions(t)
 	directory := t.TempDir()
 
 	root := "fn main() {\n    int a = 1;\n    print(a + 2 * 3);\n    print(-a);\n}\n"
-	first, err := runKittenExpressions(executable, directory, root, "")
+	first, err := runPercyExpressions(executable, directory, root, "")
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
-	if _, err := runKittenExpressions(executable, directory, "fn main() {\n    print(1 == 2);\n}\n", ""); err != nil {
+	if _, err := runPercyExpressions(executable, directory, "fn main() {\n    print(1 == 2);\n}\n", ""); err != nil {
 		t.Fatalf("%v", err)
 	}
-	second, err := runKittenExpressions(executable, directory, root, "")
+	second, err := runPercyExpressions(executable, directory, root, "")
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -1648,24 +1651,24 @@ func TestKittenExpressionsIsDeterministic(t *testing.T) {
 	}
 }
 
-// TestKittenExpressionsReportFormat pins the probe's line format with explicit
+// TestPercyExpressionsReportFormat pins the probe's line format with explicit
 // expectations, so a format change is caught even if both sides change.
-func TestKittenExpressionsReportFormat(t *testing.T) {
+func TestPercyExpressionsReportFormat(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenExpressions(t)
+	executable := buildPercyExpressions(t)
 	directory := t.TempDir()
 
-	got, err := runKittenExpressions(executable, directory, "fn main() {\n    int a = 1;\n    print(a + 2);\n}\n", "")
+	got, err := runPercyExpressions(executable, directory, "fn main() {\n    int a = 1;\n    print(a + 2);\n}\n", "")
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
 	want := expectedProbeOutput([]string{
 		"expr 2 13 int 1",
-		"expr 3 5 call (ktn_rt_print_int(ktn_rt_i64_add(ktn_var_a, 2)), ktn_rt_print_newline())",
-		"expr 3 5 ident ktn_var_print",
-		"expr 3 11 binary ktn_rt_i64_add(ktn_var_a, 2)",
-		"expr 3 11 ident ktn_var_a",
+		"expr 3 5 call (pcy_rt_print_int(pcy_rt_i64_add(pcy_var_a, 2)), pcy_rt_print_newline())",
+		"expr 3 5 ident pcy_var_print",
+		"expr 3 11 binary pcy_rt_i64_add(pcy_var_a, 2)",
+		"expr 3 11 ident pcy_var_a",
 		"expr 3 15 int 2",
 		probeSeparator,
 	})
@@ -1674,12 +1677,12 @@ func TestKittenExpressionsReportFormat(t *testing.T) {
 	}
 }
 
-// TestKittenExpressionsReportErrors checks that a program the checker rejects is
+// TestPercyExpressionsReportErrors checks that a program the checker rejects is
 // reported with the checker's own error rather than as expressions.
-func TestKittenExpressionsReportErrors(t *testing.T) {
+func TestPercyExpressionsReportErrors(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenExpressions(t)
+	executable := buildPercyExpressions(t)
 	directory := t.TempDir()
 
 	for _, root := range []string{
@@ -1689,7 +1692,7 @@ func TestKittenExpressionsReportErrors(t *testing.T) {
 		"fn main() {\n    print(missing);\n}\n",
 		"fn main() {\n    print(1e5);\n}\n",
 	} {
-		got, err := runKittenExpressions(executable, directory, root, "")
+		got, err := runPercyExpressions(executable, directory, root, "")
 		if err != nil {
 			t.Errorf("%v", err)
 			continue
@@ -1720,7 +1723,7 @@ func nestedExpressionProgram(depth int) string {
 	return builder.String()
 }
 
-// TestKittenExpressionsScaling measures rendering a deeply nested expression and
+// TestPercyExpressionsScaling measures rendering a deeply nested expression and
 // checks the probe still agrees with the reference at that depth.
 //
 // Rendering one node concatenates its children's text, so the text of a chain of
@@ -1731,10 +1734,10 @@ func nestedExpressionProgram(depth int) string {
 // cost, and the bound only catches a change in the order of the cost - an
 // exponential blow-up rather than the quadratic one that matching the reference
 // requires.
-func TestKittenExpressionsScaling(t *testing.T) {
+func TestPercyExpressionsScaling(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenExpressions(t)
+	executable := buildPercyExpressions(t)
 	directory := t.TempDir()
 
 	previous := time.Duration(0)
@@ -1753,7 +1756,7 @@ func TestKittenExpressionsScaling(t *testing.T) {
 		var got string
 		for repetition := 0; repetition < 3; repetition++ {
 			start := time.Now()
-			rendered, err := runKittenExpressions(executable, directory, root, "")
+			rendered, err := runPercyExpressions(executable, directory, root, "")
 			if err != nil {
 				t.Fatalf("depth %d: %v", depth, err)
 			}

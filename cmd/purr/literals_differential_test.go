@@ -1,7 +1,7 @@
 package main
 
-// Differential testing for the Kitten-written string literal pool
-// (selfhost/codegen/literals.ktn, driven by selfhost/expressions.ktn).
+// Differential testing for the Percy-written string literal pool
+// (selfhost/codegen/literals.pcy, driven by selfhost/expressions.pcy).
 //
 // The pool is not emitted on its own: a literal is interned where it is rendered,
 // which is what gives the pool the reference's first-use order and its
@@ -209,12 +209,12 @@ fn main() {
 	}}
 }
 
-// TestKittenLiteralsMatchReference compares the probe's pooled declarations, and
+// TestPercyLiteralsMatchReference compares the probe's pooled declarations, and
 // the expressions that produced them, with the reference generator's.
-func TestKittenLiteralsMatchReference(t *testing.T) {
+func TestPercyLiteralsMatchReference(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenExpressions(t)
+	executable := buildPercyExpressions(t)
 	directory := t.TempDir()
 
 	entries := 0
@@ -231,7 +231,7 @@ func TestKittenLiteralsMatchReference(t *testing.T) {
 			continue
 		}
 		if pool != "" {
-			entries += strings.Count(pool, "static const ktn_string ")
+			entries += strings.Count(pool, "static const pcy_string ")
 		}
 		// The expression lines must agree too, so a pooled symbol cannot be right
 		// while the expression that refers to it is wrong.
@@ -246,13 +246,13 @@ func TestKittenLiteralsMatchReference(t *testing.T) {
 	t.Logf("literal pools: %d programs, %d entries, %d expression lines compared", len(literalCases()), entries, compared)
 }
 
-// TestKittenLiteralsDeduplicate checks that equal literal text shares one entry and
+// TestPercyLiteralsDeduplicate checks that equal literal text shares one entry and
 // that every use refers to that one entry, which a comparison alone would not make
 // obvious.
-func TestKittenLiteralsDeduplicate(t *testing.T) {
+func TestPercyLiteralsDeduplicate(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenExpressions(t)
+	executable := buildPercyExpressions(t)
 	directory := t.TempDir()
 
 	root := `fn main() {
@@ -276,21 +276,21 @@ func TestKittenLiteralsDeduplicate(t *testing.T) {
 	}
 
 	// Two distinct literals, four uses.
-	if count := strings.Count(pool, "static const ktn_string "); count != 2 {
+	if count := strings.Count(pool, "static const pcy_string "); count != 2 {
 		t.Errorf("the pool holds %d entries, want 2:\n%s", count, pool)
 	}
-	if !strings.Contains(pool, `ktn_literal_1 = { 4, "same" };`) {
+	if !strings.Contains(pool, `pcy_literal_1 = { 4, "same" };`) {
 		t.Errorf("the first entry is not the first literal used:\n%s", pool)
 	}
-	if !strings.Contains(pool, `ktn_literal_2 = { 5, "other" };`) {
+	if !strings.Contains(pool, `pcy_literal_2 = { 5, "other" };`) {
 		t.Errorf("the second entry is not the second literal used:\n%s", pool)
 	}
-	for _, symbol := range []string{"(&ktn_literal_1)", "(&ktn_literal_2)"} {
+	for _, symbol := range []string{"(&pcy_literal_1)", "(&pcy_literal_2)"} {
 		if !strings.Contains(expressions, symbol) {
 			t.Errorf("no expression refers to %s:\n%s", symbol, expressions)
 		}
 	}
-	if strings.Contains(expressions, "ktn_literal_3") {
+	if strings.Contains(expressions, "pcy_literal_3") {
 		t.Errorf("a third entry was created for a repeated literal:\n%s", expressions)
 	}
 
@@ -299,14 +299,14 @@ func TestKittenLiteralsDeduplicate(t *testing.T) {
 	compareExpressions(t, "deduplication", expressions, expected)
 }
 
-// TestKittenLiteralsOrderFollowsFieldDeclaration pins the one place where literal
+// TestPercyLiteralsOrderFollowsFieldDeclaration pins the one place where literal
 // discovery order differs from source order: the values of a struct literal are
 // rendered in field declaration order, so a literal written last can be pooled
 // first.
-func TestKittenLiteralsOrderFollowsFieldDeclaration(t *testing.T) {
+func TestPercyLiteralsOrderFollowsFieldDeclaration(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenExpressions(t)
+	executable := buildPercyExpressions(t)
 	directory := t.TempDir()
 
 	root := `struct Pair {
@@ -341,13 +341,13 @@ fn main() {
 
 // --- Capacity ----------------------------------------------------------------
 
-// TestKittenLiteralsCapacity checks the pool's entry capacity: an exact capacity
+// TestPercyLiteralsCapacity checks the pool's entry capacity: an exact capacity
 // succeeds and produces the reference's pool, one entry fewer reports the literal
 // that did not fit, and a larger capacity changes nothing.
-func TestKittenLiteralsCapacity(t *testing.T) {
+func TestPercyLiteralsCapacity(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenExpressions(t)
+	executable := buildPercyExpressions(t)
 	directory := t.TempDir()
 
 	root := `fn main() {
@@ -371,7 +371,7 @@ func TestKittenLiteralsCapacity(t *testing.T) {
 	if derivedPool != want {
 		t.Fatalf("the derived pool differs\n--- probe ---\n%s--- reference ---\n%s", derivedPool, want)
 	}
-	entries := strings.Count(derivedPool, "static const ktn_string ")
+	entries := strings.Count(derivedPool, "static const pcy_string ")
 	if entries != 3 {
 		t.Fatalf("the pool holds %d entries, want 3:\n%s", entries, derivedPool)
 	}
@@ -384,7 +384,7 @@ func TestKittenLiteralsCapacity(t *testing.T) {
 	// is why the capacity checks compare the pool and the expression lines with the
 	// shift accounted for.
 	exact := fmt.Sprintf("#pool %d\n", entries)
-	exactOutput, err := runKittenExpressions(executable, directory, exact+root, "")
+	exactOutput, err := runPercyExpressions(executable, directory, exact+root, "")
 	if err != nil {
 		t.Fatalf("exact capacity: %v", err)
 	}
@@ -397,7 +397,7 @@ func TestKittenLiteralsCapacity(t *testing.T) {
 	}
 
 	// A roomier capacity must also produce the same pool.
-	roomyOutput, err := runKittenExpressions(executable, directory, fmt.Sprintf("#pool %d\n", entries+8)+root, "")
+	roomyOutput, err := runPercyExpressions(executable, directory, fmt.Sprintf("#pool %d\n", entries+8)+root, "")
 	if err != nil {
 		t.Fatalf("roomier capacity: %v", err)
 	}
@@ -407,7 +407,7 @@ func TestKittenLiteralsCapacity(t *testing.T) {
 
 	// One entry fewer must be reported at the literal that did not fit, and the
 	// pool must hold only the entries that did fit.
-	shortOutput, err := runKittenExpressions(executable, directory, fmt.Sprintf("#pool %d\n", entries-1)+root, "")
+	shortOutput, err := runPercyExpressions(executable, directory, fmt.Sprintf("#pool %d\n", entries-1)+root, "")
 	if err != nil {
 		t.Fatalf("short capacity: %v", err)
 	}
@@ -418,8 +418,8 @@ func TestKittenLiteralsCapacity(t *testing.T) {
 	if !strings.Contains(shortExpressions, "the literal pool does not fit in a capacity of 2 entries") {
 		t.Errorf("the failure does not name the capacity:\n%s", shortExpressions)
 	}
-	if strings.Count(shortPool, "static const ktn_string ") != entries-1 {
-		t.Errorf("the short pool holds %d entries, want %d:\n%s", strings.Count(shortPool, "static const ktn_string "), entries-1, shortPool)
+	if strings.Count(shortPool, "static const pcy_string ") != entries-1 {
+		t.Errorf("the short pool holds %d entries, want %d:\n%s", strings.Count(shortPool, "static const pcy_string "), entries-1, shortPool)
 	}
 	if shortPool == want {
 		t.Errorf("a pool that could not hold every literal reported the whole pool")
@@ -465,13 +465,13 @@ func equalLines(left, right []string) bool {
 
 // --- Negative and boundary cases ---------------------------------------------
 
-// TestKittenLiteralsRejectInvalidEscape checks that a literal the lexer rejects is
+// TestPercyLiteralsRejectInvalidEscape checks that a literal the lexer rejects is
 // reported as a lexical error and produces no pool. The reference's lexer rejects
 // the same escape, so this is a property of the language rather than of the pool.
-func TestKittenLiteralsRejectInvalidEscape(t *testing.T) {
+func TestPercyLiteralsRejectInvalidEscape(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenExpressions(t)
+	executable := buildPercyExpressions(t)
 	directory := t.TempDir()
 
 	for _, root := range []string{
@@ -479,25 +479,25 @@ func TestKittenLiteralsRejectInvalidEscape(t *testing.T) {
 		"fn main() {\n    string unterminated = \"oops;\n}\n",
 		"fn main() {\n    string newline = \"one\ntwo\";\n}\n",
 	} {
-		got, err := runKittenExpressions(executable, directory, root, "")
+		got, err := runPercyExpressions(executable, directory, root, "")
 		if err != nil {
 			t.Fatalf("%v", err)
 		}
 		if !strings.HasPrefix(got, "error Lex ") {
 			t.Errorf("a rejected literal was not reported as a lexical error: %q", got)
 		}
-		if strings.Contains(got, "ktn_literal_") || strings.Contains(got, "=== literal pool ===") {
+		if strings.Contains(got, "pcy_literal_") || strings.Contains(got, "=== literal pool ===") {
 			t.Errorf("a rejected literal produced a pool:\n%s", got)
 		}
 	}
 }
 
-// TestKittenLiteralsEmptyPool checks that a program with no string literals
+// TestPercyLiteralsEmptyPool checks that a program with no string literals
 // produces no pool, which is what the reference does.
-func TestKittenLiteralsEmptyPool(t *testing.T) {
+func TestPercyLiteralsEmptyPool(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenExpressions(t)
+	executable := buildPercyExpressions(t)
 	directory := t.TempDir()
 
 	root := `fn main() {
@@ -522,13 +522,13 @@ func TestKittenLiteralsEmptyPool(t *testing.T) {
 	}
 }
 
-// TestKittenLiteralsLongLiteralIsNotTruncated checks a literal long enough that a
+// TestPercyLiteralsLongLiteralIsNotTruncated checks a literal long enough that a
 // fixed-size buffer would show: every byte is pooled, and the byte length is the
 // decoded length rather than the source length.
-func TestKittenLiteralsLongLiteralIsNotTruncated(t *testing.T) {
+func TestPercyLiteralsLongLiteralIsNotTruncated(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenExpressions(t)
+	executable := buildPercyExpressions(t)
 	directory := t.TempDir()
 
 	body := strings.Repeat("a", 400) + "\\n\\t" + strings.Repeat("b", 400)
@@ -566,12 +566,12 @@ func manyLiteralsProgram(count int) string {
 	return builder.String()
 }
 
-// TestKittenLiteralsScaling measures interning and emitting a growing pool, and
+// TestPercyLiteralsScaling measures interning and emitting a growing pool, and
 // checks the pool still agrees with the reference at each size.
-func TestKittenLiteralsScaling(t *testing.T) {
+func TestPercyLiteralsScaling(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenExpressions(t)
+	executable := buildPercyExpressions(t)
 	directory := t.TempDir()
 
 	previous := time.Duration(0)
@@ -599,7 +599,7 @@ func TestKittenLiteralsScaling(t *testing.T) {
 		if pool != want {
 			t.Fatalf("%d literals: the pool differs\n--- probe ---\n%s--- reference ---\n%s", count, pool, want)
 		}
-		entries += strings.Count(pool, "static const ktn_string ")
+		entries += strings.Count(pool, "static const pcy_string ")
 
 		growth := ""
 		if previous > 0 {

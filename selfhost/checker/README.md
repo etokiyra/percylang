@@ -1,8 +1,8 @@
-# A semantic checker for Kitten, written in Kitten
+# A semantic checker for Percy, written in Percy
 
 This directory holds the third component of the eventual self-hosting compiler: a
-semantic checker written in Kitten that consumes the AST produced by the
-Kitten-written parser and validates it exactly as the Go reference checker does.
+semantic checker written in Percy that consumes the AST produced by the
+Percy-written parser and validates it exactly as the Go reference checker does.
 
 It is **not** the production front end. `purr build` and `purr run` still use
 the Go checker in `checker/`, which remains authoritative. Nothing here changes
@@ -12,14 +12,14 @@ the language, and no language feature was added to make the checker easier.
 
 | File | Contents |
 | --- | --- |
-| `model.ktn` | the data model: types, variant and struct definitions, optional wrappers |
-| `state.ktn` | symbols, functions, scopes, the checker state, name and type resolution, diagnostics |
-| `expr.ktn` | expression checking |
-| `stmt.ktn` | statement checking and the conservative control-flow analysis |
-| `prelude.ktn` | the admissible prelude union blocks, their syntactic triggers, and late builtin registration |
-| `checker.ktn` | the five passes and the public entry points |
+| `model.pcy` | the data model: types, variant and struct definitions, optional wrappers |
+| `state.pcy` | symbols, functions, scopes, the checker state, name and type resolution, diagnostics |
+| `expr.pcy` | expression checking |
+| `stmt.pcy` | statement checking and the conservative control-flow analysis |
+| `prelude.pcy` | the admissible prelude union blocks, their syntactic triggers, and late builtin registration |
+| `checker.pcy` | the five passes and the public entry points |
 
-The driver is `../check.ktn`, one directory up, rather than `main.ktn` here. The
+The driver is `../check.pcy`, one directory up, rather than `main.pcy` here. The
 loader requires every import to resolve **inside the directory of the file being
 compiled**, so a driver that uses the lexer, the parser, and the checker has to
 sit above all three. This is a property of the current import policy, not of the
@@ -33,7 +33,7 @@ checker.
 printf 'struct Point { int x; }\nfn main() {\n    Point p = Point { x = 1 };\n}\n' > input.txt
 printf '' > input2.txt
 go build -o /tmp/purr ./cmd/purr
-/tmp/purr build selfhost/check.ktn -o /tmp/purr-check
+/tmp/purr build selfhost/check.pcy -o /tmp/purr-check
 /tmp/purr-check
 # ok modules 2 types 1 functions 1 bodies 1
 ```
@@ -59,10 +59,10 @@ leaves the exit status to the runtime, exactly like the lexer and parser drivers
 
 ## Public API
 
-`checker.ktn` exposes two entry points. Both are meant to be called directly by a
+`checker.pcy` exposes two entry points. Both are meant to be called directly by a
 future compiler driver; nothing here is reached by parsing printed output.
 
-```kitten
+```percy
 public fn check_modules(Module[] modules, int module_count) -> CheckResult
 public fn check_program(Module module) -> CheckResult
 ```
@@ -89,10 +89,10 @@ holds no package-level mutable state.
 
 ## The semantic result
 
-A successful check produces a `SemanticModel` (`model.ktn`), which is the facts a
+A successful check produces a `SemanticModel` (`model.pcy`), which is the facts a
 generator needs so that it never repeats name resolution or type inference:
 
-| Reference `Result` entry | Kitten |
+| Reference `Result` entry | Percy |
 | --- | --- |
 | `ExpressionTypes` | `ExprInfo.type` for the node's id |
 | `VariantRefs` | `ExprInfo.variant` |
@@ -106,7 +106,7 @@ generator needs so that it never repeats name resolution or type inference:
 
 Reading it:
 
-```kitten
+```percy
 // A generator walks a module's program and, at each expression node, reads the
 // node's parser-assigned id from the node itself.
 ModuleModel module = module_model(model, module_index);
@@ -149,7 +149,7 @@ Alternatives and why they were not taken:
 - **Parallel arrays in traversal order** would couple every consumer to the
   checker's internal visit order, so a change to that order would silently
   misassociate facts.
-- **Pointer identity** is not expressible: Kitten compares no reference types
+- **Pointer identity** is not expressible: Percy compares no reference types
   with `==`, and its maps are keyed by strings.
 
 Ids are per module: the parser assigns them, so a node's id is meaningful with the
@@ -160,7 +160,7 @@ counts the parser reports, so every id in `1..count` names a node.
 
 Types mirror `checker/types.go`: `int`, `float`, `bool`, `string`, `void`,
 struct, array, enum, union, and map. Two representations differ, both because
-Kitten has no null value and no pointer identity to compare with `==`:
+Percy has no null value and no pointer identity to compare with `==`:
 
 - **Named types carry an integer id** and are compared by it; array and map types
   are compared through their parts. The reference interns array and map types and
@@ -169,7 +169,7 @@ Kitten has no null value and no pointer identity to compare with `==`:
   exactly when they are the same declaration.
 - **Absence is a value.** An absent type is the `None` kind, an absent payload
   slot is `Absent` in an optional union, and a scope's parent is an optional
-  scope. A struct value cannot be constructed recursively in Kitten, so an
+  scope. A struct value cannot be constructed recursively in Percy, so an
   optional payload is a union rather than a placeholder object.
 
 Symbols mirror `checker/symbols.go`: a scope is a name table plus an optional
@@ -199,7 +199,7 @@ the first error:
    return on every path the conservative analysis can prove.
 
 The reference resolves a declaration by AST node identity, in maps keyed by the
-declaration pointer. Kitten has no map keyed by object identity, so a declaration
+declaration pointer. Percy has no map keyed by object identity, so a declaration
 is looked up by its module and name, which duplicate detection makes exact.
 
 ## Implicit file, directory, and process prelude
@@ -291,14 +291,14 @@ explicitly and handled.
 
 The reference builds a `Result` for a later code generator: resolved types per
 expression and per type reference, variant references, resolved symbols, and
-visible type and function tables. The Kitten checker produces the equivalent
+visible type and function tables. The Percy checker produces the equivalent
 `SemanticModel` and returns it from both entry points; `selfhost/codegen` reads
 it rather than repeating name resolution or type inference. Nothing that decides
 whether a program is valid reads those annotations.
 
 The language has no built-in integer-to-string conversion, so a checker that must
-embed a position or a count in a message performs one (`decimal` in `state.ktn`).
-That is a helper inside a Kitten program, not a language feature; the built-in
+embed a position or a count in a message performs one (`decimal` in `state.pcy`).
+That is a helper inside a Percy program, not a language feature; the built-in
 conversion remains deferred.
 
 ## Differential testing
@@ -308,7 +308,7 @@ a corpus of **2030 inputs**, comparing its rendering with the reference
 implementation's rendering of the same input:
 
 ```sh
-go test -count=1 -v -run TestKittenChecker ./cmd/purr/
+go test -count=1 -v -run TestPercyChecker ./cmd/purr/
 ```
 
 The corpus covers valid programs for every construct; one invalid program per
@@ -328,12 +328,12 @@ diagnostics on them rather than checking them cleanly.
 
 **All 2030 inputs render byte-identically**, so this is exact parity on
 success/failure, error category, position, message, and the declaration counts
-reported on success. `TestKittenCheckerOutputFormat` additionally pins the
+reported on success. `TestPercyCheckerOutputFormat` additionally pins the
 rendering with hand-written expectations, and `TestEmptySecondModuleIsInert`
 confirms that checking a single-module program as two modules cannot change the
 outcome.
 
-The only expected differences are inherited from the shared Kitten lexer and
+The only expected differences are inherited from the shared Percy lexer and
 parser rather than from the checker: a column after a byte at or above 128 counts
 bytes rather than code points, and a message that quotes such a byte names the
 byte. The harness requires exact equality for ASCII input and compares the phase,
@@ -341,7 +341,7 @@ category, and position otherwise.
 
 ### The semantic model
 
-`TestKittenSemanticsMatchesReference` builds `selfhost/semantics.ktn` and compares
+`TestPercySemanticsMatchesReference` builds `selfhost/semantics.pcy` and compares
 its rendering of the model with the reference's rendering of the same Result, over
 the same corpus. The rendering is one line per declaration and per annotated node
 in a fixed walk order — the node's kind and position, its resolved type, its
@@ -351,7 +351,7 @@ annotations themselves rather than success counts: **2030 inputs, all identical,
 6052 annotated lines of which 5634 carry a fact** (the remainder are the callee
 nodes and type names that the reference leaves unannotated).
 
-`TestKittenSemanticsOutputFormat` pins the rendering, and
+`TestPercySemanticsOutputFormat` pins the rendering, and
 `TestAnnotationIdentitiesDistinguishSameNames` checks the identity decisions
 directly: a shadowed local's two uses resolve to declarations at different
 positions, two enums with a same-named case are distinguished by the owning type,
@@ -363,9 +363,9 @@ next.
 
 ## Contract for a future generator
 
-A Kitten-written C generator may rely on exactly this much:
+A Percy-written C generator may rely on exactly this much:
 
-1. It receives modules that were parsed by the Kitten parser (so every
+1. It receives modules that were parsed by the Percy parser (so every
    expression and type reference has a node id and the module carries the counts)
    and a `CheckResult.Success` from `check_modules`.
 2. It never resolves a name, infers a type, or re-reads source text: it reads

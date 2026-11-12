@@ -1,15 +1,15 @@
 package main
 
-// Differential testing for the Kitten-written parser in selfhost/parser.
+// Differential testing for the Percy-written parser in selfhost/parser.
 //
 // This file lives in the CLI package because the harness needs the same build
 // pipeline and toolchain probe as the other integration tests: it compiles
-// selfhost/parse.ktn with the bootstrap compiler and runs the resulting
+// selfhost/parse.pcy with the bootstrap compiler and runs the resulting
 // executable once per corpus input.
 //
-// The reference is the Go parser in kitten/parser. Both implementations print
+// The reference is the Go parser in percy/parser. Both implementations print
 // the same canonical rendering of the AST - the format documented in
-// selfhost/parser/printer.ktn - and the harness compares the two renderings byte
+// selfhost/parser/printer.pcy - and the harness compares the two renderings byte
 // for byte, so the comparison is over normalized tree structure rather than over
 // implementation-specific formatting: node kinds, positions, names, operators,
 // literal text, and nesting are all covered, and an error is compared as a
@@ -18,13 +18,13 @@ package main
 // Two differences are expected and are handled here rather than hidden:
 //
 //   - Position columns. The Go lexer counts columns in code points and the
-//     Kitten lexer counts bytes, so a position after a byte >= 128 can differ.
+//     Percy lexer counts bytes, so a position after a byte >= 128 can differ.
 //     The harness therefore requires exact equality only for input whose bytes
 //     are all ASCII; for other input it still compares the rendered tree shape
 //     after marking the difference, and the corpus records which inputs those
 //     are.
 //   - Error messages that quote non-ASCII token text, where Go's %q prints a
-//     code point and the Kitten parser prints \xNN for the bytes.
+//     code point and the Percy parser prints \xNN for the bytes.
 
 import (
 	"bytes"
@@ -38,35 +38,35 @@ import (
 	"testing"
 	"time"
 
-	"kitten/lexer"
-	"kitten/parser"
+	"percy/lexer"
+	"percy/parser"
 )
 
-// kittenParserProgram is the driver program of the Kitten-written parser.
-func kittenParserProgram() string {
-	return filepath.Join("..", "..", "selfhost", "parse.ktn")
+// percyParserProgram is the driver program of the Percy-written parser.
+func percyParserProgram() string {
+	return filepath.Join("..", "..", "selfhost", "parse.pcy")
 }
 
-// buildKittenParser compiles the Kitten parser and returns the executable path.
-func buildKittenParser(t *testing.T) string {
+// buildPercyParser compiles the Percy parser and returns the executable path.
+func buildPercyParser(t *testing.T) string {
 	t.Helper()
 
 	requireToolchain(t)
 
-	executable := filepath.Join(t.TempDir(), "kitten-parser")
+	executable := filepath.Join(t.TempDir(), "percy-parser")
 	var diagnostics bytes.Buffer
-	if err := buildExecutable(kittenParserProgram(), executable, &diagnostics); err != nil {
-		t.Fatalf("building the Kitten parser: %v\n%s", err, diagnostics.String())
+	if err := buildExecutable(percyParserProgram(), executable, &diagnostics); err != nil {
+		t.Fatalf("building the Percy parser: %v\n%s", err, diagnostics.String())
 	}
 	if warnings := strings.TrimSpace(diagnostics.String()); warnings != "" {
-		t.Fatalf("C compiler diagnostics while building the Kitten parser:\n%s", warnings)
+		t.Fatalf("C compiler diagnostics while building the Percy parser:\n%s", warnings)
 	}
 	return executable
 }
 
-// runKittenParser writes source to input.txt in directory and runs the Kitten
+// runPercyParser writes source to input.txt in directory and runs the Percy
 // parser there, returning its stdout.
-func runKittenParser(executable, directory, source string) (string, error) {
+func runPercyParser(executable, directory, source string) (string, error) {
 	if err := os.WriteFile(filepath.Join(directory, "input.txt"), []byte(source), 0o644); err != nil {
 		return "", fmt.Errorf("writing input.txt: %v", err)
 	}
@@ -77,16 +77,16 @@ func runKittenParser(executable, directory, source string) (string, error) {
 	command.Stdout = &stdout
 	command.Stderr = &stderr
 	if err := command.Run(); err != nil {
-		return "", fmt.Errorf("running the Kitten parser: %v (stderr: %s)", err, stderr.String())
+		return "", fmt.Errorf("running the Percy parser: %v (stderr: %s)", err, stderr.String())
 	}
 	if stderr.Len() != 0 {
-		return "", fmt.Errorf("the Kitten parser wrote to stderr: %s", stderr.String())
+		return "", fmt.Errorf("the Percy parser wrote to stderr: %s", stderr.String())
 	}
 	return stdout.String(), nil
 }
 
 // renderReference lexes and parses source with the Go reference implementation
-// and renders the same canonical text the Kitten parser produces.
+// and renders the same canonical text the Percy parser produces.
 func renderReference(source string) (string, error) {
 	tokens, err := lexer.Lex(source)
 	if err != nil {
@@ -136,7 +136,7 @@ func errorLine(line, column int, message string) string {
 // astPrinter renders the reference AST in the canonical format.
 //
 // Every line is an indent of two spaces per depth level followed by
-// space-separated fields, matching printer.ktn: the Kitten printer builds the
+// space-separated fields, matching printer.pcy: the Percy printer builds the
 // same string by printing the indented kind first and the remaining fields
 // after it, so a line whose last field is empty keeps its trailing space in both
 // implementations.
@@ -263,6 +263,12 @@ func (p *astPrinter) statement(statement parser.Stmt, depth int) {
 		p.optionalExpression(node.Condition, depth+1)
 		p.optionalExpression(node.Increment, depth+1)
 		p.statement(node.Body, depth+1)
+
+	case *parser.BreakStmt:
+		p.line(depth, "break", number(node.At.Line), number(node.At.Column))
+
+	case *parser.ContinueStmt:
+		p.line(depth, "continue", number(node.At.Line), number(node.At.Column))
 
 	case *parser.ReturnStmt:
 		p.line(depth, "return", number(node.At.Line), number(node.At.Column))
@@ -423,12 +429,12 @@ func parserCorpus(t *testing.T) []parserCase {
 	}
 
 	// Imports.
-	add("import", "import \"geometry.ktn\";\n")
-	add("import with path segments", "import \"util/text.ktn\";\n")
+	add("import", "import \"geometry.pcy\";\n")
+	add("import with path segments", "import \"util/text.pcy\";\n")
 	add("import empty path", "import \"\";\n")
-	add("import with escape", "import \"a\\tb.ktn\";\n")
-	add("import before function", "import \"a.ktn\";\nimport \"b.ktn\";\nfn main() {}\n")
-	add("import with visibility", "public import \"a.ktn\";\n")
+	add("import with escape", "import \"a\\tb.pcy\";\n")
+	add("import before function", "import \"a.pcy\";\nimport \"b.pcy\";\nfn main() {}\n")
+	add("import with visibility", "public import \"a.pcy\";\n")
 
 	// Struct declarations.
 	add("empty struct", "struct S {}\n")
@@ -685,21 +691,21 @@ func parserCorpus(t *testing.T) []parserCase {
 	// Every fixture and self-hosted source, which are the most realistic inputs
 	// available: the parser is checked on the compiler's own test programs and on
 	// its own source.
-	inputs, err := filepath.Glob(filepath.Join("..", "..", "tests", "*.ktn"))
+	inputs, err := filepath.Glob(filepath.Join("..", "..", "tests", "*.pcy"))
 	if err != nil {
 		t.Fatalf("globbing fixtures: %v", err)
 	}
 	inputs = append(inputs,
-		filepath.Join("..", "..", "tests", "modules", "main.ktn"),
-		filepath.Join("..", "..", "tests", "modules", "geometry.ktn"),
-		filepath.Join("..", "..", "tests", "modules", "util", "text.ktn"),
-		filepath.Join("..", "..", "selfhost", "parse.ktn"),
-		filepath.Join("..", "..", "selfhost", "lexer", "tokens.ktn"),
-		filepath.Join("..", "..", "selfhost", "lexer", "lexer.ktn"),
-		filepath.Join("..", "..", "selfhost", "lexer", "main.ktn"),
-		filepath.Join("..", "..", "selfhost", "parser", "ast.ktn"),
-		filepath.Join("..", "..", "selfhost", "parser", "parser.ktn"),
-		filepath.Join("..", "..", "selfhost", "parser", "printer.ktn"),
+		filepath.Join("..", "..", "tests", "modules", "main.pcy"),
+		filepath.Join("..", "..", "tests", "modules", "geometry.pcy"),
+		filepath.Join("..", "..", "tests", "modules", "util", "text.pcy"),
+		filepath.Join("..", "..", "selfhost", "parse.pcy"),
+		filepath.Join("..", "..", "selfhost", "lexer", "tokens.pcy"),
+		filepath.Join("..", "..", "selfhost", "lexer", "lexer.pcy"),
+		filepath.Join("..", "..", "selfhost", "lexer", "main.pcy"),
+		filepath.Join("..", "..", "selfhost", "parser", "ast.pcy"),
+		filepath.Join("..", "..", "selfhost", "parser", "parser.pcy"),
+		filepath.Join("..", "..", "selfhost", "parser", "printer.pcy"),
 	)
 	sort.Strings(inputs)
 	for _, input := range inputs {
@@ -767,7 +773,7 @@ func kindOutline(rendering string) string {
 	return builder.String()
 }
 
-// compareNonASCII compares a reference rendering with the Kitten rendering for
+// compareNonASCII compares a reference rendering with the Percy rendering for
 // input that contains bytes >= 128, accepting only the documented differences: a
 // byte-oriented column, a quoted lexeme that differs because the reference lexer
 // decodes UTF-8, and an error message that quotes such a lexeme.
@@ -778,7 +784,7 @@ func compareNonASCII(t *testing.T, testCase parserCase, want, got string) {
 	gotLine, gotColumn, gotIsError := errorPosition(got)
 	if wantIsError || gotIsError {
 		if !wantIsError || !gotIsError {
-			t.Errorf("only one implementation reported an error for %s\n--- reference ---\n%s--- Kitten ---\n%s",
+			t.Errorf("only one implementation reported an error for %s\n--- reference ---\n%s--- Percy ---\n%s",
 				describeParserCase(testCase), want, got)
 			return
 		}
@@ -789,20 +795,20 @@ func compareNonASCII(t *testing.T, testCase parserCase, want, got string) {
 	}
 
 	if wantOutline, gotOutline := kindOutline(want), kindOutline(got); wantOutline != gotOutline {
-		t.Errorf("AST shape mismatch for %s\n--- reference ---\n%s--- Kitten ---\n%s",
+		t.Errorf("AST shape mismatch for %s\n--- reference ---\n%s--- Percy ---\n%s",
 			describeParserCase(testCase), wantOutline, gotOutline)
 	}
 }
 
-// TestKittenParserOutputFormat pins the driver's output format with explicit
+// TestPercyParserOutputFormat pins the driver's output format with explicit
 // expected text, so that a change to the format is caught even if both
 // implementations change together. The expectations are the reference
 // implementation's rendering of the same inputs, which the differential test
 // above also checks.
-func TestKittenParserOutputFormat(t *testing.T) {
+func TestPercyParserOutputFormat(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenParser(t)
+	executable := buildPercyParser(t)
 	directory := t.TempDir()
 
 	cases := []struct {
@@ -845,7 +851,7 @@ func TestKittenParserOutputFormat(t *testing.T) {
 	}
 
 	for _, testCase := range cases {
-		got, err := runKittenParser(executable, directory, testCase.source)
+		got, err := runPercyParser(executable, directory, testCase.source)
 		if err != nil {
 			t.Fatalf("%s: %v", testCase.name, err)
 		}
@@ -855,16 +861,16 @@ func TestKittenParserOutputFormat(t *testing.T) {
 	}
 }
 
-// TestKittenParserScaling measures the Kitten parser on growing inputs, and
+// TestPercyParserScaling measures the Percy parser on growing inputs, and
 // checks that the largest one parses successfully.
 //
 // The measurements are logged rather than asserted: they document that the AST
 // lists are sized by the construct being parsed rather than by the whole file,
 // which keeps parsing roughly linear. Run it with -v to see the numbers.
-func TestKittenParserScaling(t *testing.T) {
+func TestPercyParserScaling(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenParser(t)
+	executable := buildPercyParser(t)
 	directory := t.TempDir()
 	unit := "fn name(int a, int b) -> int {\n    int x = a + b * 2;\n    while (x > 0) {\n        x--;\n    }\n    return x;\n}\n"
 
@@ -875,7 +881,7 @@ func TestKittenParserScaling(t *testing.T) {
 		best := time.Duration(0)
 		for repetition := 0; repetition < 3; repetition++ {
 			start := time.Now()
-			if _, err := runKittenParser(executable, directory, source); err != nil {
+			if _, err := runPercyParser(executable, directory, source); err != nil {
 				t.Fatalf("functions %d: %v", count, err)
 			}
 			if elapsed := time.Since(start); best == 0 || elapsed < best {
@@ -887,7 +893,7 @@ func TestKittenParserScaling(t *testing.T) {
 		if err != nil {
 			t.Fatalf("functions %d: %v", count, err)
 		}
-		got, err := runKittenParser(executable, directory, source)
+		got, err := runPercyParser(executable, directory, source)
 		if err != nil {
 			t.Fatalf("functions %d: %v", count, err)
 		}
@@ -899,18 +905,18 @@ func TestKittenParserScaling(t *testing.T) {
 		if previous > 0 {
 			growth = fmt.Sprintf(", x%.1f", float64(best)/float64(previous))
 		}
-		t.Logf("functions=%5d bytes=%7d lines=%7d  Kitten=%10s%s",
+		t.Logf("functions=%5d bytes=%7d lines=%7d  Percy=%10s%s",
 			count, len(source), strings.Count(got, "\n"), best.Round(time.Millisecond), growth)
 		previous = best
 	}
 }
 
-// TestKittenParserMatchesReference runs the whole corpus through both
+// TestPercyParserMatchesReference runs the whole corpus through both
 // implementations and compares their canonical renderings.
-func TestKittenParserMatchesReference(t *testing.T) {
+func TestPercyParserMatchesReference(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenParser(t)
+	executable := buildPercyParser(t)
 	directory := t.TempDir()
 	cases := parserCorpus(t)
 	t.Logf("parser differential corpus: %d inputs", len(cases))
@@ -924,7 +930,7 @@ func TestKittenParserMatchesReference(t *testing.T) {
 			continue
 		}
 
-		got, err := runKittenParser(executable, directory, testCase.source)
+		got, err := runPercyParser(executable, directory, testCase.source)
 		if err != nil {
 			t.Errorf("%s: %v", describeParserCase(testCase), err)
 			continue
@@ -944,7 +950,7 @@ func TestKittenParserMatchesReference(t *testing.T) {
 			continue
 		}
 
-		t.Errorf("AST mismatch for %s\n--- reference ---\n%s--- Kitten ---\n%s", describeParserCase(testCase), want, got)
+		t.Errorf("AST mismatch for %s\n--- reference ---\n%s--- Percy ---\n%s", describeParserCase(testCase), want, got)
 	}
 
 	t.Logf("parser corpus: %d inputs, %d byte-identical, %d compared by AST shape only (non-ASCII)", len(cases), exact, loose)

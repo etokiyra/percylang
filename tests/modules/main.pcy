@@ -1,0 +1,9 @@
+import "geometry.pcy";
+import "util/text.pcy";
+
+fn main() {
+    Rectangle room = Rectangle { width = 4, height = 5 };
+    print(label(), area(room));
+    print(width_of(room));
+    print(describe("room"));
+}

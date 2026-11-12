@@ -1,0 +1,6 @@
+fn main() {
+    print("one", "two");
+    print(1, 2, 3);
+    print("mix", 4, true, 1.5);
+    print(byte_from_int(7), byte_from_int(255), "end");
+}

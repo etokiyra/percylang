@@ -1,0 +1,476 @@
+// expressions.pcy - print the C rendering of every expression in a checked
+// program, and the string literals they pool.
+//
+// It reads the two modules the other self-hosted drivers read, lexes, parses, and
+// checks them with the same Percy front end, walks the function bodies to reach
+// every expression, and prints:
+//
+//	expr <line> <column> <kind> <rendering>
+//	fail <line> <column> <kind> <message>
+//
+// one line per expression node, in the order the reference generator renders
+// bodies, followed by
+//
+//	=== literal pool ===
+//
+// and then the pooled string literal declarations those expressions produced, in
+// the reference's own text. A node the expression emitter cannot render is
+// reported as "fail" with the emitter's message, so a caller can see the
+// difference between a rendering and a failure. A failed preparation, check, or
+// parse prints a single "error ..." line instead.
+//
+// The walk exists only to reach expressions: it emits no C for a statement and
+// implements no part of the statement emitter. It visits declarations in module
+// and source order, then each function's body, then statements and their
+// expressions in the order the reference renders them, which is why it visits a
+// struct or variant literal's values in field declaration order rather than source
+// order, and a loop's clauses before its body.
+//
+// A first line of the form "#pool <n>" in input.txt sizes the literal pool to n
+// entries rather than the derived bound. The line is replaced by an empty line, so
+// no other source position moves, and a Percy program cannot begin with '#', so
+// the prefix is unambiguous. That is how a pool known to be too small is supplied.
+//
+// This is test infrastructure, not the compiler stage: the finished driver will
+// emit a whole translation unit for a program.
+
+import "checker/checker.pcy";
+import "checker/model.pcy";
+import "checker/state.pcy";
+import "codegen/expressions.pcy";
+import "codegen/literals.pcy";
+import "lexer/lexer.pcy";
+import "lexer/tokens.pcy";
+import "parser/ast.pcy";
+import "parser/parser.pcy";
+import "probe_runtime.pcy";
+
+// PreparedModule is a parsed module or the report that it could not be prepared.
+union PreparedModule {
+    Ok { Module module; }
+    Failed
+}
+
+// RootInput is the root module's source and the requested pool capacity, or zero
+// when the derived bound should be used.
+struct RootInput {
+    string source;
+    int pool_capacity;
+}
+
+// prepare_source lexes and parses one module, printing the first lexical or
+// syntax error it finds.
+fn prepare_source(string source, string path, int id) -> PreparedModule {
+    match (lex(source)) {
+        Failure(line, column, message) {
+            print("error", "Lex", "-", path, line, column, message);
+            return PreparedModule.Failed;
+        }
+        Success(tokens, count) {
+            match (parse(tokens, count)) {
+                Failure(error) {
+                    print("error", "Parse", "-", path, error.line, error.column, error.message);
+                    return PreparedModule.Failed;
+                }
+                Success(program, expression_count, type_ref_count) {
+                    return PreparedModule.Ok {
+                        module = Module {
+                            path = path,
+                            id = id,
+                            program = program,
+                            expression_count = expression_count,
+                            type_ref_count = type_ref_count
+                        }
+                    };
+                }
+            }
+        }
+    }
+}
+
+// pool_prefix is the directive that selects an explicit pool capacity.
+fn pool_prefix() -> string {
+    return "#pool ";
+}
+
+// split_pool_directive separates an optional "#pool <n>" first line from the root
+// module's source, replacing that line with an empty line so that every position
+// after it keeps the line number the source gives it.
+fn split_pool_directive(string source) -> RootInput {
+    if (!starts_with(source, pool_prefix())) {
+        return RootInput { source = source, pool_capacity = 0 };
+    }
+    int cut = first_newline(source);
+    string directive = substring(source, 0, cut);
+    string number = substring(directive, length(pool_prefix()), length(directive));
+    return RootInput {
+        source = substring(source, cut, length(source)),
+        pool_capacity = parse_decimal(number)
+    };
+}
+
+// starts_with reports whether text begins with prefix.
+fn starts_with(string text, string prefix) -> bool {
+    if (length(text) < length(prefix)) {
+        return false;
+    }
+    int index = 0;
+    while (index < length(prefix)) {
+        if (text[index] != prefix[index]) {
+            return false;
+        }
+        index++;
+    }
+    return true;
+}
+
+// first_newline returns the index of the first newline byte, or the length of the
+// text when it has none.
+fn first_newline(string text) -> int {
+    int index = 0;
+    while (index < length(text)) {
+        if (text[index] == 10) {
+            return index;
+        }
+        index++;
+    }
+    return length(text);
+}
+
+// parse_decimal reads a non-negative decimal integer. It stops at the first
+// character that is not a digit, and returns zero for an empty field, so the
+// capacity directive is the only thing that can supply a malformed value.
+fn parse_decimal(string text) -> int {
+    int value = 0;
+    int index = 0;
+    bool reading = true;
+    while (index < length(text) && reading) {
+        int digit = text[index] - 48;
+        if (digit < 0 || digit > 9) {
+            reading = false;
+        } else {
+            value = value * 10 + digit;
+            index++;
+        }
+    }
+    return value;
+}
+
+// print_lines writes text one line at a time, so that standard output holds it
+// byte for byte: print terminates every argument with a newline.
+fn print_lines(string text) {
+    int start = 0;
+    int index = 0;
+    int size = length(text);
+    while (index < size) {
+        if (text[index] == 10) {
+            print(substring(text, start, index));
+            start = index + 1;
+        }
+        index++;
+    }
+    if (start < size) {
+        print(substring(text, start, size));
+    }
+}
+
+// --- Walking -----------------------------------------------------------------
+
+// field_init_index returns the position of a literal's initializer for a field, or
+// -1 when the literal does not initialize that field. The reference renders a
+// literal's values in field declaration order and fails when one is missing, so a
+// walk that reaches a literal's values in that order matches it.
+fn field_init_index(FieldInit[] fields, int field_count, string name) -> int {
+    int index = 0;
+    while (index < field_count) {
+        if (fields[index].name.text == name) {
+            return index;
+        }
+        index++;
+    }
+    return -1;
+}
+
+// scan_struct_literal visits a struct literal's values in field declaration order.
+fn scan_struct_literal(ExpressionContext context, TypeRef type_ref, FieldInit[] fields, int field_count) {
+    match (type_ref_type(module_model(context.model, context.module_index), type_ref_node_id(type_ref))) {
+        Present(struct_type) {
+            StructInfo info = struct_info_of(struct_type);
+            int index = 0;
+            while (index < info.field_count) {
+                int init_index = field_init_index(fields, field_count, info.fields[index].name);
+                if (init_index >= 0) {
+                    scan_expression(context, fields[init_index].value);
+                }
+                index++;
+            }
+        }
+        Absent {
+            // No resolved type: the fields keep source order. The checker records
+            // a type for every literal it accepts, so this cannot occur.
+            int index = 0;
+            while (index < field_count) {
+                scan_expression(context, fields[index].value);
+                index++;
+            }
+        }
+    }
+}
+
+// scan_variant_literal visits a variant literal's values in field declaration
+// order.
+fn scan_variant_literal(ExpressionContext context, TypeRef type_ref, Token variant_token, FieldInit[] fields, int field_count) {
+    match (type_ref_type(module_model(context.model, context.module_index), type_ref_node_id(type_ref))) {
+        Present(union_type) {
+            if (has(union_type.variant_index, variant_token.text)) {
+                Variant variant = union_type.variant_index[variant_token.text];
+                int index = 0;
+                while (index < variant.field_count) {
+                    int init_index = field_init_index(fields, field_count, variant.fields[index].name);
+                    if (init_index >= 0) {
+                        scan_expression(context, fields[init_index].value);
+                    }
+                    index++;
+                }
+                return;
+            }
+            int index = 0;
+            while (index < field_count) {
+                scan_expression(context, fields[index].value);
+                index++;
+            }
+        }
+        Absent {
+            int index = 0;
+            while (index < field_count) {
+                scan_expression(context, fields[index].value);
+                index++;
+            }
+        }
+    }
+}
+
+// scan_expression reports one expression and then visits its children. Reporting
+// an expression interns the string literals it renders, which is what gives the
+// pool the reference's order and deduplication.
+fn scan_expression(ExpressionContext context, Expr expression) {
+    Position at = expr_position(expression);
+    match (emit_expression(context, expression)) {
+        Ok(text) {
+            print("expr", at.line, at.column, expression_kind_name(expression), text);
+        }
+        Failed(error) {
+            print("fail", at.line, at.column, expression_kind_name(expression), error.message);
+        }
+    }
+
+    match (expression) {
+        Unary(node_id, operator, operand, postfix) {
+            scan_expression(context, operand);
+        }
+        Binary(node_id, operator, left, right) {
+            scan_expression(context, left);
+            scan_expression(context, right);
+        }
+        Assign(node_id, operator, target, value) {
+            scan_expression(context, target);
+            scan_expression(context, value);
+        }
+        Call(node_id, open_paren, callee, arguments, argument_count) {
+            scan_expression(context, callee);
+            int index = 0;
+            while (index < argument_count) {
+                scan_expression(context, arguments[index]);
+                index++;
+            }
+        }
+        Member(node_id, dot, receiver, member) {
+            scan_expression(context, receiver);
+        }
+        StructLiteral(node_id, type_ref, open_brace, fields, field_count) {
+            scan_struct_literal(context, type_ref, fields, field_count);
+        }
+        VariantLiteral(node_id, type_ref, variant, open_brace, fields, field_count) {
+            scan_variant_literal(context, type_ref, variant, fields, field_count);
+        }
+        NewArray(node_id, at, element, length) {
+            scan_expression(context, length);
+        }
+        NewMap(node_id, at, map_type) { }
+        Index(node_id, bracket, target, index) {
+            scan_expression(context, target);
+            scan_expression(context, index);
+        }
+        Integer(node_id, token) { }
+        Float(node_id, token) { }
+        Boolean(node_id, token, value) { }
+        String(node_id, token) { }
+        Identifier(node_id, token) { }
+    }
+}
+
+// scan_statement visits the expressions a statement contains, in the order the
+// reference emits them.
+fn scan_statement(ExpressionContext context, Stmt statement) {
+    match (statement) {
+        Block(open_brace, statements, statement_count) {
+            int index = 0;
+            while (index < statement_count) {
+                scan_statement(context, statements[index]);
+                index++;
+            }
+        }
+        VarDecl(type_ref, name, initializer) {
+            match (initializer) {
+                Present(expression) {
+                    scan_expression(context, expression);
+                }
+                Absent { }
+            }
+        }
+        Expression(expression) {
+            scan_expression(context, expression);
+        }
+        If(at, condition, then_branch, else_branch) {
+            scan_expression(context, condition);
+            scan_statement(context, then_branch);
+            match (else_branch) {
+                Present(statement_value) {
+                    scan_statement(context, statement_value);
+                }
+                Absent { }
+            }
+        }
+        While(at, condition, body) {
+            scan_expression(context, condition);
+            scan_statement(context, body);
+        }
+        For(at, initializer, condition, increment, body) {
+            match (initializer) {
+                Present(statement_value) {
+                    scan_statement(context, statement_value);
+                }
+                Absent { }
+            }
+            match (condition) {
+                Present(expression) {
+                    scan_expression(context, expression);
+                }
+                Absent { }
+            }
+            match (increment) {
+                Present(expression) {
+                    scan_expression(context, expression);
+                }
+                Absent { }
+            }
+            scan_statement(context, body);
+        }
+        Break(at) { }
+        Continue(at) { }
+        Return(at, value) {
+            match (value) {
+                Present(expression) {
+                    scan_expression(context, expression);
+                }
+                Absent { }
+            }
+        }
+        Match(at, scrutinee, arms, arm_count) {
+            scan_expression(context, scrutinee);
+            int index = 0;
+            while (index < arm_count) {
+                scan_statement(context, arms[index].body);
+                index++;
+            }
+        }
+    }
+}
+
+// scan_module visits every function body of one module.
+fn scan_module(SemanticModel model, int module_index, LiteralPool pool) {
+    ModuleModel module = module_model(model, module_index);
+    ExpressionContext context = ExpressionContext {
+        model = model,
+        module_index = module_index,
+        pool = pool
+    };
+    int index = 0;
+    while (index < module.program.declaration_count) {
+        match (module.program.declarations[index]) {
+            Function(at, visibility, name, parameters, parameter_count, return_type, body) {
+                scan_statement(context, body);
+            }
+            Import(keyword, path) { }
+            Struct(at, visibility, name, fields, field_count) { }
+            Enum(at, visibility, name, cases, case_count) { }
+            Union(at, visibility, name, variants, variant_count) { }
+        }
+        index++;
+    }
+}
+
+// literal_capacity bounds the number of distinct literals a program can pool:
+// every literal is an expression node, and each module reports how many
+// expression nodes its parse assigned.
+fn literal_capacity(SemanticModel model) -> int {
+    int total = 0;
+    int index = 0;
+    while (index < model.module_count) {
+        total = total + module_model(model, index).expression_count;
+        index++;
+    }
+    return total;
+}
+
+fn main() {
+    RootInput root = split_pool_directive(read_file("input.txt"));
+
+    Module[] modules = new Module[2];
+    int module_count = 0;
+
+    match (prepare_source(root.source, "input.txt", 0)) {
+        Ok(module) {
+            modules[0] = module;
+            module_count = 1;
+        }
+        Failed {
+        }
+    }
+
+    if (module_count == 1) {
+        match (prepare_source(read_file("input2.txt"), "input2.txt", 1)) {
+            Ok(module) {
+                modules[1] = module;
+                module_count = 2;
+            }
+            Failed {
+                module_count = 0;
+            }
+        }
+    }
+
+    if (module_count == 2) {
+        match (check_modules_with_runtime(modules, 2, read_runtime_source())) {
+            Failure(error) {
+                print("error", "Check", error_kind_name(error.kind), error.file, error.line, error.column, error.message);
+            }
+            Success(summary, model) {
+                int capacity = root.pool_capacity;
+                if (capacity == 0) {
+                    capacity = literal_capacity(model);
+                }
+                LiteralPool pool = new_literal_pool(capacity);
+
+                int index = 0;
+                while (index < model.module_count) {
+                    scan_module(model, index, pool);
+                    index++;
+                }
+
+                print("=== literal pool ===");
+                print_lines(literal_pool_text(pool));
+            }
+        }
+    }
+}

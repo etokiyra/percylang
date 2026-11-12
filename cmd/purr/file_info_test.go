@@ -36,7 +36,7 @@ const fileInfoLoopSource = `fn main() {
 func buildFileInfoGoProgram(t *testing.T, source string) string {
 	t.Helper()
 	directory := t.TempDir()
-	sourcePath := filepath.Join(directory, "file_info.ktn")
+	sourcePath := filepath.Join(directory, "file_info.pcy")
 	if err := os.WriteFile(sourcePath, []byte(source), 0o644); err != nil {
 		t.Fatalf("writing file-info fixture: %v", err)
 	}
@@ -92,16 +92,16 @@ func runFileInfo(t *testing.T, executable, path string) programResult {
 func TestFileInfoRuntime(t *testing.T) {
 	requireToolchain(t)
 	goExecutable := buildFileInfoGoProgram(t, fileInfoSource)
-	unitExecutable := buildKittenUnit(t)
-	kittenText, err := runKittenUnit(unitExecutable, t.TempDir(), fileInfoSource, "")
+	unitExecutable := buildPercyUnit(t)
+	percyText, err := runPercyUnit(unitExecutable, t.TempDir(), fileInfoSource, "")
 	if err != nil {
-		t.Fatalf("generating C with the Kitten pipeline: %v", err)
+		t.Fatalf("generating C with the Percy pipeline: %v", err)
 	}
 	_, _, referenceText, ok := checkProgram(t, "file-info runtime", fileInfoSource, "")
 	if !ok {
 		return
 	}
-	if difference := unitDifference(kittenText, referenceText); difference != "" {
+	if difference := unitDifference(percyText, referenceText); difference != "" {
 		t.Fatalf("file-info translation unit differs: %s", difference)
 	}
 	compiler, err := discoverCompiler()
@@ -109,7 +109,7 @@ func TestFileInfoRuntime(t *testing.T) {
 		t.Fatalf("discovering compiler: %v", err)
 	}
 	compileFlags, linkFlags := gcBuildFlags()
-	kittenExecutable, err := buildKittenRunProgram(t, compiler, compileFlags, linkFlags, kittenText)
+	percyExecutable, err := buildPercyRunProgram(t, compiler, compileFlags, linkFlags, percyText)
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -198,19 +198,19 @@ func TestFileInfoRuntime(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			want := goFileInfo(testCase.path)
 			goResult := runFileInfo(t, goExecutable, testCase.path)
-			kittenResult := runFileInfo(t, kittenExecutable, testCase.path)
+			percyResult := runFileInfo(t, percyExecutable, testCase.path)
 			if goResult.status != 0 || goResult.stderr != "" || goResult.stdout != want {
 				t.Errorf("Go pipeline: stdout %q, stderr %q, status %d; want %q, %q, 0",
 					goResult.stdout, goResult.stderr, goResult.status, want, "")
 			}
-			if kittenResult.status != 0 || kittenResult.stderr != "" || kittenResult.stdout != want {
-				t.Errorf("Kitten pipeline: stdout %q, stderr %q, status %d; want %q, %q, 0",
-					kittenResult.stdout, kittenResult.stderr, kittenResult.status, want, "")
+			if percyResult.status != 0 || percyResult.stderr != "" || percyResult.stdout != want {
+				t.Errorf("Percy pipeline: stdout %q, stderr %q, status %d; want %q, %q, 0",
+					percyResult.stdout, percyResult.stderr, percyResult.status, want, "")
 			}
-			if goResult.stdout != kittenResult.stdout || goResult.stderr != kittenResult.stderr || goResult.status != kittenResult.status {
-				t.Errorf("pipelines disagree: Go %q/%q/%d; Kitten %q/%q/%d",
+			if goResult.stdout != percyResult.stdout || goResult.stderr != percyResult.stderr || goResult.status != percyResult.status {
+				t.Errorf("pipelines disagree: Go %q/%q/%d; Percy %q/%q/%d",
 					goResult.stdout, goResult.stderr, goResult.status,
-					kittenResult.stdout, kittenResult.stderr, kittenResult.status)
+					percyResult.stdout, percyResult.stderr, percyResult.status)
 			}
 		})
 	}
@@ -244,10 +244,10 @@ func TestFileInfoLoopAndNoFds(t *testing.T) {
 
 func TestFileInfoSanitizer(t *testing.T) {
 	requireToolchain(t)
-	unitExecutable := buildKittenUnit(t)
-	kittenText, err := runKittenUnit(unitExecutable, t.TempDir(), fileInfoSource, "")
+	unitExecutable := buildPercyUnit(t)
+	percyText, err := runPercyUnit(unitExecutable, t.TempDir(), fileInfoSource, "")
 	if err != nil {
-		t.Fatalf("generating C with the Kitten pipeline: %v", err)
+		t.Fatalf("generating C with the Percy pipeline: %v", err)
 	}
 	compiler, err := discoverCompiler()
 	if err != nil {
@@ -255,7 +255,7 @@ func TestFileInfoSanitizer(t *testing.T) {
 	}
 	compileFlags, linkFlags := gcBuildFlags()
 	compileFlags = append(compileFlags, "-fsanitize=undefined")
-	executable, err := buildKittenRunProgram(t, compiler, compileFlags, linkFlags, kittenText)
+	executable, err := buildPercyRunProgram(t, compiler, compileFlags, linkFlags, percyText)
 	if err != nil {
 		t.Skipf("undefined behavior sanitizer is unavailable with %s: %v", filepath.Base(compiler[0]), err)
 	}

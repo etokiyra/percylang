@@ -1,4 +1,4 @@
-# The native backend's typed IR, written in Kitten
+# The native backend's typed IR, written in Percy
 
 `selfhost/native` is the zero-dependency backend: a typed, three-address scene
 that the lowering fills and that later native stages — the x86-64 selector, the
@@ -11,15 +11,15 @@ write and exit syscalls, and string-literal printing, no GC and no C compiler
 anywhere. Phase 10.3 added step 2's scalar arithmetic and control flow:
 integer add through guard-led divide and remainder, negate, equal, less_than,
 jump, branch, and label. The instruction union is now fully encoded. Phase
-10.4 lowered the checked program: `native/lower.ktn` reduces a checked
+10.4 lowered the checked program: `native/lower.pcy` reduces a checked
 single-module program's semantic model into a scene for the scalar,
 allocation-free subset, with one deterministic message per unsupported
-construct, and the probe's `lower` mode runs real `.ktn` sources from disk
+construct, and the probe's `lower` mode runs real `.pcy` sources from disk
 through loader, checker, lowering, selector, and ELF writer. Every corpus
 program's executable matches the C pipeline's behavior; no part of the
 production sidecar depends on this module yet. Phase 10.5 then added the
-float slice: `native/floats.ktn` encodes decimal literal text into exact
-IEEE 754 binary64 bit patterns in pure integer Kitten (one 53-bit rounding,
+float slice: `native/floats.pcy` encodes decimal literal text into exact
+IEEE 754 binary64 bit patterns in pure integer Percy (one 53-bit rounding,
 deterministic failure past seventeen significant digits, saturation and
 underflow as the C toolchain does), the scene grew its SSE2 forms
 (`constf`, four arithmetic forms, three comparison forms, `negatef`) with
@@ -27,7 +27,7 @@ the exact NaN-handling sequences the C generators emit, float results
 return in `xmm0`, and the corpus exercises the edges — ties, NaN, infinity,
 the subnormal rounding-to-zero edge, both increment positions — against
 the C pipeline byte for byte. Phase 10.7 then landed the runtime
-foundations and the collector (`native/runtime.ktn`): every blob is one
+foundations and the collector (`native/runtime.pcy`): every blob is one
 object on the proposal Section 5.3 header ABI (SPEC Section 19.10) — an
 8-byte header word carrying the whole size, an 8-byte length, an 8-byte
 payload pointer, and the payload — Phase 10.7 built the mark-sweep
@@ -42,40 +42,93 @@ full collection the exact `purr: out of memory` halt at status 1 is
 still the end. print(int)/print(bool) lower into decimal-digit and
 true/false helpers that byte-match the C pipeline, and string concat
 (`+`, `+=`), content equality (`==`, `!=`), and the `length` built-in are
-the first user-reachable `$alloc` clients. The mark-sweep GC — string
-length/equality, `%g` float printing, arrays/maps/structs/unions, field
-access, bounds checks, tag switches, stack-alignment refinement, and
-register allocation — stays with the slices that follow.
+the first user-reachable `$alloc` clients. Phase 10.8 then added exact `%g`
+float printing: a 16-bit-limb bigint substrate, sign/exponent/mantissa
+decomposition, six significant digits with round-half-even, fixed/scientific
+selection, and the specified zero, infinity, and NaN spellings. Its repair
+made `$bn_copy_into` write every source limb, added `$bn_pad` so the digit
+numerator has the divisor's limb capacity before a remainder grows a limb,
+gave `$print_float` the shared `$print_newline` tail on every return path, and
+made `$bn_bump` clear all six digits on a roll. Phase 10.9 raised the frame
+budget to 4096 parameters and locals with disp32/imm32 forms (raised to 8192 in Phase 10.33), and Phase 10.10
+made the collector transitive: `$mark_at` reports newly certified headers,
+`$scan_heap` conservatively scans marked payloads to a fixpoint, and
+`$collect` runs that pass before the sweep. Phase 10.11 added arrays of int,
+bool, float, string, and reference elements: the array object
+`[size][length][element_size][data base]`, a separate zeroed data buffer
+stored by block base, `$array_new`/`$array_length`/`$array_at`, exact
+null/negative/overflow/bounds failure texts, `new T[n]`, `a[i]`, element and
+compound assignment, `length(a)`, array parameters, array returns, and the
+`BitsFloat` form for float element loads. Phase 10.12 added `byte` values as
+0..255 int slots, element-size-one byte arrays, unsigned comparisons,
+`print(byte)`, `int_from_byte`/`byte_from_int`, `string_to_bytes`, and
+NUL-checked `bytes_to_string`. Phase 10.13 added structs: the header-first
+aligned layout, literals, member reads, `=` and compound member assignment,
+nested structs, struct parameters/returns, and arrays of structs. Composite
+values now shape as references (struct/union/map) or eight-byte tags (enum).
+Phase 10.14 made the lowering multi-module (all modules' functions register
+before bodies, imported names take an `m<id>_` prefix, calls key through the
+resolved function's module) and made `print` variadic through raw writers,
+spaces, and one newline. Phases 10.15–10.19 added enum tags and `match`,
+flat union construction and `match` with payload bindings, string indexing
+and `substring`, descriptor-2 `eprint`, and `argv()` from an args blob saved
+off the initial stack. Phase 10.20 added string-keyed maps: header-plus-five-
+word objects, separate zeroed key/value buffers, a linear packed entry table
+with capacity growth, inline value bytes, `has`, `length`, and the exact
+null/missing-key failures. Phases 10.21–10.23 added `try_current_directory`,
+`try_read_file`, `try_write_file`, and `try_write_bytes` with exact
+recoverable failures; Phase 10.24 added bitwise/shift operators and bool
+equality; and Phase 10.25 captured the initial `rsp` for the collector's scan
+and raised the heap to 512 MiB. Phase 10.26 reached the native stage fixpoint:
+the probe compiles its own source into native stage 2, stage 2 reproduces
+byte-identical stages 3 and 4 and fixture ELFs, and `TestNativeProbeNativeFixpoint`
+pins it. Phase 10.27 then added `try_getenv`, reading `envp` off the initial
+stack, rejecting empty and `=`-containing names, and copying values into fresh
+GC-managed strings. Phases 10.28–10.31 added `try_create_directory` and
+`try_remove`, `try_list_directory` (two `getdents64` passes plus a bytewise
+insertion sort), `try_file_info` (`lstat`/`stat`/`access`), and
+`try_create_temp_directory` (prefix validation, `$TMPDIR` resolution,
+`getrandom` suffix filling, `mkdir(0700)` retries). Phase 10.32 added
+`try_run`: a NUL-terminated argv, `fork`/`execve` with the inherited `envp`, a
+close-on-exec pipe carrying the child's errno, and the exit/signal status
+mapping. Phase 10.33 added `try_run_capture`: `/dev/null` stdin, separate
+stdout/stderr pipes multiplexed with `poll`, 16 MiB per-stream buffers, NUL
+and limit failures, and the `CapturedRunResult` shape. Phase 10.34 added the
+runtime-intrinsic lowering, null-string normalization, the reserved
+`runtime/pcy/io.pcy` writer, and the production native build path, which is
+now the Percy `purr` default; the C runtime and C code generator are no longer
+imported by `purr/build.pcy`. Stack-alignment refinement, register allocation,
+the zero-dependency cut, and the ecosystem stay with the slices that follow.
 
 ## Files
 
-- `selfhost/native/ir.ktn` — `NativeScene`, its builders, and `check_scene`,
+- `selfhost/native/ir.pcy` — `NativeScene`, its builders, and `check_scene`,
   the whole-scene well-formedness pass; `push_instruction` snapshots call
   argument arrays so the scene stays an immutable snapshot; the scene's
   backend-internal forms include the 10.7 collector's `RawStore64`,
   `RawLoad8`, `RawStore8`, and `StackPointer`.
-- `selfhost/native/runtime.ktn` — the runtime shells: the collector (mapping,
+- `selfhost/native/runtime.pcy` — the runtime shells: the collector (mapping,
   the mark ledger, `$search`/`$bump` allocation, conservative scan, sweep
   with free-list coalescing), the string runtime, and the print helpers,
   registered through the same builders the lowering and the probe use;
-  every shell stays below the slice's fourteen-local frame layout.
-- `selfhost/native/lower.ktn` — the lowering from a checked program's
+  every shell stays well inside the selector's 8192-slot frame budget.
+- `selfhost/native/lower.pcy` — the lowering from a checked program's
   semantic model to one scene, covering the scalar subset, with one
   deterministic message for every unsupported construct (top of the
   file lists the subset).
-- `selfhost/native/floats.ktn` — the float literal encoder: decimal text to
-  an exact IEEE 754 binary64 bit pattern in pure integer Kitten, with one
+- `selfhost/native/floats.pcy` — the float literal encoder: decimal text to
+  an exact IEEE 754 binary64 bit pattern in pure integer Percy, with one
   deterministic failure for anything past the seventeen-digit precision
   bound.
-- `selfhost/native/text.ktn` — the deterministic text renderer whose pinned
+- `selfhost/native/text.pcy` — the deterministic text renderer whose pinned
   output protects the scene's shape as the backend grows around it.
-- `selfhost/native/selector.ktn` — the raw byte buffer, the frame layout, the
+- `selfhost/native/selector.pcy` — the raw byte buffer, the frame layout, the
   x86-64 encodings, the fixup recorder, and `select_scene`, the selection pass
   that lays out code, data, and patches.
-- `selfhost/native/elf.ktn` — the static ELF64 writer: the 64-byte header,
+- `selfhost/native/elf.pcy` — the static ELF64 writer: the 64-byte header,
   the two program headers, header-and-code text segment, page-aligned data
   segment, and the entry point.
-- `selfhost/native.ktn` — the probe: the skeleton target's scene, the
+- `selfhost/native.pcy` — the probe: the skeleton target's scene, the
   arithmetic scene, the divide-failure scene, the allocation-failure scene,
   the growth scene, the failure scenes, the `lower` driver over real
   sources — `load_program` → `check_modules` → `lower_program` →
@@ -84,23 +137,27 @@ register allocation — stays with the slices that follow.
   runnable executables.
 - `cmd/purr/native_test.go` — the pinned tests, the executions and their
   C-pipeline parity, staticness checks, and both-pipeline ELF byte identity.
-- `tests/native/*.ktn` — the scalar corpus: every program lowers, and its
+- `tests/native/*.pcy` — the native corpus: every program lowers, and its
   native executable's output, standard error, and status match the C
-  pipeline's `purr run` of the same source. `tests/native/bad/*.ktn` — one
+  pipeline's `purr run` of the same source. `tests/native/bad/*.pcy` — one
   deterministic failure message per unsupported construct and per load, lex,
   parse, and check failure.
 
 ## The lowering
 
 `lower_program(model)` walks one checked single-module program and fills the
-scene directly from the model the Kitten-written checker produced; it never
+scene directly from the model the Percy-written checker produced; it never
 resolves a name, infers a type, or re-reads source text. Function shells
 register in declaration order, then the allocator's shells — `$heap`, `$map`,
 `$alloc` — register into every program, then one print helper per argument
-kind the print-kind prescan found, and bodies lower in declaration order, so
-binding order is the walk order: parameters first, then each local and
-temporary as the lowering creates it. String literals pool by decoded bytes
-exactly as the C generator pools its literals. The lowering emits the boolean
+kind the print-kind prescan found, the array runtime's shells, and bodies
+lower in declaration order, so binding order is the walk order: parameters
+first, then each local and temporary as the lowering creates it. String
+literals pool by decoded bytes exactly as the C generator pools its literals.
+Arrays lower through `$array_new`, `$array_at`, and `$array_length`: `new
+T[n]` passes the declared element size, an index evaluates its address once,
+and a store picks the int/ref, bool, or float shape. The data buffer is
+zeroed and stored by block base so the transitive heap scan reaches it. The lowering emits the boolean
 operators and the derived comparisons through the branch forms the scene
 already carries — `!`, `!=`, `<=`, and `>=` materialize a bool through a
 branch on their flipped condition — and lowers `&&` and `||` short-circuit,
@@ -113,22 +170,40 @@ recursive `"$digits"`, sharing the `"$print_newline"` tail), and
 `exit_group` syscall. Since Phase 10.5, float values lower through the
 scene's SSE2 forms — literals become `constf` constants with the encoder's
 bit patterns, arithmetic and comparisons take their derived forms with IEEE
-semantics — and `exit` stays the raw syscall. The slice's frame is still the
-selector's: at most fourteen locals per function, so corpus functions and
-runtime shells stay small; the C generator's known
-self-shadowing-initializer quirk is why the corpus avoids a `local` whose
-initializer names a same-scoped outer local.
+semantics — and `exit` stays the raw syscall. The slice's frame is the
+selector's: since Phase 10.33 it carries up to 8192 parameters and 8192
+locals, choosing disp8/imm8 while an offset fits and disp32/imm32 beyond.
+Since Phase 10.36 the frame rounds its local bytes up to sixteen and an
+odd-argument call pushes one pad slot below its arguments, so `rsp` is
+16-byte aligned at every call; `elf-align` and `TestNativeProbeAlign` capture
+`rsp` inside the frames and fail with status 8 when either rule is removed.
+Since Phase 10.37 the fatal `read_file` is lowered too: `$read_file` mirrors
+the C open/fstat/read path, the 256 MiB limit, and the libc-cased fatal
+messages, so the self-hosted probes' source reads work natively. Since Phase
+10.38 the selector caches the binding held in `rax` across straight-line
+instructions and invalidates the cache at joins, calls, byte/xmm stores, and
+raw memory writes; it is a first register-allocation slice, not a full
+allocator. Since Phase 10.39 the lowering also handles `break` and `continue`
+through the innermost loop's saved labels: `continue` targets the condition in a
+`while` and the increment in a `for`, and both survive a `match`, which lowers
+to branches rather than a switch. Since Phase 10.40 the array object also
+carries a capacity word after its data pointer, and `$array_push` appends one
+element, doubling the data buffer when it is full so appends are amortized
+constant time.
+The C generator's known self-shadowing-initializer quirk is why the corpus
+avoids a `local` whose initializer names a same-scoped outer local.
 
 ## The runtime shells
 
-`selfhost/native/runtime.ktn` is the first part of proposal Section 6.2's
-runtime written in Kitten. The collector's `$heap` blob is mutable scene
+`selfhost/native/runtime.pcy` is the first part of proposal Section 6.2's
+runtime written in Percy. The collector's `$heap` blob is mutable scene
 data: GetStatic/SetStatic address its six words (base, cursor, limit, the
 free-list head, and the sweep's last-block/last-end words) at raw offsets
 24..64, whose starting bytes are the all-ones pattern, the negative value
 -1, so "absent" is one test away for every table. `$map` makes the raw
 `mmap`s (PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS) for the heap —
-256 MiB, the proposal Section 7.1's first target — and a one-byte-per-word
+512 MiB (raised from the proposal Section 7.1's 256 MiB target so the native
+compiler stage fits) — and a one-byte-per-word
 mark ledger beside it, and captures the stack pointer for scanning.
 `$alloc` walks first-fit through the sweep-built free list (splitting a
 tail when the remainder fits a node), then bump-allocates against the
@@ -150,13 +225,13 @@ an 8-byte length, an 8-byte payload pointer, and the payload, everything
 8-aligned. `ConstRefData` binds the object's start; the print helpers load
 length at raw offset 8 and the payload pointer at 16; GetStatic and
 SetStatic address a raw offset inside the blob's whole mapped size, which
-`blob_total` in `ir.ktn` computes and `check_scene` bounds.
+`blob_total` in `ir.pcy` computes and `check_scene` bounds.
 
 ## The float encoder
 
-`selfhost/native/floats.ktn` is the piece the C pipeline delegated to its C
+`selfhost/native/floats.pcy` is the piece the C pipeline delegated to its C
 compiler: a float literal's decimal text turns into the exact IEEE 754
-binary64 bit pattern through pure integer Kitten — 16-bit limbs, exact x10
+binary64 bit pattern through pure integer Percy — 16-bit limbs, exact x10
 multiplications and bit shifts, one 53-bit rounding against guard and
 sticky, subnormal and saturating assembly. The precision bound: literals
 longer than seventeen significant digits fail deterministically —
@@ -231,26 +306,30 @@ expects it.
 
 ## What is not here
 
-- Field access, allocation of non-string types, bounds checks, and tag
-  switches: strings allocate and concatenate; every composite type user-side
-  fails with its message. The collector runs on every program that allocates
-  and is exercised end-to-end through `elf-gc`, but the mark ledger's
-  growth beyond one flat region and precise (collector-visible) safepoints
-  are later slices.
-- Printing floats and any int-to-float or float-to-int conversion: the
-  rendering work belongs to the runtime slices (`%g` exactly), and the
-  conversions have no lowering yet.
-- Bitwise and shift operators, byte values, imports, and `match`: the
-  scalar subset is single-module, and each fails with its message.
+- Union and enum construction, `match`, tag switches, maps, and field access
+  on unions: struct fields and arrays of every supported element lower, while
+  the remaining composite operations fail with their messages. The collector runs on every
+  program that allocates, traces pointers inside marked heap payloads
+  conservatively, and is exercised end-to-end through `elf-gc` and white-box
+  through `elf-gc-graph`; the mark ledger's growth beyond one flat region and
+  precise (collector-visible) safepoints are later slices.
+- Int-to-float and float-to-int conversions: `%g` printing is implemented,
+  with the newline and bigint-capacity repairs covered by
+  `tests/native/printfloat.pcy`; the conversions have no lowering yet.
+- The process/file-info/temp/listing/run built-in family and float `eprint`
+  remain. Imports, byte values, structs, arrays, enums and unions with
+  `match`, string indexing and `substring`, `eprint`, `argv()`, maps,
+  bitwise/shift operators, current-directory/read/write built-ins, and
+  multi-module calls lower; the native stage fixpoint compiles this probe
+  itself. Production `purr build`/`run` still uses the C pipeline.
 - Stack-alignment refinement, a System V interop convention, and register
-  allocation. The frame still carries at most fourteen parameters and
-  fourteen locals, which shapes the corpus and the shells; the proposal's
-  order stages the rest into later slices.
+  allocation. The frame carries up to 8192 parameters and 8192 locals; the
+  proposal's order stages the alignment and register work into later slices.
 
 ## What the selector lowers
 
-1. Check the frame: parameters and locals must fit the slice's one-byte slot
-   displacements (fourteen each); anything more fails with its message.
+1. Check the frame: parameters and locals must stay inside the 8192-slot
+   budget; anything more fails with its message.
 2. Emit the program's opening paragraph: `call` the entry function, then exit
    with status 0 through the `exit_group` syscall. argv is not read yet.
 3. Lower every function in order with the entry paragraph's frame: a caller's
@@ -318,7 +397,7 @@ section, no interpreter, and no relocations after layout.
 ## Running the probe
 
 ```sh
-purr build selfhost/native.ktn -o /tmp/native-probe
+purr build selfhost/native.pcy -o /tmp/native-probe
 /tmp/native-probe                            # print hello scene
 /tmp/native-probe big                        # growth corpus: 12 functions, 9 blobs, 17 bindings each
 /tmp/native-probe arith                      # arithmetic-and-control-flow scene
@@ -329,9 +408,9 @@ purr build selfhost/native.ktn -o /tmp/native-probe
 /tmp/native-probe elf-divzero /tmp/dv && /tmp/dv             # write and run the divide-failure executable
 /tmp/native-probe elf-oom /tmp/oom && /tmp/oom               # write and run the allocation-failure executable
 /tmp/native-probe elf-gc /tmp/gc && /tmp/gc                  # drive 600 MiB through the collector
-/tmp/native-probe lower tests/native/printint.ktn            # render a real source's lowered scene
-/tmp/native-probe lower tests/native/printint.ktn /tmp/pi     # write and run a real source's executable
-/tmp/native-probe lower tests/native/floats.ktn /tmp/f && /tmp/f   # float corpus, no C anywhere
+/tmp/native-probe lower tests/native/printint.pcy            # render a real source's lowered scene
+/tmp/native-probe lower tests/native/printint.pcy /tmp/pi     # write and run a real source's executable
+/tmp/native-probe lower tests/native/floats.pcy /tmp/f && /tmp/f   # float corpus, no C anywhere
 /tmp/native-probe float 0.300000000000000044                 # the precision bound's message
 ```
 
@@ -359,19 +438,19 @@ purr build selfhost/native.ktn -o /tmp/native-probe
   deterministically.
 - The Phase 10.7 collector: `elf-gc` drives six hundred one-megabyte
   allocations through the collector, printing `done` with status 0, byte
-  for byte and deterministically; the string corpus (`concat.ktn`,
-  `equal.ktn`, `lengthgc.ktn`, `gcstress.ktn`) covers concatenation,
+  for byte and deterministically; the string corpus (`concat.pcy`,
+  `equal.pcy`, `lengthgc.pcy`, `gcstress.pcy`) covers concatenation,
   content equality, and `length` against the C pipeline byte for byte,
   inside the general corpus run; the string scenes' renderings are pinned
   alongside the print scenes'; and the three validation messages stay
   pinned.
-- The Phase 10.4 lowering corpus (`tests/native/*.ktn`) lowers and runs with
+- The Phase 10.4 lowering corpus (`tests/native/*.pcy`) lowers and runs with
   output, standard error, and status matching the C pipeline's `purr run` of
   the same source, deterministically per source; the pooled-literal scene's
   rendering is pinned byte for byte; and one message per unsupported
   construct and per load/lex/parse/check failure is pinned.
-- The Phase 10.6 print corpus (`printint.ktn`, `printbool.ktn`,
-  `negatives.ktn`, `mixed.ktn`) covers zero, negative, wrap-to-INT64_MIN,
+- The Phase 10.6 print corpus (`printint.pcy`, `printbool.pcy`,
+  `negatives.pcy`, `mixed.pcy`) covers zero, negative, wrap-to-INT64_MIN,
   and bool printings against the C pipeline byte for byte, inside the
   general corpus run; the integer and bool print scenes' renderings are
   pinned.
@@ -383,6 +462,6 @@ purr build selfhost/native.ktn -o /tmp/native-probe
   the float scene's rendering is pinned.
 - Both pipelines produce byte-identical ELFs for all five scene kinds and
   for every corpus program, and their `lower`-mode renderings and failure
-  messages agree byte for byte: the Kitten-written `purr-kt` sidecar builds
+  messages agree byte for byte: the Percy-written `purr-pcy` sidecar builds
   the probe and runs the whole suite, and its outputs equal the Go
   pipeline's.

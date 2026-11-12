@@ -1,7 +1,7 @@
 package main
 
 // Runtime tests for the exit() built-in. The generated C is compared between the
-// Go and Kitten pipelines, then each pipeline's executable is run and stdout,
+// Go and Percy pipelines, then each pipeline's executable is run and stdout,
 // stderr, and the process exit status are compared exactly.
 
 import (
@@ -102,7 +102,7 @@ fn main() {
 func TestExitRuntime(t *testing.T) {
 	requireToolchain(t)
 
-	kittenExecutable := buildKittenUnit(t)
+	percyExecutable := buildPercyUnit(t)
 	compiler, err := discoverCompiler()
 	if err != nil {
 		t.Fatalf("discovering the C compiler: %v", err)
@@ -111,9 +111,9 @@ func TestExitRuntime(t *testing.T) {
 
 	for _, testCase := range exitCases() {
 		sourceDirectory := t.TempDir()
-		sourcePath := filepath.Join(sourceDirectory, "main.ktn")
+		sourcePath := filepath.Join(sourceDirectory, "main.pcy")
 		if err := os.WriteFile(sourcePath, []byte(testCase.source), 0o644); err != nil {
-			t.Fatalf("%s: writing main.ktn: %v", testCase.description, err)
+			t.Fatalf("%s: writing main.pcy: %v", testCase.description, err)
 		}
 
 		goExecutable := filepath.Join(sourceDirectory, "go-program")
@@ -122,8 +122,8 @@ func TestExitRuntime(t *testing.T) {
 			t.Fatalf("%s: building the Go-pipeline program: %v\n%s", testCase.description, err, diagnostics.String())
 		}
 
-		kittenProbeDirectory := t.TempDir()
-		kittenText, err := runKittenUnit(kittenExecutable, kittenProbeDirectory, testCase.source, "")
+		percyProbeDirectory := t.TempDir()
+		percyText, err := runPercyUnit(percyExecutable, percyProbeDirectory, testCase.source, "")
 		if err != nil {
 			t.Fatalf("%s: %v", testCase.description, err)
 		}
@@ -131,7 +131,7 @@ func TestExitRuntime(t *testing.T) {
 		if !ok {
 			t.Fatalf("%s: the reference rejected the program", testCase.description)
 		}
-		if difference := unitDifference(kittenText, generated); difference != "" {
+		if difference := unitDifference(percyText, generated); difference != "" {
 			t.Fatalf("%s: the translation units differ: %s", testCase.description, difference)
 		}
 
@@ -141,14 +141,14 @@ func TestExitRuntime(t *testing.T) {
 				testCase.description, goResult.stdout, testCase.stdout, goResult.stderr, testCase.stderr, goResult.status, testCase.status)
 		}
 
-		kittenDirectory := t.TempDir()
-		kittenResult, err := buildAndRunProgramWithArgs(t, compiler, compileFlags, linkFlags, kittenDirectory, kittenText, 0, nil)
+		percyDirectory := t.TempDir()
+		percyResult, err := buildAndRunProgramWithArgs(t, compiler, compileFlags, linkFlags, percyDirectory, percyText, 0, nil)
 		if err != nil {
-			t.Fatalf("%s: Kitten pipeline: %v", testCase.description, err)
+			t.Fatalf("%s: Percy pipeline: %v", testCase.description, err)
 		}
-		if kittenResult.stdout != testCase.stdout || kittenResult.stderr != testCase.stderr || kittenResult.status != testCase.status {
-			t.Errorf("%s: Kitten pipeline printed stdout %q (want %q), stderr %q (want %q), exited %d (want %d)",
-				testCase.description, kittenResult.stdout, testCase.stdout, kittenResult.stderr, testCase.stderr, kittenResult.status, testCase.status)
+		if percyResult.stdout != testCase.stdout || percyResult.stderr != testCase.stderr || percyResult.status != testCase.status {
+			t.Errorf("%s: Percy pipeline printed stdout %q (want %q), stderr %q (want %q), exited %d (want %d)",
+				testCase.description, percyResult.stdout, testCase.stdout, percyResult.stderr, testCase.stderr, percyResult.status, testCase.status)
 		}
 	}
 	t.Logf("exit: %d scenarios matched stdout, stderr, and status under %s", len(exitCases()), filepath.Base(compiler[0]))

@@ -1,4 +1,4 @@
-// Package parser turns the token stream produced by the lexer into a Kitten
+// Package parser turns the token stream produced by the lexer into a Percy
 // abstract syntax tree (AST).
 //
 // The public entry points are Parse, which operates on a token slice, and

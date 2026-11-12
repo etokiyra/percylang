@@ -1,6 +1,6 @@
 package main
 
-// Tests for the Kitten-written compiler driver and the POSIX-sh wrapper.
+// Tests for the Percy-written compiler driver and the POSIX-sh wrapper.
 
 import (
 	"bytes"
@@ -12,9 +12,9 @@ import (
 	"strings"
 	"testing"
 
-	"kitten/checker"
-	"kitten/codegen"
-	"kitten/loader"
+	"percy/checker"
+	"percy/codegen"
+	"percy/loader"
 )
 
 // repoPath returns an absolute path inside the repository.
@@ -28,7 +28,7 @@ func repoPath(t *testing.T, parts ...string) string {
 	return path
 }
 
-// buildStage1 compiles the Kitten-written driver with the Go compiler.
+// buildStage1 compiles the Percy-written driver with the Go compiler.
 //
 // The replacement of the direct build with the cached helper is safe:
 // stage 1 is verified by its own tests on every content change, so a cache
@@ -42,7 +42,7 @@ func buildStage1(t *testing.T) string {
 		repoPath(t, "..", "..", "runtime", "csrc"),
 	}), func(path string) error {
 		var diagnostics bytes.Buffer
-		err := buildExecutable(repoPath(t, "..", "..", "selfhost", "driver.ktn"), path, &diagnostics)
+		err := buildExecutable(repoPath(t, "..", "..", "selfhost", "driver.pcy"), path, &diagnostics)
 		if err != nil {
 			return err
 		}
@@ -99,9 +99,9 @@ func wrapperEnvironment(stage1 string, t *testing.T) []string {
 	}
 }
 
-// TestKittenDriverFixtures checks stage-1 C output and wrapper-built executables
+// TestPercyDriverFixtures checks stage-1 C output and wrapper-built executables
 // for every fixture and tests/modules.
-func TestKittenDriverFixtures(t *testing.T) {
+func TestPercyDriverFixtures(t *testing.T) {
 	stage1 := buildStage1(t)
 	wrapper := wrapperPath(t)
 
@@ -114,13 +114,13 @@ func TestKittenDriverFixtures(t *testing.T) {
 	for _, name := range fixtureNames() {
 		fixtures = append(fixtures, fixture{
 			name:     name,
-			root:     repoPath(t, "..", "..", "tests", name+".ktn"),
+			root:     repoPath(t, "..", "..", "tests", name+".pcy"),
 			expected: repoPath(t, "..", "..", "tests", name+".expected"),
 		})
 	}
 	fixtures = append(fixtures, fixture{
 		name:     "modules",
-		root:     repoPath(t, "..", "..", "tests", "modules", "main.ktn"),
+		root:     repoPath(t, "..", "..", "tests", "modules", "main.pcy"),
 		expected: repoPath(t, "..", "..", "tests", "modules", "main.expected"),
 	})
 
@@ -171,9 +171,9 @@ func TestKittenDriverFixtures(t *testing.T) {
 	t.Logf("driver: %d fixtures matched the reference C and expected output", len(fixtures))
 }
 
-// TestKittenDriverWrapperArgumentsAndStatus checks argument passing, exit-status
+// TestPercyDriverWrapperArgumentsAndStatus checks argument passing, exit-status
 // propagation, and default output naming through the wrapper.
-func TestKittenDriverWrapperArgumentsAndStatus(t *testing.T) {
+func TestPercyDriverWrapperArgumentsAndStatus(t *testing.T) {
 	stage1 := buildStage1(t)
 	wrapper := wrapperPath(t)
 	environment := wrapperEnvironment(stage1, t)
@@ -189,9 +189,9 @@ func TestKittenDriverWrapperArgumentsAndStatus(t *testing.T) {
     exit(7);
 }
 `
-	sourcePath := filepath.Join(directory, "arguments.ktn")
+	sourcePath := filepath.Join(directory, "arguments.pcy")
 	if err := os.WriteFile(sourcePath, []byte(source), 0o644); err != nil {
-		t.Fatalf("writing arguments.ktn: %v", err)
+		t.Fatalf("writing arguments.pcy: %v", err)
 	}
 
 	result := runExternal(t, wrapper, []string{"run", sourcePath, "alpha", "", "two words"}, directory, environment)
@@ -202,10 +202,10 @@ func TestKittenDriverWrapperArgumentsAndStatus(t *testing.T) {
 	}
 
 	defaultSource := "fn main() {\n    print(\"default output\");\n}\n"
-	if err := os.WriteFile(filepath.Join(directory, "default.ktn"), []byte(defaultSource), 0o644); err != nil {
-		t.Fatalf("writing default.ktn: %v", err)
+	if err := os.WriteFile(filepath.Join(directory, "default.pcy"), []byte(defaultSource), 0o644); err != nil {
+		t.Fatalf("writing default.pcy: %v", err)
 	}
-	buildResult := runExternal(t, wrapper, []string{"build", "default.ktn"}, directory, environment)
+	buildResult := runExternal(t, wrapper, []string{"build", "default.pcy"}, directory, environment)
 	if buildResult.status != 0 || buildResult.stderr != "" {
 		t.Fatalf("wrapper default build exited %d and wrote %q to stderr", buildResult.status, buildResult.stderr)
 	}
@@ -218,14 +218,14 @@ func TestKittenDriverWrapperArgumentsAndStatus(t *testing.T) {
 	t.Logf("driver: wrapper passed arguments, propagated status 7, and used the default output name")
 }
 
-// TestKittenDriverDiagnostics compares stage 1 and stage 2 diagnostics and
+// TestPercyDriverDiagnostics compares stage 1 and stage 2 diagnostics and
 // wrapper usage errors with the Go CLI, including missing roots and imports.
-func TestKittenDriverDiagnostics(t *testing.T) {
+func TestPercyDriverDiagnostics(t *testing.T) {
 	stage1 := buildStage1(t)
 	wrapper := wrapperPath(t)
 	environment := wrapperEnvironment(stage1, t)
 	stage2 := filepath.Join(t.TempDir(), "purr-stage2")
-	buildStageThroughWrapper(t, wrapper, stage1, repoPath(t, "..", "..", "selfhost", "driver.ktn"), stage2)
+	buildStageThroughWrapper(t, wrapper, stage1, repoPath(t, "..", "..", "selfhost", "driver.pcy"), stage2)
 
 	directory := t.TempDir()
 	write := func(name, source string) string {
@@ -244,16 +244,16 @@ func TestKittenDriverDiagnostics(t *testing.T) {
 		path string
 	}
 	cases := []errorCase{
-		{"type error", write("type.ktn", "fn main() {\n    int x = \"s\";\n}\n")},
-		{"syntax error", write("syntax.ktn", "fn main( {\n}\n")},
-		{"import syntax error", write("importsyntax.ktn", "import \"bad.ktn\";\nfn main() {\n}\n")},
-		{"outside root", write("inside/outside.ktn", "import \"../outside.ktn\";\nfn main() {\n}\n")},
-		{"missing import", write("missing-import.ktn", "import \"not-there.ktn\";\nfn main() {\n}\n")},
-		{"missing root", filepath.Join(directory, "missing-root.ktn")},
+		{"type error", write("type.pcy", "fn main() {\n    int x = \"s\";\n}\n")},
+		{"syntax error", write("syntax.pcy", "fn main( {\n}\n")},
+		{"import syntax error", write("importsyntax.pcy", "import \"bad.pcy\";\nfn main() {\n}\n")},
+		{"outside root", write("inside/outside.pcy", "import \"../outside.pcy\";\nfn main() {\n}\n")},
+		{"missing import", write("missing-import.pcy", "import \"not-there.pcy\";\nfn main() {\n}\n")},
+		{"missing root", filepath.Join(directory, "missing-root.pcy")},
 	}
 	// The imported module must exist with a syntax error for the import case.
-	if err := os.WriteFile(filepath.Join(directory, "bad.ktn"), []byte("fn broken( {\n"), 0o644); err != nil {
-		t.Fatalf("writing bad.ktn: %v", err)
+	if err := os.WriteFile(filepath.Join(directory, "bad.pcy"), []byte("fn broken( {\n"), 0o644); err != nil {
+		t.Fatalf("writing bad.pcy: %v", err)
 	}
 
 	for _, testCase := range cases {
@@ -284,8 +284,8 @@ func TestKittenDriverDiagnostics(t *testing.T) {
 	// as the reference's canonicalPath does with filepath.Abs: its run on the
 	// relative spelling must equal its own run on the absolute path. The
 	// absolute runs above already compare against the Go CLI byte for byte.
-	relativeResult := runExternal(t, stage1, []string{"relative.ktn"}, directory, nil)
-	absoluteResult := runExternal(t, stage1, []string{filepath.Join(directory, "relative.ktn")}, directory, nil)
+	relativeResult := runExternal(t, stage1, []string{"relative.pcy"}, directory, nil)
+	absoluteResult := runExternal(t, stage1, []string{filepath.Join(directory, "relative.pcy")}, directory, nil)
 	if relativeResult.status != absoluteResult.status ||
 		relativeResult.stdout != absoluteResult.stdout ||
 		relativeResult.stderr != absoluteResult.stderr {

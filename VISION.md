@@ -1,19 +1,10 @@
-# The Kitten Vision
+# The Percy Vision
 
-```text
- ,_     _
- |\\_,-~/
- / _  _ |    ,--.
-(  @  @ )   / ,-'
- \  _T_/-._( (
- /         `. \
-|         _  \ |
- \ \ ,  /      |
-  || |-_\__   /
- ((_/`(____,-'
-```
+**A language pleasant enough to reach for by default, general enough to build
+almost anything with, and shipped with an ecosystem good enough that you never
+have to leave it.**
 
-Kitten is a compiled, statically typed, garbage-collected programming language. This
+Percy is a compiled, statically typed, garbage-collected programming language. This
 document says what it is *for*, and where it is going.
 
 `SPEC.md` is the source of truth for what the language actually does. Where this
@@ -23,24 +14,18 @@ progress.
 
 ---
 
-## The one-sentence version
-
-**A language pleasant enough to reach for by default, general enough to build almost
-anything with, and shipped with an ecosystem good enough that you never have to leave
-it.**
-
 ---
 
 ## Where the design comes from
 
-Kitten is not invented in a vacuum. It is a deliberate blend of three languages the
+Percy is not invented in a vacuum. It is a deliberate blend of three languages the
 author likes — and, just as importantly, a list of their traits it refuses to inherit.
 
-| Language | What Kitten takes | What Kitten leaves behind |
+| Language | What Percy takes | What Percy leaves behind |
 | --- | --- | --- |
-| **C#** | The *feel*. Curly braces, explicit types on declarations, familiar function and struct shapes, low ceremony. Someone who writes C# should be able to read Kitten on sight. | The enormous surface area, the platform coupling, the framework that arrives as a package deal. |
-| **Go** | A language small enough to hold in your head, compilation fast enough to feel like a script, and the conviction that *tooling is part of the language* — building, testing, and formatting are not third-party concerns to be assembled. | The thin type system. Go cannot say "one of these three things". Kitten has enums and tagged unions, and an exhaustive `match` that proves you handled every case. |
-| **Rust** | The ecosystem ambition, which is the thing most languages get wrong. One tool, one manifest, one command: `purr install` and the dependency is there, from a registry that belongs to the language. | The borrow checker as the price of entry. Kitten is garbage-collected. Memory is not the programmer's problem. |
+| **C#** | The *feel*. Curly braces, explicit types on declarations, familiar function and struct shapes, low ceremony. Someone who writes C# should be able to read Percy on sight. | The enormous surface area, the platform coupling, the framework that arrives as a package deal. |
+| **Go** | A language small enough to hold in your head, compilation fast enough to feel like a script, and the conviction that *tooling is part of the language* — building, testing, and formatting are not third-party concerns to be assembled. | The thin type system. Go cannot say "one of these three things". Percy has enums and tagged unions, and an exhaustive `match` that proves you handled every case. |
+| **Rust** | The ecosystem ambition, which is the thing most languages get wrong. One tool, one manifest, one command: `purr install` and the dependency is there, from a registry that belongs to the language. | The borrow checker as the price of entry. Percy is garbage-collected. Memory is not the programmer's problem. |
 
 The through-line: **familiar to read, small to learn, and never a reason to reach for
 another language's tooling.**
@@ -49,7 +34,7 @@ another language's tooling.**
 
 ## Positioning: a jack of all trades, CLI first
 
-Kitten is not trying to be the best language at any single thing. It is trying to be a
+Percy is not trying to be the best language at any single thing. It is trying to be a
 language you can build *anything* in without feeling you chose wrong — with one
 deliberate, temporary emphasis: **command-line tools come first and get the polish.**
 
@@ -59,19 +44,19 @@ That emphasis is not a compromise; it is the fastest route to everything else.
   library and no ecosystem at all. It is exactly the situation where "wonderful
   language, empty registry" stops mattering.
 - **It forces the fundamentals to become real.** Reading files, moving bytes, parsing
-  arguments, choosing an exit status, spawning a process, writing output. Kitten's own
-  toolchain is being written in Kitten, so the language's own critical path becomes the
+  arguments, choosing an exit status, spawning a process, writing output. Percy's own
+  toolchain is being written in Percy, so the language's own critical path becomes the
   pressure test.
 - **A native binary is what a CLI wants anyway.** Fast startup, no interpreter, nothing
   to install but the binary.
-- **It is honest about where the ecosystem is.** Kitten can be genuinely excellent at
+- **It is honest about where the ecosystem is.** Percy can be genuinely excellent at
   command-line tools now and grow outward, instead of claiming to be excellent
   everywhere on day one.
 
 Beyond that, nothing in the design should close a door. Servers, GUIs, games, data work,
 scripting, developer tooling — all of it is in scope. Each of those drags in different
 needs (event loops, threads, a far larger standard library, bindings to platform
-toolkits), and Kitten's job is to grow into them without a rewrite. "Jack of all trades"
+toolkits), and Percy's job is to grow into them without a rewrite. "Jack of all trades"
 is the destination; "CLI first" is only the order of travel.
 
 ---
@@ -79,7 +64,7 @@ is the destination; "CLI first" is only the order of travel.
 ## The three independences
 
 "Self-hosting" is used to mean at least three different things, and they are separate
-projects with separate finish lines. Kitten wants all three, and it is worth being
+projects with separate finish lines. Percy wants all three, and it is worth being
 precise about which one is under discussion.
 
 ### 1. Independent of Go
@@ -89,60 +74,45 @@ Today the compiler is written in Go. That is not the destination — it is the b
 Go was chosen for the first implementation for a reason: it builds fast, needs no
 dependencies, and let the language be designed by *running* it rather than by arguing
 about it. The Go compiler is the reference implementation, and it stays the reference
-until a Kitten-written compiler reproduces its behaviour exactly.
+until a Percy-written compiler reproduces its behaviour exactly.
 
-The transition is being done as a **second implementation, written in Kitten, built one
+The transition is being done as a **second implementation, written in Percy, built one
 stage at a time and checked against the Go reference byte for byte** — same output, same
 diagnostics, same positions, same ordering. A corpus of thousands of inputs runs that
 comparison. It is a slow way to write a compiler and the only way a self-hosting claim
 means anything later.
 
-**Finish line:** a compiler written in Kitten, compiled by itself, producing output
+**Finish line:** a compiler written in Percy, compiled by itself, producing output
 identical to the Go reference. At that point Go leaves the pipeline and becomes history.
 
-**Status:** the C-level fixpoint is reached. Stage 1 is built by Go; stage 1 builds
-stage 2 from the same source; stage 2 builds stage 3; and the generated C for
-`selfhost/driver.ktn` is byte-identical across Go, stage 1, stage 2, and stage 3.
-Stage 2 also reproduces the Go reference for every fixture and `tests/modules/`.
-Go still builds stage 1 and the toolchain source still needs the Go bootstrap,
-so this is not yet full independence from Go. The README's self-hosting section
-states the claim and the remaining limits precisely.
+**Status:** the C pipeline and the native pipeline each reach a fixpoint. Go builds
+stage 1; stage 1 builds stage 2; stages 2 and 3 reproduce the same generated C,
+and the native backend compiles its own probe into a byte-identical stage 2 and
+stage 3. Stage 2 also reproduces the Go reference for every fixture and
+`tests/modules/`. Go still builds stage 1, so this is not yet full independence
+from Go.
 
 ### 2. Independent of C
 
-Today Kitten emits C, and the host C compiler turns that C into machine code. This is a
-legitimate place to stop — several serious languages have shipped that way for their
-entire lives, and it buys portability for very little work.
+The compiler once reached machine code only through C: it emitted C and the host
+C compiler finished the job. That path still exists as the frozen reference and
+the bootstrap, and it is still the portable one, but it is no longer the shipped
+path.
 
-It is not where Kitten stops. The target is Kitten emitting machine code or assembly
-directly: no C in the pipeline, no translation step to reason about, and the ability to
-control code generation, linking, and startup properly instead of approximating them
-through a second language's conventions.
+The shipped `purr` lowers a checked program to a typed intermediate
+representation, selects x86-64, and writes a static ELF64 executable directly.
+The runtime, the garbage collector, and the syscall layer are part of the Percy
+toolchain rather than a C library, and a program built this way needs no C
+compiler and no libc at build or run time.
 
-Two things make this a real project rather than a small one:
-
-- **The backend has to be written**, including code generation, register allocation, and
-  an object/linking story. That is the work.
-- **The runtime is also currently C** — the garbage collector integration and the string,
-  array, and map primitives. A compiler that emits machine code but still links a C
-  runtime is independent of C in a technical sense and not in spirit, so the runtime
-  belongs to this project too.
-
-**Finish line:** Kitten source goes in, a native executable comes out, with no C
+**Finish line:** Percy source in, a static native executable out, with no C
 involved at any step.
 
-**Status:** authorized. The design is in `proposals/zero-dependency-toolchain.md`;
-Phase 10.0 approved its decisions — the typed-IR/stack-first/direct-ELF backend,
-`<runtime>`-only unsafe operations, non-moving conservative mark-sweep as the
-first shippable GC, and an exact `%g` in the native runtime — so the staged
-implementation is in progress: Phase 10.1 landed the typed-IR scene in Kitten
-with its validation gate and pinned renderer, and Phase 10.2 landed the
-skeleton slice, an x86-64 selector and a static-ELF64 writer whose target
-program prints a string literal with no C compiler involved. The skeleton's
-acceptance rung passed: the ELF is static, it runs with an empty `PATH`, its
-output and status match the C pipeline, and both pipelines produce
-byte-identical ELFs. After native parity the Go source is removed entirely, an
-accepted loss of the independent cross-check oracle.
+**Status:** reached for the shipped toolchain on Linux x86-64. With only `purr`
+on `PATH` and no C compiler installed, it builds and runs every fixture, produces
+static ELFs, and rebuilds itself byte-identically. What remains is breadth
+rather than the principle: full register allocation, more targets than x86-64
+ELF, and hardening the native runtime as the standard library grows.
 
 ### 3. Independent ecosystem
 
@@ -153,12 +123,12 @@ late.
 
 **Finish line:** a developer creates a project, adds a dependency by name, builds, tests,
 formats, documents, publishes, and shares all of it using tooling that belongs to
-Kitten, backed by a registry that belongs to Kitten, and never once needs another
+Percy, backed by a registry that belongs to Percy, and never once needs another
 language's package manager.
 
 **Status:** in progress: the freeze-and-name-swap milestone (9.9) is complete, so the
-tool installed as `purr` is the Kitten-written toolchain, with `new`, a strict
-`purr.toml` parser, and binary project mode working, and the Go/Kitten parity suite
+tool installed as `purr` is the Percy-written toolchain, with `new`, a strict
+`purr.toml` parser, and binary project mode working, and the Go/Percy parity suite
 green under `cc`, `gcc`, and `clang`. The remaining ecosystem work — dependencies,
 install, test, format, docs, publishing, the registry — has not started.
 
@@ -175,9 +145,9 @@ This matters, because it is easy to turn them into one intimidating blob:
 
 ## The toolchain: `purr`
 
-The language is **Kitten**. Source files are **`.ktn`**. The command is **`purr`**.
+The language is **Percy**. Source files are **`.pcy`**. The command is **`purr`**.
 
-Why not `kitten`: the Kitty terminal already ships a `kitten` command, and a language
+Why not `percy`: the Kitty terminal already ships a `percy` command, and a language
 tool that fights a terminal emulator for the same word in `PATH` loses on every machine
 that has both.
 
@@ -185,7 +155,7 @@ Why `purr`: it is short, it is unambiguously on-theme, it does not collide with 
 a developer is likely to have installed, and it reads well in the sentence the whole
 ecosystem effort exists to make possible — `purr install`.
 
-The trio is deliberately parallel to Rust's: **Kitten** / **`.ktn`** / **`purr`** sits
+The trio is deliberately parallel to Rust's: **Percy** / **`.pcy`** / **`purr`** sits
 alongside **Rust** / **`.rs`** / **`cargo`**.
 
 The project manifest is `purr.toml` and the lockfile is `purr.lock`, named after the
@@ -201,7 +171,7 @@ none of which exist yet:
 | Capability | What it has to feel like | Status |
 | --- | --- | --- |
 | Build and run | `purr build`, `purr run` — no build system to configure | works; binary and project mode |
-| Scaffolding | `purr new hello-world` creates a directory with a manifest, a `.gitignore`, and `src/main.ktn`; `purr new --lib catnip` creates the same shape with `src/lib.ktn` | works (scaffolding; library builds still deferred) |
+| Scaffolding | `purr new hello-world` creates a directory with a manifest, a `.gitignore`, and `src/main.pcy`; `purr new --lib catnip` creates the same shape with `src/lib.pcy` | works (scaffolding; library builds still deferred) |
 | Dependencies | `purr add serde`, version resolved and written to the manifest | not started |
 | Install | `purr install <package>` fetches, builds, and puts a working binary on the path, in one command | not started |
 | One-command setup | one command installs the whole toolchain — `purr`, the compiler, the language server, the formatter, and editor and shell completion — and one command updates it | not started |
@@ -216,9 +186,9 @@ none of which exist yet:
 
 Two constraints on all of it:
 
-1. **Independence.** None of this may be a wrapper around another ecosystem. A Kitten
+1. **Independence.** None of this may be a wrapper around another ecosystem. A Percy
    package is not a Go module or an npm package wearing a hat; the registry, the
-   manifest, and the resolver are Kitten's own.
+   manifest, and the resolver are Percy's own.
 2. **No configuration sprawl.** The defaults should be the answer. Formatting has one
    style. A new project has no build file to write. The tool asks for configuration only
    when something genuinely varies.
@@ -229,7 +199,7 @@ An ecosystem that is pleasant to use *and* miserable to install is still a langu
 bounce off. So the setup experience is a goal in its own right, not an afterthought:
 
 - **One command from nothing to working.** Not a compiler here, a language server there,
-  and an editor plugin found by searching. Installing Kitten installs the components that
+  and an editor plugin found by searching. Installing Percy installs the components that
   make it usable, at versions that are known to work together.
 - **The editor works immediately.** Completion, diagnostics, go-to-definition, and hover
   are what make a language feel real in the first ten minutes, so they ship with the
@@ -248,10 +218,10 @@ hello-world/
 ├── .gitignore
 ├── purr.toml
 └── src/
-    └── main.ktn
+    └── main.pcy
 ```
 
-A library is the same shape with `src/lib.ktn` in place of `src/main.ktn`, so creating a
+A library is the same shape with `src/lib.pcy` in place of `src/main.pcy`, so creating a
 library and publishing it are the same workflow as creating and shipping a binary.
 
 The similarity to Cargo is intentional and not cosmetic: the manifest is named after the
@@ -262,18 +232,18 @@ configuration.
 
 ---
 
-## What Kitten is deliberately not doing
+## What Percy is deliberately not doing
 
 Being clear about this is as useful as the goals:
 
-- **Not chasing benchmark leadership.** Kitten should be fast enough that speed is never
+- **Not chasing benchmark leadership.** Percy should be fast enough that speed is never
   the reason you leave. It does not need to win.
 - **Not adopting a borrow checker.** Automatic memory management was a deliberate choice.
-  Kitten trades peak control for everyday clarity, and will not drift into Rust's
+  Percy trades peak control for everyday clarity, and will not drift into Rust's
   ownership model later.
 - **Not a research language.** No feature lands because it is novel. Features land
   because they make ordinary code shorter, clearer, or safer.
-- **Not a superset of anything.** Kitten will not grow a mode for compiling C, C++, or
+- **Not a superset of anything.** Percy will not grow a mode for compiling C, C++, or
   JavaScript. It is its own language.
 - **Not owned by a company.** The compiler is GPL-3.0-or-later, so it stays free: no
   vendor can close it off from everyone else, and no one can take it private.
@@ -302,12 +272,14 @@ These are the parts of the design that should survive any amount of growth:
 
 The frontend, the type checker, the C generator, and the runtime are implemented and
 tested, and the compiler produces and executes native programs today. The second
-implementation in Kitten covers the lexer, parser, checker, semantic model, module
+implementation in Percy covers the lexer, parser, checker, semantic model, module
 loader, driver, and C generator, and reaches a C-level self-hosting fixpoint: Go,
 stage 1, stage 2, and stage 3 generate byte-identical C for the compiler source, and
 stage 2 reproduces the Go reference for every fixture.
 
 The remaining limits are stated precisely in the README: Go still builds stage 1 and
 the toolchain source needs the Go bootstrap, a C compiler and the temporary POSIX
-wrapper are required, the runtime is C, and the rest of the `purr` ecosystem and the
-native backend have not started. Nothing here claims full independence from Go.
+wrapper are required, the runtime is C, the native backend is in progress through its
+scalar, float, allocator, collector, and printing slices, and the rest of the `purr`
+ecosystem has only its build/run/new foundation. Nothing here claims full independence
+from Go, C, or other ecosystems.

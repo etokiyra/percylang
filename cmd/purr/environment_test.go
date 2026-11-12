@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"kitten/checker"
-	"kitten/parser"
+	"percy/checker"
+	"percy/parser"
 )
 
 const environmentSource = `fn show(string name) {
@@ -31,7 +31,7 @@ fn main() {
 func buildEnvironmentGoProgram(t *testing.T) string {
 	t.Helper()
 	directory := t.TempDir()
-	sourcePath := filepath.Join(directory, "environment.ktn")
+	sourcePath := filepath.Join(directory, "environment.pcy")
 	if err := os.WriteFile(sourcePath, []byte(environmentSource), 0o644); err != nil {
 		t.Fatalf("writing environment fixture: %v", err)
 	}
@@ -129,16 +129,16 @@ func environmentWithout(environment []string, name string) []string {
 func TestEnvironmentRuntime(t *testing.T) {
 	requireToolchain(t)
 	goExecutable := buildEnvironmentGoProgram(t)
-	unitExecutable := buildKittenUnit(t)
-	kittenText, err := runKittenUnit(unitExecutable, t.TempDir(), environmentSource, "")
+	unitExecutable := buildPercyUnit(t)
+	percyText, err := runPercyUnit(unitExecutable, t.TempDir(), environmentSource, "")
 	if err != nil {
-		t.Fatalf("generating C with the Kitten pipeline: %v", err)
+		t.Fatalf("generating C with the Percy pipeline: %v", err)
 	}
 	_, _, referenceText, ok := checkProgram(t, "environment runtime", environmentSource, "")
 	if !ok {
 		return
 	}
-	if difference := unitDifference(kittenText, referenceText); difference != "" {
+	if difference := unitDifference(percyText, referenceText); difference != "" {
 		t.Fatalf("the environment translation unit differs: %s", difference)
 	}
 	compiler, err := discoverCompiler()
@@ -146,60 +146,60 @@ func TestEnvironmentRuntime(t *testing.T) {
 		t.Fatalf("discovering compiler: %v", err)
 	}
 	compileFlags, linkFlags := gcBuildFlags()
-	kittenExecutable, err := buildKittenRunProgram(t, compiler, compileFlags, linkFlags, kittenText)
+	percyExecutable, err := buildPercyRunProgram(t, compiler, compileFlags, linkFlags, percyText)
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
 
 	complexValue := " leading\tand\ntrailing \u00e9\u00ff"
 	largeValue := strings.Repeat("x", 100*1024)
-	base := environmentWithout(os.Environ(), "KITTEN_ENV_UNSET")
-	base = environmentWithout(base, "KITTEN_ENV_REMOVED")
-	base = environmentWithout(base, "KITTEN_ENV_EMPTY")
-	base = environmentWithout(base, "KITTEN_ENV_COMPLEX")
-	base = environmentWithout(base, "KITTEN_ENV_LARGE")
+	base := environmentWithout(os.Environ(), "PERCY_ENV_UNSET")
+	base = environmentWithout(base, "PERCY_ENV_REMOVED")
+	base = environmentWithout(base, "PERCY_ENV_EMPTY")
+	base = environmentWithout(base, "PERCY_ENV_COMPLEX")
+	base = environmentWithout(base, "PERCY_ENV_LARGE")
 	environment := append([]string{}, base...)
-	environment = append(environment, "KITTEN_ENV_NORMAL=normal value")
-	environment = append(environment, "KITTEN_ENV_EMPTY=")
-	environment = append(environment, "KITTEN_ENV_COMPLEX="+complexValue)
-	environment = append(environment, "KITTEN_ENV_LARGE="+largeValue)
+	environment = append(environment, "PERCY_ENV_NORMAL=normal value")
+	environment = append(environment, "PERCY_ENV_EMPTY=")
+	environment = append(environment, "PERCY_ENV_COMPLEX="+complexValue)
+	environment = append(environment, "PERCY_ENV_LARGE="+largeValue)
 
 	cases := []struct {
 		name  string
 		env   []string
 		names []string
 	}{
-		{"normal and empty", environment, []string{"KITTEN_ENV_NORMAL", "KITTEN_ENV_EMPTY"}},
-		{"unset and removed", environment, []string{"KITTEN_ENV_UNSET", "KITTEN_ENV_REMOVED"}},
+		{"normal and empty", environment, []string{"PERCY_ENV_NORMAL", "PERCY_ENV_EMPTY"}},
+		{"unset and removed", environment, []string{"PERCY_ENV_UNSET", "PERCY_ENV_REMOVED"}},
 		{"empty and equals names", environment, []string{"", "A=B"}},
-		{"complex bytes", environment, []string{"KITTEN_ENV_COMPLEX"}},
-		{"large value", environment, []string{"KITTEN_ENV_LARGE"}},
+		{"complex bytes", environment, []string{"PERCY_ENV_COMPLEX"}},
+		{"large value", environment, []string{"PERCY_ENV_LARGE"}},
 		{"PATH matches Go", environment, []string{"PATH"}},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
 			want := expectedEnvironmentOutput(testCase.env, testCase.names)
 			goResult := runEnvironment(t, goExecutable, testCase.env, testCase.names)
-			kittenResult := runEnvironment(t, kittenExecutable, testCase.env, testCase.names)
+			percyResult := runEnvironment(t, percyExecutable, testCase.env, testCase.names)
 			if goResult.status != 0 || goResult.stderr != "" || goResult.stdout != want {
 				t.Errorf("Go pipeline: stdout %q, stderr %q, status %d; want %q, %q, 0",
 					goResult.stdout, goResult.stderr, goResult.status, want, "")
 			}
-			if kittenResult.status != 0 || kittenResult.stderr != "" || kittenResult.stdout != want {
-				t.Errorf("Kitten pipeline: stdout %q, stderr %q, status %d; want %q, %q, 0",
-					kittenResult.stdout, kittenResult.stderr, kittenResult.status, want, "")
+			if percyResult.status != 0 || percyResult.stderr != "" || percyResult.stdout != want {
+				t.Errorf("Percy pipeline: stdout %q, stderr %q, status %d; want %q, %q, 0",
+					percyResult.stdout, percyResult.stderr, percyResult.status, want, "")
 			}
-			if goResult.stdout != kittenResult.stdout || goResult.stderr != kittenResult.stderr || goResult.status != kittenResult.status {
-				t.Errorf("pipelines disagree: Go %q/%q/%d; Kitten %q/%q/%d",
+			if goResult.stdout != percyResult.stdout || goResult.stderr != percyResult.stderr || goResult.status != percyResult.status {
+				t.Errorf("pipelines disagree: Go %q/%q/%d; Percy %q/%q/%d",
 					goResult.stdout, goResult.stderr, goResult.status,
-					kittenResult.stdout, kittenResult.stderr, kittenResult.status)
+					percyResult.stdout, percyResult.stderr, percyResult.status)
 			}
 		})
 	}
 }
 
 func TestEnvironmentWithRuntimeModuleIDs(t *testing.T) {
-	runtimeSource, err := os.ReadFile(filepath.Join("..", "..", "runtime", "ktn", "memory.ktn"))
+	runtimeSource, err := os.ReadFile(filepath.Join("..", "..", "runtime", "pcy", "memory.pcy"))
 	if err != nil {
 		t.Fatalf("reading runtime helper: %v", err)
 	}
@@ -229,10 +229,10 @@ func TestEnvironmentWithRuntimeModuleIDs(t *testing.T) {
 
 func TestEnvironmentSanitizer(t *testing.T) {
 	requireToolchain(t)
-	unitExecutable := buildKittenUnit(t)
-	kittenText, err := runKittenUnit(unitExecutable, t.TempDir(), environmentSource, "")
+	unitExecutable := buildPercyUnit(t)
+	percyText, err := runPercyUnit(unitExecutable, t.TempDir(), environmentSource, "")
 	if err != nil {
-		t.Fatalf("generating C with the Kitten pipeline: %v", err)
+		t.Fatalf("generating C with the Percy pipeline: %v", err)
 	}
 	compiler, err := discoverCompiler()
 	if err != nil {
@@ -240,12 +240,12 @@ func TestEnvironmentSanitizer(t *testing.T) {
 	}
 	compileFlags, linkFlags := gcBuildFlags()
 	compileFlags = append(compileFlags, "-fsanitize=undefined")
-	executable, err := buildKittenRunProgram(t, compiler, compileFlags, linkFlags, kittenText)
+	executable, err := buildPercyRunProgram(t, compiler, compileFlags, linkFlags, percyText)
 	if err != nil {
 		t.Skipf("undefined behavior sanitizer is unavailable with %s: %v", filepath.Base(compiler[0]), err)
 	}
-	environment := append(os.Environ(), "KITTEN_ENV_SANITIZER=ok")
-	result := runEnvironment(t, executable, environment, []string{"KITTEN_ENV_SANITIZER"})
+	environment := append(os.Environ(), "PERCY_ENV_SANITIZER=ok")
+	result := runEnvironment(t, executable, environment, []string{"PERCY_ENV_SANITIZER"})
 	if result.status != 0 || result.stderr != "" || result.stdout != "set 2 ok\n" {
 		t.Errorf("sanitizer run: stdout %q, stderr %q, status %d", result.stdout, result.stderr, result.status)
 	}

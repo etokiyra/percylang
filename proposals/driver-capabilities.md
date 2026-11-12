@@ -1,10 +1,10 @@
-# Minimum driver capabilities for a Kitten-written compiler
+# Minimum driver capabilities for a Percy-written compiler
 
 > **ADOPTED; implemented.**
 >
 > The human approved the eight decisions below. Phases 5.1 (`argv`), 5.2
-> (`eprint`), 5.3 (`exit`), 5.4b (runtime and Go pipeline), 5.4c (Kitten
-> checker/generator), 5.5 (loader read-error parity), 5.6 (the Kitten driver and
+> (`eprint`), 5.3 (`exit`), 5.4b (runtime and Go pipeline), 5.4c (Percy
+> checker/generator), 5.5 (loader read-error parity), 5.6 (the Percy driver and
 > wrapper), and 5.7 (the C-level fixpoint) are implemented.
 >
 > Status: adopted, Phase 5.0 proposal; Phases 5.4 and 5.5 done; Phase 5.7 done.
@@ -16,7 +16,7 @@
 >    approved, in a later phase.
 > 2. `argv() -> string[]` is approved, with the program name at index 0.
 > 3. A POSIX-shell wrapper is acceptable for the first fixpoint. It is temporary,
->    must not be Go, and is replaced by `purr` later. The Kitten compiler writes C
+>    must not be Go, and is replaced by `purr` later. The Percy compiler writes C
 >    to stdout, diagnostics to stderr, and status via `exit`; the wrapper owns
 >    `-o`, temporary files, `cc`, and `run`.
 > 4. Read-error parity (4E.2) is completed before any README self-hosting claim.
@@ -26,17 +26,17 @@
 > 6. `argv`, `eprint`, `exit`, and `try_read_file` are permanent built-ins.
 > 7. Linux is verified; the design must not break macOS by construction, and
 >    untested macOS support is not claimed.
-> 8. The Kitten driver parses the source path only.
+> 8. The Percy driver parses the source path only.
 
 ## 1. Scope and target
 
 The target is **independence from Go** (VISION.md, "The three independences",
-Goal 1): a compiler written in Kitten, compiled by itself, producing output
+Goal 1): a compiler written in Percy, compiled by itself, producing output
 identical to the Go reference. The native backend, the standard library, `purr`,
 package management, and the registry are separate goals and are out of scope.
 
 This proposal asks for the smallest language/runtime surface that lets a
-Kitten-written compiler:
+Percy-written compiler:
 
 1. accept a source path;
 2. load the root module and its imports;
@@ -49,7 +49,7 @@ It also recommends a deliberately small **wrapper architecture** so that file
 writing and process launch are not language capabilities in the bootstrap.
 
 The proposal is written against the current tree at
-`b48135c feat: add Kitten-written module loader for absolute roots`.
+`b48135c feat: add Percy-written module loader for absolute roots`.
 
 ## 2. Audit: what the Go driver does today
 
@@ -71,7 +71,7 @@ The proposal is written against the current tree at
 6. Discovers the C compiler from `CC`, then `cc`, `gcc`, or `clang`
    (`toolchain.go:18-37`).
 7. Creates a temporary build directory and writes `program.c`,
-   `kitten_runtime.c`, and `kitten_runtime.h` (`main.go:230-247`).
+   `percy_runtime.c`, and `percy_runtime.h` (`main.go:230-247`).
 8. Resolves the output path absolutely (`main.go:249-252`), gets `pkg-config`
    flags for Boehm GC or falls back to `-lgc` (`toolchain.go:39-60`), and
    invokes the C compiler with `-std=c11 -Wall -Wextra` (`main.go:254-274`).
@@ -86,27 +86,27 @@ diagnostics, and C compiler output (`main.go:304-331`). The process exit codes
 are 0 success, 1 compilation/execution failure, and 2 usage error
 (`main.go:50-55`).
 
-### 2.2 What a Kitten driver must do versus delegate
+### 2.2 What a Percy driver must do versus delegate
 
 | Step | Bootstrap owner |
 | --- | --- |
-| Parse its own arguments | Kitten driver (`argv` capability needed) |
-| Load modules and resolve imports | Kitten loader already exists |
-| Lex, parse, check, emit C | Kitten stages already exist |
-| Write diagnostics separately from C | Kitten driver (`stderr` capability needed) |
-| Signal success/failure | Kitten driver (`exit` capability needed) |
+| Parse its own arguments | Percy driver (`argv` capability needed) |
+| Load modules and resolve imports | Percy loader already exists |
+| Lex, parse, check, emit C | Percy stages already exist |
+| Write diagnostics separately from C | Percy driver (`stderr` capability needed) |
+| Signal success/failure | Percy driver (`exit` capability needed) |
 | Create temporary directory | External wrapper |
 | Write generated C and runtime files | External wrapper (redirect stdout; copy runtime) |
 | Discover and invoke the C compiler | External wrapper |
 | Validate/link the output executable | External wrapper |
 | Compile-and-run mode | External wrapper (compile, then execute) |
 
-The Kitten compiler can therefore be a **filter**: on success it writes one C
+The Percy compiler can therefore be a **filter**: on success it writes one C
 translation unit to stdout and exits 0; on failure it writes diagnostics to
 stderr and exits nonzero. A POSIX-shell wrapper (not Go) can supply the source
 path, redirect stdout to a temporary `program.c`, copy the runtime sources next
 to it, invoke `cc`, and propagate the result. That is still a compiler written
-in Kitten; the wrapper is the host-integration layer, not the compiler.
+in Percy; the wrapper is the host-integration layer, not the compiler.
 
 ### 2.3 Current built-in registration
 
@@ -115,42 +115,42 @@ Built-ins are hard-coded in both implementations:
 - Go: `checker/checker.go:274-307` (`builtinFunctions`),
   `checker/symbols.go:34-55` (`BuiltinKind`), with special call checking in
   `checker/expr.go:460-498`.
-- Kitten: `selfhost/checker/state.ktn:488-574` (`builtin_functions`),
-  `selfhost/checker/state.ktn:260-266` (`BuiltinKind`), and dispatch in
-  `selfhost/checker/expr.ktn`.
+- Percy: `selfhost/checker/state.pcy:488-574` (`builtin_functions`),
+  `selfhost/checker/state.pcy:260-266` (`BuiltinKind`), and dispatch in
+  `selfhost/checker/expr.pcy`.
 - Go code generation: `codegen/emit.go` (call expression) and
   `codegen/names.go` (runtime names).
-- Kitten code generation: `selfhost/codegen/expressions.ktn:700-725` (call
-  dispatch) and `selfhost/codegen/names.ktn` (runtime names).
+- Percy code generation: `selfhost/codegen/expressions.pcy:700-725` (call
+  dispatch) and `selfhost/codegen/names.pcy` (runtime names).
 
 Any new built-in or built-in return type must be added in **both** stacks and
 in both differential harnesses, or the two compilers stop agreeing.
 
 ### 2.4 Current runtime surface
 
-`runtime/csrc/kitten_runtime.h` exposes GC initialization/allocation, strings,
+`runtime/csrc/percy_runtime.h` exposes GC initialization/allocation, strings,
 arrays, maps, fatal failure, `read_file`, and print helpers. There is no args
 API, no non-fatal read, no program-facing stderr writer, and no program-selected
-exit. `ktn_rt_fail` writes to stderr and calls `exit(1)`
-(`kitten_runtime.c:45-63`). `ktn_rt_read_file` is fatal on every failure
-(`kitten_runtime.h:248-262`).
+exit. `pcy_rt_fail` writes to stderr and calls `exit(1)`
+(`percy_runtime.c:45-63`). `pcy_rt_read_file` is fatal on every failure
+(`percy_runtime.h:248-262`).
 
-Generated entry points are `int main(void)`, call `ktn_rt_init()`, then the
-Kitten `main` (`codegen/codegen.go:606-617`,
-`selfhost/codegen/unit.ktn:148-159`). Passing argv therefore reaches both the
+Generated entry points are `int main(void)`, call `pcy_rt_init()`, then the
+Percy `main` (`codegen/codegen.go:606-617`,
+`selfhost/codegen/unit.pcy:148-159`). Passing argv therefore reaches both the
 runtime and both unit emitters.
 
 ### 2.5 Current self-hosted drivers
 
-`selfhost/load.ktn` and `selfhost/loadunit.ktn` read an absolute root path from
+`selfhost/load.pcy` and `selfhost/loadunit.pcy` read an absolute root path from
 the fixed file `input.txt`; the loader requires an absolute root because the
 runtime has no working directory (`selfhost/loader/README.md`). They cannot
 report a missing source file as a loader error because `read_file` is fatal
-(`selfhost/loader/loader.ktn`, read call; SPEC.md Sections 22.2 and 22.9).
+(`selfhost/loader/loader.pcy`, read call; SPEC.md Sections 22.2 and 22.9).
 
 The self-hosted checker has built-ins in
-`selfhost/checker/state.ktn`, and the self-hosted generator dispatches them in
-`selfhost/codegen/expressions.ktn`. Both need the same additions as Go.
+`selfhost/checker/state.pcy`, and the self-hosted generator dispatches them in
+`selfhost/codegen/expressions.pcy`. Both need the same additions as Go.
 
 ### 2.6 Other deferred-decision lists
 
@@ -184,9 +184,9 @@ amended.
 ### 3.1 Program arguments: `argv()`
 
 **Need.** The current Go driver takes the source path from `os.Args`
-(`cmd/purr/main.go:57-83`, `98-128`). The Kitten drivers instead read
-`input.txt` (`selfhost/load.ktn`, `selfhost/loadunit.ktn`), which cannot become a
-real compiler CLI without a wrapper renaming or copying inputs. A Kitten
+(`cmd/purr/main.go:57-83`, `98-128`). The Percy drivers instead read
+`input.txt` (`selfhost/load.pcy`, `selfhost/loadunit.pcy`), which cannot become a
+real compiler CLI without a wrapper renaming or copying inputs. A Percy
 compiler must accept at least the root source path, and the eventual `run` mode
 and `-o` handling need the full argument vector. This is directly required by
 Goal 1 and by VISION.md's CLI-first premise (`VISION.md:50-64`).
@@ -203,26 +203,26 @@ to be added to Section 18.8):
 **Runtime ABI.**
 
 ```c
-/* Called by the generated C entry point after ktn_rt_init. */
-void ktn_rt_set_args(int argc, char **argv);
+/* Called by the generated C entry point after pcy_rt_init. */
+void pcy_rt_set_args(int argc, char **argv);
 
-/* Returns a new ktn_array whose elements are const ktn_string *. */
-ktn_array *ktn_rt_argv(void);
+/* Returns a new pcy_array whose elements are const pcy_string *. */
+pcy_array *pcy_rt_argv(void);
 ```
 
 The entry point becomes:
 
 ```c
 int main(int argc, char **argv) {
-    ktn_rt_init();
-    ktn_rt_set_args(argc, argv);
-    ktn_fn_main();
+    pcy_rt_init();
+    pcy_rt_set_args(argc, argv);
+    pcy_fn_main();
     return 0;
 }
 ```
 
-`ktn_rt_argv` allocates a `ktn_array` of `argc` pointer-sized elements and
-converts each C string to a GC-managed Kitten string with its byte length. The
+`pcy_rt_argv` allocates a `pcy_array` of `argc` pointer-sized elements and
+converts each C string to a GC-managed Percy string with its byte length. The
 raw `argv` pointers remain valid for the process lifetime; each call returns a
 fresh array (the driver normally calls it once). Empty arguments are ordinary
 empty strings.
@@ -230,15 +230,15 @@ empty strings.
 **Checker/codegen impact.**
 
 - New `BuiltinKind.Argv`, return type `string[]`, no parameters.
-- Go and Kitten checkers register it; both emitters map a call to
-  `ktn_rt_argv()`, with the runtime name added to `codegen/names.go`,
-  `selfhost/codegen/names.ktn`, and `runtime/runtime.go`.
+- Go and Percy checkers register it; both emitters map a call to
+  `pcy_rt_argv()`, with the runtime name added to `codegen/names.go`,
+  `selfhost/codegen/names.pcy`, and `runtime/runtime.go`.
 - Both unit emitters change the C entry point signature and add
-  `ktn_rt_set_args(argc, argv)`, which changes the whole-unit golden
+  `pcy_rt_set_args(argc, argv)`, which changes the whole-unit golden
   comparisons; the harnesses are differential, so they update naturally.
 - Indexing the returned array already works through the existing `IndexExpr`
-  emitter; `string[]` maps to `ktn_array *`, and element access casts to
-  `const ktn_string *`.
+  emitter; `string[]` maps to `pcy_array *`, and element access casts to
+  `const pcy_string *`.
 
 **Risks.** Index 0 convention differs from a language-level `args()` that
 excludes the program name; choose one and document it. Program names may not be
@@ -247,7 +247,7 @@ whatever the OS reported. The runtime array is mutable, but that cannot mutate
 the process vector.
 
 **Alternatives.** A split `argc()`/`argv(index)` pair is smaller in the runtime
-but more awkward in Kitten; an array is the natural collection. Environment
+but more awkward in Percy; an array is the natural collection. Environment
 variables are not needed for the bootstrap. A fixed `input.txt` avoids argv but
 is not a real compiler CLI and forces the wrapper to stage input.
 
@@ -256,7 +256,7 @@ is not a real compiler CLI and forces the wrapper to stage input.
 ### 3.2 Writing to stderr: `eprint(...)`
 
 **Need.** The Go driver puts usage, loader/checker/codegen diagnostics, and C
-compiler output on stderr (`cmd/purr/main.go:64-83`, `304-331`). The Kitten
+compiler output on stderr (`cmd/purr/main.go:64-83`, `304-331`). The Percy
 driver prints everything with `print`, which is stdout. If diagnostics share
 stdout with generated C, a wrapper cannot separate a translation unit from an
 error message. `purr run` also needs to keep the compiled program's stdout
@@ -274,21 +274,21 @@ clean. SPEC.md Section 16 currently records the absence of stderr access
 **Runtime ABI.** Mirror the print helpers:
 
 ```c
-void ktn_rt_eprint_int(int64_t value);
-void ktn_rt_eprint_float(double value);
-void ktn_rt_eprint_bool(bool value);
-void ktn_rt_eprint_string(const ktn_string *value);
-void ktn_rt_eprint_space(void);
-void ktn_rt_eprint_newline(void);
+void pcy_rt_eprint_int(int64_t value);
+void pcy_rt_eprint_float(double value);
+void pcy_rt_eprint_bool(bool value);
+void pcy_rt_eprint_string(const pcy_string *value);
+void pcy_rt_eprint_space(void);
+void pcy_rt_eprint_newline(void);
 ```
 
-Each writes to `stderr`; `ktn_rt_eprint_newline` writes `\n` and flushes stderr
+Each writes to `stderr`; `pcy_rt_eprint_newline` writes `\n` and flushes stderr
 so a fatal error or a process exit cannot lose the diagnostic.
 
 **Checker/codegen impact.** New `BuiltinKind.Eprint`, variadic with the same
-allowed types as `print`; Go and Kitten checkers share the existing variadic
+allowed types as `print`; Go and Percy checkers share the existing variadic
 rule but need a distinct kind so the code generator chooses the stderr helpers.
-Both emitters expand `eprint` exactly like `print` with `ktn_rt_eprint_*`.
+Both emitters expand `eprint` exactly like `print` with `pcy_rt_eprint_*`.
 `checkVariadicCall`'s "cannot print" wording should become kind-aware (or say
 "cannot write") so diagnostics remain accurate.
 
@@ -298,7 +298,7 @@ diagnostics. Programs can now write to stderr, so tests that previously expected
 empty stderr must be explicit about intent.
 
 **Alternatives.** A single `write(int fd, string)` is lower-level and needs
-numeric formatting in Kitten, which the language does not have. A string-only
+numeric formatting in Percy, which the language does not have. A string-only
 `eprint` would require conversion helpers that do not exist. Mirroring
 `print` is the smallest consistent design.
 
@@ -308,7 +308,7 @@ numeric formatting in Kitten, which the language does not have. A string-only
 
 **Need.** The Go driver returns 0/1/2 (`cmd/purr/main.go:50-55`) and `run`
 propagates the child's status (`main.go:192-199`). Without a language-level
-exit, a Kitten compiler can only succeed or die through a runtime fatal error;
+exit, a Percy compiler can only succeed or die through a runtime fatal error;
 a wrapper cannot distinguish "usage error", "source error", and "success" in
 the intended way. SPEC.md Section 16 records the absence of chosen exit status
 (`SPEC.md:597-600`); Section 25.4 records the same limitation for the lexer
@@ -325,23 +325,23 @@ driver.
 **Runtime ABI.**
 
 ```c
-_Noreturn void ktn_rt_exit(int64_t status);
+_Noreturn void pcy_rt_exit(int64_t status);
 ```
 
-`ktn_rt_exit` calls `fflush(stdout)`, `fflush(stderr)`, then
-`exit((int)status)`. `ktn_rt_fail` should flush and then call
-`ktn_rt_exit(1)` so fatal runtime errors and explicit exits share one path.
+`pcy_rt_exit` calls `fflush(stdout)`, `fflush(stderr)`, then
+`exit((int)status)`. `pcy_rt_fail` should flush and then call
+`pcy_rt_exit(1)` so fatal runtime errors and explicit exits share one path.
 
 **Checker/codegen impact.** New `BuiltinKind.Exit`, one `int` parameter, return
 type `void`; both checkers and both emitters register it. The runtime name is
 added to `runtime/runtime.go`, `codegen/names.go`, and
-`selfhost/codegen/names.ktn`. A call is one `ktn_rt_exit(<status>)` expression,
+`selfhost/codegen/names.pcy`. A call is one `pcy_rt_exit(<status>)` expression,
 valid wherever a `void` call is valid.
 
 **Risks.** `exit` is a common identifier; built-ins are shadowable by
 user-defined functions (as `print` is), so a program that defines `exit` loses
 the built-in. Negative or >255 statuses are host-dependent; the SPEC fixes only
-the POSIX low-eight-bit observation. Exiting skips deferred cleanup, but Kitten
+the POSIX low-eight-bit observation. Exiting skips deferred cleanup, but Percy
 has no destructors and the collector does not require finalization.
 
 **Alternatives.** A `_Noreturn` fatal-only model cannot express usage statuses.
@@ -356,7 +356,7 @@ stderr/stdout, but that is not honest or robust.
 **Need.** Phase 4E.1's loader calls `read_file`, which SPEC.md Section 22.2
 defines as fatal. The reference loader instead returns
 `cannot read source file: open <path>: no such file or directory`
-(`loader/loader.go:83-86`), and the Kitten loader cannot reproduce it
+(`loader/loader.go:83-86`), and the Percy loader cannot reproduce it
 (`selfhost/loader/README.md`). Section 22.9 defers recoverable I/O, and the
 Phase 4E.1 report records this as the 4E.2 blocker. A compiler also needs to
 distinguish an empty file (successful `Ok` with `""`) from a failed read, which
@@ -370,22 +370,22 @@ credible driver, not as a substitute for the fixpoint.
 
 #### Comparison of the three requested forms
 
-| Form | Fits Kitten? | Preserves Go error text? | Main problems |
+| Form | Fits Percy? | Preserves Go error text? | Main problems |
 | --- | --- | --- | --- |
-| Built-in tagged union `Ok{text}` / `Failed{message}` | **Best.** Kitten already has tagged unions and exhaustive `match`; no null, no exceptions, no generics. | **Yes**, if the runtime constructs the message with Go-compatible operation names and errno text. | Largest implementation: a predeclared result type must exist in both checkers and both generators, and codegen needs a built-in union mapping. |
-| Bool plus out-parameter | Workable only through a mutable array slot, because Kitten has no references or pointers. | Possible if the slot receives the message. | Unidiomatic; the caller must allocate a slot array and remember which index means what; no type-level exhaustiveness; easy to misuse. |
+| Built-in tagged union `Ok{text}` / `Failed{message}` | **Best.** Percy already has tagged unions and exhaustive `match`; no null, no exceptions, no generics. | **Yes**, if the runtime constructs the message with Go-compatible operation names and errno text. | Largest implementation: a predeclared result type must exist in both checkers and both generators, and codegen needs a built-in union mapping. |
+| Bool plus out-parameter | Workable only through a mutable array slot, because Percy has no references or pointers. | Possible if the slot receives the message. | Unidiomatic; the caller must allocate a slot array and remember which index means what; no type-level exhaustiveness; easy to misuse. |
 | Split exists/read pair | Easy to write. | **No.** An existence check cannot report permission, directory, size, or read errors, and cannot supply the OS message. | TOCTOU between the check and the read; the read can still be fatal; missing vs unreadable is lost. |
 
 The split pair does **not** close the 4E.2 gap. The bool-plus-out form can carry
 a message but fits the language poorly. The tagged union is the only form that
-is both type-safe in Kitten and capable of exact message parity.
+is both type-safe in Percy and capable of exact message parity.
 
 #### Proposed SPEC wording
 
 Add to Section 22.2, and remove the "recoverable I/O" sentence from Section
 22.9 once adopted:
 
-> ```kitten
+> ```percy
 > union ReadFileResult {
 >     Ok { string text; }
 >     Failed { string message; }
@@ -397,13 +397,13 @@ Add to Section 22.2, and remove the "recoverable I/O" sentence from Section
 > returns `Ok` with the bytes on success, or `Failed` with a diagnostic on
 > failure. An empty file is `Ok { text = "" }`. `Failed.message` is the
 > operating-system error in the same shape as Go's `os.ReadFile`: for example
-> `open /x.ktn: no such file or directory`, without the caller's prefix. The
+> `open /x.pcy: no such file or directory`, without the caller's prefix. The
 > existing `read_file` remains fatal and unchanged. The result type is
 > predeclared and cannot be redeclared by a program.
 
 The loader then writes:
 
-```kitten
+```percy
 match (try_read_file(path)) {
     Ok(text) { /* parse text */ }
     Failed(error) {
@@ -420,13 +420,13 @@ match (try_read_file(path)) {
 **Runtime ABI.** The runtime owns both the read and the error formatting:
 
 ```c
-typedef struct ktn_read_file_result {
+typedef struct pcy_read_file_result {
     int64_t tag; /* 0 = Ok, 1 = Failed; codegen must agree */
-    const ktn_string *text;
-    const ktn_string *message;
-} ktn_read_file_result;
+    const pcy_string *text;
+    const pcy_string *message;
+} pcy_read_file_result;
 
-const ktn_read_file_result *ktn_rt_try_read_file(const ktn_string *path);
+const pcy_read_file_result *pcy_rt_try_read_file(const pcy_string *path);
 ```
 
 The runtime opens and reads the file, closes it on every path, and allocates a
@@ -449,7 +449,7 @@ out that plain `strerror` is not sufficient for byte parity.
   values and field names. No user union declaration should be emitted for it.
 - Add `BuiltinKind.TryReadFile`, parameter `string`, return `ReadFileResult`,
   to both checkers and both emitters, plus the runtime name in all name tables.
-- The Kitten-written checker's `TypeKind.Union` can represent the type, but the
+- The Percy-written checker's `TypeKind.Union` can represent the type, but the
   type has no parsed declaration; the model and generator need a reserved
   built-in type identity. This is the main design risk.
 - Existing `read_file` behavior and all its tests remain unchanged.
@@ -486,22 +486,22 @@ out that plain `strerror` is not sufficient for byte parity.
 The recommended architecture is:
 
 ```text
-purr-selfhost <absolute-root.ktn> > program.c
+purr-selfhost <absolute-root.pcy> > program.c
         # stdout: one C translation unit, stderr: diagnostics
         # exit status: 0 success, nonzero failure
 
 wrapper:
     create temp directory
     run purr-selfhost > temp/program.c
-    copy kitten_runtime.c and kitten_runtime.h into temp/
-    run cc ... temp/program.c temp/kitten_runtime.c -o <output>
+    copy percy_runtime.c and percy_runtime.h into temp/
+    run cc ... temp/program.c temp/percy_runtime.c -o <output>
     for "run": execute <output>, propagate stdin/stdout/stderr/status
 ```
 
-This is enough for Goal 1 because the Kitten compiler owns every language
+This is enough for Goal 1 because the Percy compiler owns every language
 decision and all generated bytes; the wrapper owns host integration. The wrapper
 must not be Go if the goal is independence from Go; a POSIX shell script is
-sufficient on the supported host platforms. A later Kitten-written `purr` can
+sufficient on the supported host platforms. A later Percy-written `purr` can
 replace it once file writing and process launch exist.
 
 **Honest weaknesses.**
@@ -513,14 +513,14 @@ replace it once file writing and process launch exist.
   compiler, honor `CC`, obtain GC flags, and clean up. Those are real driver
   behaviors today (`cmd/purr/main.go:225-288`).
 - `build`/`run` semantics, `-o`, default output names, and C compiler
-  diagnostics live in the wrapper, not in Kitten.
+  diagnostics live in the wrapper, not in Percy.
 - A shell wrapper is not portable to Windows and is not yet the `purr` tool.
 - If the wrapper is sloppy about stdout/stderr separation, an error can be
   captured as C; the `eprint`/`exit` capabilities make a correct wrapper
   possible but do not enforce it.
 
 **Why deferring does not block Goal 1.** Independence from Go needs the compiler
-pipeline in Kitten and a host-level way to invoke a C compiler. A shell wrapper
+pipeline in Percy and a host-level way to invoke a C compiler. A shell wrapper
 supplies the latter without adding language semantics. File writing and process
 launch become necessary for Goal 3 (the ecosystem) and for a polished `purr`
 CLI, not for the first fixpoint. The proposal recommends adding them in a later
@@ -535,8 +535,8 @@ wrapper and revisit in the `purr` phase.**
 **No cwd primitive is needed for the bootstrap if the wrapper passes absolute
 paths.**
 
-The Kitten loader already requires an absolute root
-(`selfhost/loader/README.md`, paths.ktn), and import paths are resolved relative
+The Percy loader already requires an absolute root
+(`selfhost/loader/README.md`, paths.pcy), and import paths are resolved relative
 to the importing module, so the loader never needs the process cwd. The wrapper
 can resolve the user's source path to an absolute path with the host shell
 (`realpath`, or `cd` plus `pwd`), and can pass absolute paths for the runtime
@@ -545,7 +545,7 @@ needs an output path. This is sufficient for the fixpoint.
 
 A cwd primitive becomes useful for a user-facing CLI that wants to preserve
 relative-path diagnostics or default output placement, but the wrapper can
-handle those presentation decisions. If Kitten later owns the CLI, add
+handle those presentation decisions. If Percy later owns the CLI, add
 `cwd()`/`chdir` (or an absolute-path helper) in the `purr` phase; do not add it
 to the bootstrap.
 
@@ -555,11 +555,11 @@ to the bootstrap.
 
 The order was revised in Phase 5.6 and the fixpoint is now done. `argv`,
 `eprint`, `exit`, `try_read_file`/`ReadFileResult`, loader read-error parity, the
-Kitten driver, and the fixpoint are implemented. Each step is one coherent commit
+Percy driver, and the fixpoint are implemented. Each step is one coherent commit
 with its own acceptance checks.
 
 1. **`argv()` and the argument-carrying entry point.**
-   - Runtime `ktn_rt_set_args`/`ktn_rt_argv`; Go and Kitten checkers/code
+   - Runtime `pcy_rt_set_args`/`pcy_rt_argv`; Go and Percy checkers/code
      generators; both unit emitters; tests for no arguments, several arguments,
      empty arguments, and `argv()[0]`.
    - Acceptance: `go test -count=1 ./...`, `CC=gcc go test -count=1 ./...`,
@@ -572,14 +572,14 @@ with its own acceptance checks.
      separately and compares exact bytes; `print` tests remain unchanged.
 
 3. **`exit(status)`.**
-   - Runtime `ktn_rt_exit`; `ktn_rt_fail` routes through it; both built-in tables
+   - Runtime `pcy_rt_exit`; `pcy_rt_fail` routes through it; both built-in tables
      and emitters; status tests for 0, 1, 2, and a larger value.
    - Acceptance: a compiled program exits with each requested status; stdout is
      flushed before exit; stderr is flushed; the existing fatal-error tests still
      pass.
 
 4. **DONE — `try_read_file` and `ReadFileResult`.** Phase 5.4b implemented the
-   runtime and Go pipeline, 5.4c the Kitten checker/generator, and 5.5 the loader
+   runtime and Go pipeline, 5.4c the Percy checker/generator, and 5.5 the loader
    read-error parity. The design is adopted in `proposals/read-file-result.md`.
    - Predeclared type in both checkers/generators; runtime result object and
      Go-compatible error formatting; existing `read_file` untouched.
@@ -588,8 +588,8 @@ with its own acceptance checks.
      including `cannot read source file: open <path>: no such file or directory`;
      the full suite passes under both compilers.
 
-5. **DONE — Kitten compiler driver.**
-   - `selfhost/driver.ktn` reads `argv()`, requires an absolute root,
+5. **DONE — Percy compiler driver.**
+   - `selfhost/driver.pcy` reads `argv()`, requires an absolute root,
      loads/checks/emits, writes diagnostics with `eprint`, and uses `exit`; it
      does no file writing or C compiler invocation.
    - `selfhost/driver/purr-bootstrap.sh` owns temp files, runtime copying, C compiler
@@ -600,8 +600,8 @@ with its own acceptance checks.
      wrapper itself contains no Go.
 
 6. **DONE — Fixpoint proof.**
-   - Compile the Kitten compiler's source with the Go compiler (stage 0), then
-     with the Kitten driver/wrapper (stage 1), then stage 1 compiles its own
+   - Compile the Percy compiler's source with the Go compiler (stage 0), then
+     with the Percy driver/wrapper (stage 1), then stage 1 compiles its own
      source (stage 2).
    - Acceptance: stage 1 and stage 2 C outputs are byte-identical for the
      compiler source and for the fixture/corpus set; `tests/modules/` and the
@@ -610,7 +610,7 @@ with its own acceptance checks.
 
 ## 5. What the audit found that argues against this direction
 
-- **The tagged union is much more than a runtime helper.** Kitten has no
+- **The tagged union is much more than a runtime helper.** Percy has no
   predeclared types today; adding one touches both checkers, both generators,
   the runtime header, and the match emitter. If the human wants the absolute
   minimum, the bool-plus-out fallback is smaller but materially worse as a
@@ -638,7 +638,7 @@ with its own acceptance checks.
 2. Should `argv()` include the program name at index 0, or return only the
    program arguments? This proposal recommends including it.
 3. Is a POSIX-shell wrapper acceptable for the first fixpoint, or must the
-   wrapper itself be Kitten (which would require file writing and process launch
+   wrapper itself be Percy (which would require file writing and process launch
    now)?
 4. **Answered: yes; completed in 5.5.** Does the fixpoint acceptance include
    missing/unreadable-file diagnostics, or is that allowed to remain 4E.2 after
@@ -649,6 +649,6 @@ with its own acceptance checks.
    standard library exists?
 7. What is the supported host platform set for this phase: Linux only, or
    Linux and macOS? That affects the wrapper, path rules, and error text.
-8. Should the source path and `-o` be parsed by the Kitten driver or by the
-   wrapper? This proposal gives the wrapper `-o`/temp-file policy and the Kitten
+8. Should the source path and `-o` be parsed by the Percy driver or by the
+   wrapper? This proposal gives the wrapper `-o`/temp-file policy and the Percy
    driver the root path.

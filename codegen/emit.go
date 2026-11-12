@@ -5,9 +5,9 @@ import (
 	"strconv"
 	"strings"
 
-	"kitten/checker"
-	"kitten/parser"
-	"kitten/runtime"
+	"percy/checker"
+	"percy/parser"
+	"percy/runtime"
 )
 
 // emitBlock writes a brace-delimited block, indented and newline-terminated.
@@ -70,6 +70,14 @@ func (g *generator) emitStatement(statement parser.Stmt) error {
 
 	case *parser.ForStmt:
 		return g.emitFor(s)
+
+	case *parser.BreakStmt:
+		g.line("break;")
+		return nil
+
+	case *parser.ContinueStmt:
+		g.line("continue;")
+		return nil
 
 	case *parser.ReturnStmt:
 		if s.Value == nil {
@@ -330,7 +338,7 @@ func (g *generator) unaryExpression(expression *parser.UnaryExpr) (string, error
 	return fmt.Sprintf("(%s%s)", expression.Operator, operand), nil
 }
 
-// binaryExpression renders a binary operation. Kitten and C share operator
+// binaryExpression renders a binary operation. Percy and C share operator
 // symbols and precedence is made explicit with parentheses, so most operators
 // map directly. String operations use runtime helpers: "+" concatenates, and
 // "==" / "!=" compare content rather than pointers.
@@ -397,7 +405,7 @@ func (g *generator) binaryExpression(expression *parser.BinaryExpr) (string, err
 	return fmt.Sprintf("(%s %s %s)", left, expression.Operator, right), nil
 }
 
-// assignExpression renders an assignment. Kitten and C agree on "=" and "-=",
+// assignExpression renders an assignment. Percy and C agree on "=" and "-=",
 // and both yield the assigned value.
 //
 // String "+=" has no C equivalent, so it is lowered to a runtime append that
@@ -609,9 +617,9 @@ func (g *generator) addressOfExpression(expression *parser.CallExpr) (string, er
 	}
 	switch {
 	case argumentType == checker.StringType:
-		return fmt.Sprintf("((int64_t)(uintptr_t)(((const ktn_string *)(%s))->data))", rendered), nil
+		return fmt.Sprintf("((int64_t)(uintptr_t)(((const pcy_string *)(%s))->data))", rendered), nil
 	case argumentType.Kind == checker.KindArray && argumentType.Element == checker.ByteType:
-		return fmt.Sprintf("((int64_t)(uintptr_t)(((ktn_array *)(%s))->data))", rendered), nil
+		return fmt.Sprintf("((int64_t)(uintptr_t)(((pcy_array *)(%s))->data))", rendered), nil
 	default:
 		return "", &Error{Line: expression.Arguments[0].Pos().Line, Column: expression.Arguments[0].Pos().Column, Message: fmt.Sprintf("address_of does not accept %s", argumentType)}
 	}
@@ -779,6 +787,26 @@ func (g *generator) callExpression(expression *parser.CallExpr) (string, error) 
 			return "", err
 		}
 		return fmt.Sprintf("%s(%s)", runtime.BytesToStringFunction, argument), nil
+	case checker.BuiltinPush:
+		arrayType, err := g.expressionType(expression.Arguments[0])
+		if err != nil {
+			return "", err
+		}
+		elementC, err := cType(arrayType.Element)
+		if err != nil {
+			return "", &Error{Line: expression.Arguments[1].Pos().Line, Column: expression.Arguments[1].Pos().Column, Message: err.Error()}
+		}
+		arrayExpression, err := g.expression(expression.Arguments[0])
+		if err != nil {
+			return "", err
+		}
+		valueExpression, err := g.expression(expression.Arguments[1])
+		if err != nil {
+			return "", err
+		}
+		// The element is materialized as a compound literal so push receives a
+		// stable address of exactly the element type; it copies it immediately.
+		return fmt.Sprintf("%s(%s, &(%s){%s})", runtime.ArrayPushFunction, arrayExpression, elementC, valueExpression), nil
 	}
 
 	identifier, ok := expression.Callee.(*parser.Identifier)
@@ -970,25 +998,26 @@ func (g *generator) emitMatch(statement *parser.MatchStmt) error {
 		g.line("if (%s == NULL) { %s(\"match on a null union reference\"); }", temporary, runtime.FailFunction)
 	}
 
-	g.writeIndent()
-	if scrutineeType.IsUnion() {
-		g.write(fmt.Sprintf("switch (%s->%s) {\n", temporary, tagFieldName))
-	} else {
-		g.write(fmt.Sprintf("switch (%s) {\n", temporary))
-	}
-	g.indent++
-
-	for _, arm := range statement.Arms {
+	// The arms become an if/else-if chain rather than a C switch. A switch
+	// would make a user `break` inside an arm exit the match instead of the
+	// enclosing loop; the chain keeps break and continue pointing at the loop.
+	for index, arm := range statement.Arms {
 		variant := scrutineeType.VariantIndex[arm.Variant]
 		if variant == nil {
 			return &Error{Line: arm.At.Line, Column: arm.At.Column, Message: fmt.Sprintf("variant %q was not resolved", arm.Variant)}
 		}
 
-		g.writeIndent()
+		var comparison string
 		if scrutineeType.IsUnion() {
-			g.write(fmt.Sprintf("case %s: {\n", unionTagName(scrutineeType, variant.Name)))
+			comparison = fmt.Sprintf("%s->%s == %s", temporary, tagFieldName, unionTagName(scrutineeType, variant.Name))
 		} else {
-			g.write(fmt.Sprintf("case %s: {\n", enumCaseName(scrutineeType, variant.Name)))
+			comparison = fmt.Sprintf("%s == %s", temporary, enumCaseName(scrutineeType, variant.Name))
+		}
+		g.writeIndent()
+		if index == 0 {
+			g.write(fmt.Sprintf("if (%s) {\n", comparison))
+		} else {
+			g.write(fmt.Sprintf("} else if (%s) {\n", comparison))
 		}
 		g.indent++
 
@@ -1009,15 +1038,13 @@ func (g *generator) emitMatch(statement *parser.MatchStmt) error {
 				return err
 			}
 		}
-		g.line("break;")
 		g.indent--
-		g.line("}")
 	}
 
-	// The checker proves the arms are exhaustive, so this default is defensive:
-	// an out-of-range tag fails deterministically instead of doing nothing.
-	g.indent--
-	g.line("default:")
+	// The checker proves the arms are exhaustive, so this final else is
+	// defensive: an out-of-range tag fails deterministically.
+	g.writeIndent()
+	g.write("} else {\n")
 	g.indent++
 	g.line("%s(\"match on an invalid variant tag\");", runtime.FailFunction)
 	g.indent--
@@ -1056,8 +1083,8 @@ func (g *generator) printExpression(expression *parser.CallExpr) (string, error)
 
 // printHelper returns the runtime function that prints a value of the given
 // type. The checker only allows int, float, bool, and string.
-func printHelper(kittenType *checker.Type) (string, error) {
-	switch kittenType {
+func printHelper(percyType *checker.Type) (string, error) {
+	switch percyType {
 	case checker.IntType:
 		return runtime.PrintIntFunction, nil
 	case checker.FloatType:
@@ -1069,7 +1096,7 @@ func printHelper(kittenType *checker.Type) (string, error) {
 	case checker.ByteType:
 		return runtime.PrintIntFunction, nil
 	default:
-		return "", fmt.Errorf("print does not support values of type %s", kittenType)
+		return "", fmt.Errorf("print does not support values of type %s", percyType)
 	}
 }
 
@@ -1103,8 +1130,8 @@ func (g *generator) eprintExpression(expression *parser.CallExpr) (string, error
 
 // eprintHelper returns the runtime function that writes a value to standard
 // error. The checker only allows int, float, bool, and string.
-func eprintHelper(kittenType *checker.Type) (string, error) {
-	switch kittenType {
+func eprintHelper(percyType *checker.Type) (string, error) {
+	switch percyType {
 	case checker.IntType:
 		return runtime.EprintIntFunction, nil
 	case checker.FloatType:
@@ -1116,6 +1143,6 @@ func eprintHelper(kittenType *checker.Type) (string, error) {
 	case checker.ByteType:
 		return runtime.EprintIntFunction, nil
 	default:
-		return "", fmt.Errorf("eprint does not support values of type %s", kittenType)
+		return "", fmt.Errorf("eprint does not support values of type %s", percyType)
 	}
 }

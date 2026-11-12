@@ -1,0 +1,53 @@
+fn main() {
+    match (try_create_temp_directory("pcy-temp")) {
+        Ok(path) {
+            print("ok", length(path) > 0);
+            match (try_file_info(path)) {
+                Ok(is_file, is_directory, is_symlink, executable, size) {
+                    print("dir", is_directory, is_file, is_symlink);
+                }
+                Missing {
+                    print("missing");
+                }
+                Failed(message) {
+                    print("info fail", message);
+                }
+            }
+            match (try_remove(path)) {
+                Ok {
+                    print("removed");
+                }
+                Failed(message) {
+                    print("remove fail", message);
+                }
+            }
+        }
+        Failed(message) {
+            print("fail", message);
+        }
+    }
+    match (try_create_temp_directory("")) {
+        Ok(path) {
+            print("empty ok");
+        }
+        Failed(message) {
+            print("empty", message);
+        }
+    }
+    match (try_create_temp_directory("..")) {
+        Ok(path) {
+            print("dots ok");
+        }
+        Failed(message) {
+            print("dots", message);
+        }
+    }
+    match (try_create_temp_directory("bad/slash")) {
+        Ok(path) {
+            print("slash ok");
+        }
+        Failed(message) {
+            print("slash", message);
+        }
+    }
+}

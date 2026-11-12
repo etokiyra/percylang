@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"kitten/runtime"
+	"percy/runtime"
 )
 
 const runSource = `fn report(RunResult result) {
@@ -64,7 +64,7 @@ const runZombieSource = `fn main() {
 const runLeakSource = `fn main() {
     int index = 0;
     while (index < 2000) {
-        match (try_run("/definitely/missing-kitten-run", new string[0])) {
+        match (try_run("/definitely/missing-percy-run", new string[0])) {
             Ok(status) { }
             Failed(message) { }
         }
@@ -86,7 +86,7 @@ const runLeakSource = `fn main() {
 func buildRunGoProgram(t *testing.T) string {
 	t.Helper()
 	directory := t.TempDir()
-	sourcePath := filepath.Join(directory, "run.ktn")
+	sourcePath := filepath.Join(directory, "run.pcy")
 	if err := os.WriteFile(sourcePath, []byte(runSource), 0o644); err != nil {
 		t.Fatalf("writing run fixture: %v", err)
 	}
@@ -101,7 +101,7 @@ func buildRunGoProgram(t *testing.T) string {
 	return executable
 }
 
-func buildKittenRunProgram(t *testing.T, compiler, compileFlags, linkFlags []string, text string) (string, error) {
+func buildPercyRunProgram(t *testing.T, compiler, compileFlags, linkFlags []string, text string) (string, error) {
 	t.Helper()
 	directory := t.TempDir()
 	if err := os.WriteFile(filepath.Join(directory, "program.c"), []byte(text), 0o644); err != nil {
@@ -124,7 +124,7 @@ func buildKittenRunProgram(t *testing.T, compiler, compileFlags, linkFlags []str
 	command.Stdout = &diagnostics
 	command.Stderr = &diagnostics
 	if err := command.Run(); err != nil {
-		return "", fmt.Errorf("building Kitten-generated C: %v\n%s", err, diagnostics.String())
+		return "", fmt.Errorf("building Percy-generated C: %v\n%s", err, diagnostics.String())
 	}
 	if output := strings.TrimSpace(diagnostics.String()); output != "" {
 		return "", fmt.Errorf("C compiler diagnostics: %s", output)
@@ -151,16 +151,16 @@ func TestRunRuntime(t *testing.T) {
 	}
 
 	goExecutable := buildRunGoProgram(t)
-	unitExecutable := buildKittenUnit(t)
-	kittenText, err := runKittenUnit(unitExecutable, t.TempDir(), runSource, "")
+	unitExecutable := buildPercyUnit(t)
+	percyText, err := runPercyUnit(unitExecutable, t.TempDir(), runSource, "")
 	if err != nil {
-		t.Fatalf("generating try_run C with the Kitten pipeline: %v", err)
+		t.Fatalf("generating try_run C with the Percy pipeline: %v", err)
 	}
 	_, _, referenceText, ok := checkProgram(t, "try_run runtime", runSource, "")
 	if !ok {
 		return
 	}
-	if difference := unitDifference(kittenText, referenceText); difference != "" {
+	if difference := unitDifference(percyText, referenceText); difference != "" {
 		t.Fatalf("the try_run translation unit differs: %s", difference)
 	}
 	compiler, err := discoverCompiler()
@@ -168,7 +168,7 @@ func TestRunRuntime(t *testing.T) {
 		t.Fatalf("discovering the C compiler: %v", err)
 	}
 	compileFlags, linkFlags := gcBuildFlags()
-	kittenExecutable, err := buildKittenRunProgram(t, compiler, compileFlags, linkFlags, kittenText)
+	percyExecutable, err := buildPercyRunProgram(t, compiler, compileFlags, linkFlags, percyText)
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -208,7 +208,7 @@ func TestRunRuntime(t *testing.T) {
 		{"signal", []string{"run", "/bin/sh", "-c", "kill -9 $$"}, working, nil, "ok 137\n", ""},
 		{"arguments intact", append([]string{"run", "/bin/sh"}, argsCase...), working, nil, "a b||c|ok 0\n", ""},
 		{"argv0 is the program", []string{"argv0"}, working, nil, "/bin/shok 0\n", ""},
-		{"environment inherited", []string{"run", "/bin/sh", "-c", `printf '%s\n' "$KITTEN_RUN_VALUE"`}, working, []string{"KITTEN_RUN_VALUE=from-test"}, "from-test\nok 0\n", ""},
+		{"environment inherited", []string{"run", "/bin/sh", "-c", `printf '%s\n' "$PERCY_RUN_VALUE"`}, working, []string{"PERCY_RUN_VALUE=from-test"}, "from-test\nok 0\n", ""},
 		{"working directory inherited", []string{"run", "/bin/pwd"}, working, nil, working + "\nok 0\n", ""},
 		{"output ordering", []string{"ordering"}, working, nil, "before\nchild-out\nafter\nok 0\n", "child-err\n"},
 		{"missing program", []string{"run", missing}, working, nil, "failed " + startProcessError(t, missing) + "\n", ""},
@@ -230,18 +230,18 @@ func TestRunRuntime(t *testing.T) {
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
 			goResult := runExternal(t, goExecutable, testCase.args, testCase.directory, testCase.environment)
-			kittenResult := runExternal(t, kittenExecutable, testCase.args, testCase.directory, testCase.environment)
+			percyResult := runExternal(t, percyExecutable, testCase.args, testCase.directory, testCase.environment)
 			if goResult.stdout != testCase.stdout || goResult.stderr != testCase.stderr || goResult.status != 0 {
 				t.Errorf("Go pipeline: stdout %q, stderr %q, status %d; want %q, %q, 0",
 					goResult.stdout, goResult.stderr, goResult.status, testCase.stdout, testCase.stderr)
 			}
-			if kittenResult.stdout != testCase.stdout || kittenResult.stderr != testCase.stderr || kittenResult.status != 0 {
-				t.Errorf("Kitten pipeline: stdout %q, stderr %q, status %d; want %q, %q, 0",
-					kittenResult.stdout, kittenResult.stderr, kittenResult.status, testCase.stdout, testCase.stderr)
+			if percyResult.stdout != testCase.stdout || percyResult.stderr != testCase.stderr || percyResult.status != 0 {
+				t.Errorf("Percy pipeline: stdout %q, stderr %q, status %d; want %q, %q, 0",
+					percyResult.stdout, percyResult.stderr, percyResult.status, testCase.stdout, testCase.stderr)
 			}
-			if goResult.stdout != kittenResult.stdout || goResult.stderr != kittenResult.stderr || goResult.status != kittenResult.status {
-				t.Errorf("pipelines disagree: Go stdout %q stderr %q status %d; Kitten stdout %q stderr %q status %d",
-					goResult.stdout, goResult.stderr, goResult.status, kittenResult.stdout, kittenResult.stderr, kittenResult.status)
+			if goResult.stdout != percyResult.stdout || goResult.stderr != percyResult.stderr || goResult.status != percyResult.status {
+				t.Errorf("pipelines disagree: Go stdout %q stderr %q status %d; Percy stdout %q stderr %q status %d",
+					goResult.stdout, goResult.stderr, goResult.status, percyResult.stdout, percyResult.stderr, percyResult.status)
 			}
 		})
 	}
@@ -254,7 +254,7 @@ func TestRunLeakAndZombies(t *testing.T) {
 	}
 
 	directory := t.TempDir()
-	sourcePath := filepath.Join(directory, "leak.ktn")
+	sourcePath := filepath.Join(directory, "leak.pcy")
 	if err := os.WriteFile(sourcePath, []byte(runLeakSource), 0o644); err != nil {
 		t.Fatalf("writing leak fixture: %v", err)
 	}
@@ -293,7 +293,7 @@ func TestRunNoZombies(t *testing.T) {
 		}
 	}
 
-	sourcePath := filepath.Join(t.TempDir(), "zombie.ktn")
+	sourcePath := filepath.Join(t.TempDir(), "zombie.pcy")
 	if err := os.WriteFile(sourcePath, []byte(runZombieSource), 0o644); err != nil {
 		t.Fatalf("writing zombie fixture: %v", err)
 	}
@@ -339,10 +339,10 @@ func TestRunSanitizer(t *testing.T) {
 		t.Skip("/bin/true is unavailable")
 	}
 
-	unitExecutable := buildKittenUnit(t)
-	kittenText, err := runKittenUnit(unitExecutable, t.TempDir(), runSource, "")
+	unitExecutable := buildPercyUnit(t)
+	percyText, err := runPercyUnit(unitExecutable, t.TempDir(), runSource, "")
 	if err != nil {
-		t.Fatalf("generating C with the Kitten pipeline: %v", err)
+		t.Fatalf("generating C with the Percy pipeline: %v", err)
 	}
 	compiler, err := discoverCompiler()
 	if err != nil {
@@ -350,7 +350,7 @@ func TestRunSanitizer(t *testing.T) {
 	}
 	compileFlags, linkFlags := gcBuildFlags()
 	compileFlags = append(compileFlags, "-fsanitize=undefined")
-	executable, err := buildKittenRunProgram(t, compiler, compileFlags, linkFlags, kittenText)
+	executable, err := buildPercyRunProgram(t, compiler, compileFlags, linkFlags, percyText)
 	if err != nil {
 		t.Skipf("undefined behavior sanitizer is unavailable with %s: %v", filepath.Base(compiler[0]), err)
 	}

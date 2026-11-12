@@ -1,0 +1,59 @@
+enum Kind {
+    A,
+    B
+}
+
+fn main() {
+    int sum = 0;
+    for (int i = 0; i < 10; i++) {
+        if (i == 3) { continue; }
+        if (i == 7) { break; }
+        sum = sum + i;
+    }
+    print(sum);
+
+    int n = 0;
+    while (true) {
+        n++;
+        if (n == 3) { continue; }
+        if (n == 5) { break; }
+        print("w", n);
+    }
+    print(n);
+
+    for (int i = 0; i < 3; i++) {
+        int j = 0;
+        while (j < 3) {
+            j++;
+            if (j == 2) { continue; }
+            if (i == 1 && j == 3) { break; }
+            print(i, j);
+        }
+    }
+
+    int hits = 0;
+    for (int i = 0; i < 5; i++) {
+        match (Kind.A) {
+            A {
+                if (i == 2) { break; }
+                hits++;
+            }
+            B { }
+        }
+        if (i == 4) { break; }
+    }
+    print(hits);
+
+    int seen = 0;
+    for (int i = 0; i < 5; i++) {
+        match (Kind.A) {
+            A {
+                if (i == 2) { continue; }
+                seen++;
+            }
+            B { }
+        }
+        seen = seen + 10;
+    }
+    print(seen);
+}

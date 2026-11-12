@@ -1,6 +1,6 @@
-# A C code generator for Kitten, written in Kitten
+# A C code generator for Percy, written in Percy
 
-This directory holds a C code generator written in Kitten, in layers that are
+This directory holds a C code generator written in Percy, in layers that are
 being built one at a time:
 
 - the helper layer - C names, the C type mapping, C string-literal escaping, and
@@ -12,15 +12,15 @@ being built one at a time:
   string literals, identifiers, unary expressions, binary expressions, calls to
   user functions and built-ins, member access and variant references, struct and
   variant literals, array and map creation, indexing, and assignment, with
-  integer arithmetic lowered through the defined `ktn_rt_i64_*` helpers; and
-- the string literal pool - the `static const ktn_string` objects the emitted code
+  integer arithmetic lowered through the defined `pcy_rt_i64_*` helpers; and
+- the string literal pool - the `static const pcy_string` objects the emitted code
   refers to; and
 - the statement and function emitter - the bodies of the generated functions; and
 - the translation unit emitter - the entry point rule, the C entry point, and the
   assembly of the whole unit.
 
-A module loader now exists under `selfhost/loader`, and the `selfhost/loadunit.ktn`
-driver uses it to feed this generator. `selfhost/driver.ktn` and the temporary
+A module loader now exists under `selfhost/loader`, and the `selfhost/loadunit.pcy`
+driver uses it to feed this generator. `selfhost/driver.pcy` and the temporary
 `selfhost/driver/purr-bootstrap.sh` wrapper use the same path to write C to stdout and
 build a native executable; they are test infrastructure, not the production CLI.
 
@@ -30,29 +30,29 @@ here.
 
 ## Files
 
-- `selfhost/codegen/names.ktn` — name mangling, the C type mapping, and
-  string-literal escaping. The Kitten counterpart of `codegen/names.go` and
+- `selfhost/codegen/names.pcy` — name mangling, the C type mapping, and
+  string-literal escaping. The Percy counterpart of `codegen/names.go` and
   `codegen/cstring.go`.
-- `selfhost/codegen/output.ktn` — bounded, chunked output accumulation and
+- `selfhost/codegen/output.pcy` — bounded, chunked output accumulation and
   finalization.
-- `selfhost/codegen/errors.ktn` — the failure type every generator stage reports.
-- `selfhost/codegen/declarations.ktn` — the declaration emitter.
-- `selfhost/codegen/expressions.ktn` — the core expression emitter.
-- `selfhost/codegen/literals.ktn` — the string literal pool.
-- `selfhost/codegen/statements.ktn` — the statement and function-body emitter.
-- `selfhost/codegen/unit.ktn` — the entry point rule and the translation unit
+- `selfhost/codegen/errors.pcy` — the failure type every generator stage reports.
+- `selfhost/codegen/declarations.pcy` — the declaration emitter.
+- `selfhost/codegen/expressions.pcy` — the core expression emitter.
+- `selfhost/codegen/literals.pcy` — the string literal pool.
+- `selfhost/codegen/statements.pcy` — the statement and function-body emitter.
+- `selfhost/codegen/unit.pcy` — the entry point rule and the translation unit
   assembly.
-- `selfhost/codegen.ktn` — the helper probe driver: it reads directives from
+- `selfhost/codegen.pcy` — the helper probe driver: it reads directives from
   `input.txt` and prints one result line per directive.
-- `selfhost/declarations.ktn` — the declaration driver: it reads two modules,
-  runs the Kitten front end, and prints their declaration section.
-- `selfhost/expressions.ktn` — the expression driver: it reads two modules, runs
-  the Kitten front end, and prints the rendering of every expression in their
+- `selfhost/declarations.pcy` — the declaration driver: it reads two modules,
+  runs the Percy front end, and prints their declaration section.
+- `selfhost/expressions.pcy` — the expression driver: it reads two modules, runs
+  the Percy front end, and prints the rendering of every expression in their
   function bodies.
-- `selfhost/functions.ktn` — the function driver: it reads two modules, runs the
-  Kitten front end, and prints the pooled declarations and the function
+- `selfhost/functions.pcy` — the function driver: it reads two modules, runs the
+  Percy front end, and prints the pooled declarations and the function
   definitions those bodies produced.
-- `selfhost/unit.ktn` — the unit driver: it reads two modules, runs the Kitten
+- `selfhost/unit.pcy` — the unit driver: it reads two modules, runs the Percy
   front end, and prints the complete C translation unit.
 - `cmd/purr/codegen_differential_test.go`,
   `cmd/purr/declarations_differential_test.go`,
@@ -66,11 +66,11 @@ here.
 ```sh
 # From the repository root. The drivers read fixed relative paths, so the
 # working directory selects the input.
-purr build selfhost/codegen.ktn -o /tmp/codegen-probe
-purr build selfhost/declarations.ktn -o /tmp/declarations-probe
-purr build selfhost/expressions.ktn -o /tmp/expressions-probe
-purr build selfhost/functions.ktn -o /tmp/functions-probe
-purr build selfhost/unit.ktn -o /tmp/unit-probe
+purr build selfhost/codegen.pcy -o /tmp/codegen-probe
+purr build selfhost/declarations.pcy -o /tmp/declarations-probe
+purr build selfhost/expressions.pcy -o /tmp/expressions-probe
+purr build selfhost/functions.pcy -o /tmp/functions-probe
+purr build selfhost/unit.pcy -o /tmp/unit-probe
 cd /tmp/example && printf 'function 0 main\nescape "a\\tb"\n' > input.txt && /tmp/codegen-probe
 ```
 
@@ -114,7 +114,7 @@ An unrecognized directive prints `unknown <directive>`.
 
 ## Public API
 
-`names.ktn`:
+`names.pcy`:
 
 - `function_prefix`, `variable_prefix`, `struct_prefix`, `field_prefix`,
   `constructor_prefix`, `argument_prefix`, `enum_prefix`, `enum_case_prefix`,
@@ -175,13 +175,13 @@ An unrecognized directive prints `unknown <directive>`.
   `i64_post_inc_function()`, `i64_pre_dec_function()`, and
   `i64_post_dec_function()` take the target address so it is evaluated once.
 
-`output.ktn`:
+`output.pcy`:
 
 - `new_output(capacity)`, `output_write(output, text)`, `output_indent(output,
   level)`, `output_line(output, level, text)`, each returning `OutputResult`, and
   `output_text(output)`, which finalizes. `output_ok` reads an `OutputResult`.
 
-`errors.ktn`:
+`errors.pcy`:
 
 - `GenerateError`, the position and message a stage reports for a failure, and
   `generate_error(line, column, message)`, which builds one. The reference reports
@@ -190,47 +190,47 @@ An unrecognized directive prints `unknown <directive>`.
 
 ## C type mapping
 
-| Kitten type | C representation |
+| Percy type | C representation |
 | --- | --- |
 | `int` | `int64_t` |
 | `float` | `double` |
 | `bool` | `bool` |
-| `string` | `const ktn_string *` |
+| `string` | `const pcy_string *` |
 | `byte` | `uint8_t` |
 | `void` | `void` |
-| `struct`, `union` | `ktn_s_<module><Name> *` |
-| `enum` | `ktn_e_<module><Name>` |
-| array | `ktn_array *` |
-| map | `ktn_map *` |
+| `struct`, `union` | `pcy_s_<module><Name> *` |
+| `enum` | `pcy_e_<module><Name>` |
+| array | `pcy_array *` |
+| map | `pcy_map *` |
 
 The absent type, `None`, has no representation and maps to a failure.
 
 ## Name mangling
 
-Generated C identifiers use the reserved prefixes above so that a Kitten
+Generated C identifiers use the reserved prefixes above so that a Percy
 identifier can never collide with a C keyword, with a runtime or entry-point
 name, or with another generated name. The root module is unmangled; an imported
-module is qualified by its id as `<id>_`, and because a Kitten identifier cannot
+module is qualified by its id as `<id>_`, and because a Percy identifier cannot
 begin with a digit a mangled imported name can never collide with a root-module
 name.
 
-| Kitten | C |
+| Percy | C |
 | --- | --- |
-| function `f` in module `m` | `ktn_fn_<m>f` |
-| local or parameter `x` | `ktn_var_x` |
-| struct or union `S` in module `m` | `ktn_s_<m>S` |
-| field `x` | `ktn_f_x` |
-| struct constructor for `S` | `ktn_new_<m>S` |
-| constructor parameter for field `x` | `ktn_arg_x` |
-| enum `E` in module `m` | `ktn_e_<m>E` |
-| enum case `C` of `E` | `ktn_ec_<m>E_C` |
-| union variant `V` of `U` | `ktn_uc_<m>U_V` |
-| field `x` of variant `V` | `ktn_v_V_x` |
-| variant constructor for `U.V` | `ktn_new_<m>U_V` |
-| match temporary *n* | `ktn_match_<n>` (zero-based) |
-| pooled literal *n* | `ktn_literal_<n>` (one-based, first-use order) |
-| constructor local | `ktn_object` |
-| union tag member | `ktn_tag` |
+| function `f` in module `m` | `pcy_fn_<m>f` |
+| local or parameter `x` | `pcy_var_x` |
+| struct or union `S` in module `m` | `pcy_s_<m>S` |
+| field `x` | `pcy_f_x` |
+| struct constructor for `S` | `pcy_new_<m>S` |
+| constructor parameter for field `x` | `pcy_arg_x` |
+| enum `E` in module `m` | `pcy_e_<m>E` |
+| enum case `C` of `E` | `pcy_ec_<m>E_C` |
+| union variant `V` of `U` | `pcy_uc_<m>U_V` |
+| field `x` of variant `V` | `pcy_v_V_x` |
+| variant constructor for `U.V` | `pcy_new_<m>U_V` |
+| match temporary *n* | `pcy_match_<n>` (zero-based) |
+| pooled literal *n* | `pcy_literal_<n>` (one-based, first-use order) |
+| constructor local | `pcy_object` |
+| union tag member | `pcy_tag` |
 
 ## String literal escaping
 
@@ -246,7 +246,7 @@ string object stores.
 
 ## Declaration emitter
 
-`selfhost/codegen/declarations.ktn` emits the sections the reference generator
+`selfhost/codegen/declarations.pcy` emits the sections the reference generator
 writes before any function body, in its order and with its spacing:
 
 1. the generated-file comment, the runtime include, and a blank line;
@@ -272,7 +272,7 @@ writes before any function body, in its order and with its spacing:
 
 Emission never turns a missing annotation into a declaration: a declaration the
 checker did not record is reported, with the position and wording the reference
-uses for the same failure. Every name comes from `names.ktn` and every type from
+uses for the same failure. Every name comes from `names.pcy` and every type from
 the semantic model; nothing here resolves a name, infers a type, or re-reads
 source text.
 
@@ -296,7 +296,7 @@ a short section.
 
 ```sh
 # From the repository root.
-purr build selfhost/declarations.ktn -o /tmp/declarations-probe
+purr build selfhost/declarations.pcy -o /tmp/declarations-probe
 mkdir -p /tmp/example && cd /tmp/example
 printf 'struct S {\n    int a;\n}\nfn main() {\n}\n' > input.txt
 printf '' > input2.txt
@@ -307,7 +307,7 @@ printf '' > input2.txt
 file is a module with no declarations, which is inert. A first line of the form
 `#capacity <n>` in `input.txt` asks for an output of exactly `n` lines instead of
 the derived capacity. The line is replaced by an empty line, so no other source
-position moves, and a Kitten program cannot begin with `#`, so the prefix is
+position moves, and a Percy program cannot begin with `#`, so the prefix is
 unambiguous. That is how the capacity tests ask for a capacity they know to be
 too small.
 
@@ -317,7 +317,7 @@ single diagnostic line beginning with `error` instead.
 
 ## Core expression emitter
 
-`selfhost/codegen/expressions.ktn` renders the expressions the reference generator
+`selfhost/codegen/expressions.pcy` renders the expressions the reference generator
 handles with no more than a recursive walk and parentheses:
 
 | Kind | Rendering |
@@ -325,28 +325,28 @@ handles with no more than a recursive walk and parentheses:
 | integer literal | the source spelling, for example `42` |
 | floating-point literal | the source spelling, for example `10.25` |
 | boolean literal | `true` or `false` |
-| string literal | `(&ktn_literal_<n>)`, the pooled object's address |
-| identifier | `ktn_var_<name>` |
+| string literal | `(&pcy_literal_<n>)`, the pooled object's address |
+| identifier | `pcy_var_<name>` |
 | unary `-` `!` `++` `--` | `(<op><operand>)` for a prefix, `(<operand><op>)` for a postfix |
 | binary `+` `-` `*` `/` `%` `<` `<=` `>` `>=` `==` `!=` `&&` `\|\|` | `(<left> <op> <right>)` |
-| call to a function | `<ktn_fn_name>(<argument>, ...)`, named by the module that declared it |
+| call to a function | `<pcy_fn_name>(<argument>, ...)`, named by the module that declared it |
 | call to a built-in | `print` and `eprint`, `length`, `has`, and `substring` are expanded; `read_file`, `argv`, and `exit` are one runtime call |
-| member access | `(<receiver>)->ktn_f_<field>` |
-| qualified variant reference | `ktn_ec_<Module><Enum>_<Case>` for an enum case, or `ktn_new_<Module><Union>_<Variant>()` for a payload-less union variant |
-| struct literal | `<ktn_new_Module><Struct>(<value>, ...)`, values in field declaration order |
-| variant literal | `<ktn_new_Module><Union>_<Variant>(<value>, ...)`, values in field declaration order |
-| array creation | `ktn_rt_array_new(<length>, sizeof(<element C type>))` |
-| map creation | `ktn_rt_map_new(sizeof(<value C type>))` |
-| index | `ktn_rt_string_at(<target>, <index>)` for a string, otherwise `(*((<result C type> *)ktn_rt_array_at(<target>, <index>)))` or its `ktn_rt_map_at` counterpart |
-| assignment `=` to a map entry | `ktn_rt_map_set(<map>, <key>, &(<value C type>){ <value> })`, which inserts or updates |
+| member access | `(<receiver>)->pcy_f_<field>` |
+| qualified variant reference | `pcy_ec_<Module><Enum>_<Case>` for an enum case, or `pcy_new_<Module><Union>_<Variant>()` for a payload-less union variant |
+| struct literal | `<pcy_new_Module><Struct>(<value>, ...)`, values in field declaration order |
+| variant literal | `<pcy_new_Module><Union>_<Variant>(<value>, ...)`, values in field declaration order |
+| array creation | `pcy_rt_array_new(<length>, sizeof(<element C type>))` |
+| map creation | `pcy_rt_map_new(sizeof(<value C type>))` |
+| index | `pcy_rt_string_at(<target>, <index>)` for a string, otherwise `(*((<result C type> *)pcy_rt_array_at(<target>, <index>)))` or its `pcy_rt_map_at` counterpart |
+| assignment `=` to a map entry | `pcy_rt_map_set(<map>, <key>, &(<value C type>){ <value> })`, which inserts or updates |
 | assignment `=` elsewhere | `(<target> = <value>)` |
 | compound `+=` `-=` on numbers, including map entries | `(<target> <op> <value>)` |
-| string `+=` | `ktn_rt_string_append(&(<target>), <value>)` |
+| string `+=` | `pcy_rt_string_append(&(<target>), <value>)` |
 
-Three binary operators are special on strings, because a Kitten string is a
-length-carrying pointer: `+` becomes `ktn_rt_string_concat(left, right)`, `==`
-becomes `ktn_rt_string_equal(left, right)`, and `!=` becomes
-`!ktn_rt_string_equal(left, right)`. The left operand's resolved type decides
+Three binary operators are special on strings, because a Percy string is a
+length-carrying pointer: `+` becomes `pcy_rt_string_concat(left, right)`, `==`
+becomes `pcy_rt_string_equal(left, right)`, and `!=` becomes
+`!pcy_rt_string_equal(left, right)`. The left operand's resolved type decides
 that, which is the only semantic fact the emitter reads.
 
 ### Calls
@@ -359,14 +359,14 @@ resolve is reported rather than named after what it was written as.
 | Call | Rendering |
 | --- | --- |
 | a user function | `<mangled name>(<arguments>)`, with the name taken from the callee and mangled by the module the resolved function was declared in |
-| `print(a, b)` | `(ktn_rt_print_<t>(a), ktn_rt_print_space(), ktn_rt_print_<u>(b), ktn_rt_print_newline())` |
-| `eprint(a, b)` | `(ktn_rt_eprint_<t>(a), ktn_rt_eprint_space(), ktn_rt_eprint_<u>(b), ktn_rt_eprint_newline())` |
-| `length(x)` | `ktn_rt_array_length`, `ktn_rt_map_length`, or `ktn_rt_string_length`, chosen by the argument's type |
-| `has(map, key)` | `ktn_rt_map_has(map, key)` |
-| `substring(s, start, end)` | `ktn_rt_substring(s, start, end)` |
-| `read_file(path)` | `ktn_rt_read_file(path)` |
-| `argv()` | `ktn_rt_argv()` |
-| `exit(status)` | `ktn_rt_exit(status)` |
+| `print(a, b)` | `(pcy_rt_print_<t>(a), pcy_rt_print_space(), pcy_rt_print_<u>(b), pcy_rt_print_newline())` |
+| `eprint(a, b)` | `(pcy_rt_eprint_<t>(a), pcy_rt_eprint_space(), pcy_rt_eprint_<u>(b), pcy_rt_eprint_newline())` |
+| `length(x)` | `pcy_rt_array_length`, `pcy_rt_map_length`, or `pcy_rt_string_length`, chosen by the argument's type |
+| `has(map, key)` | `pcy_rt_map_has(map, key)` |
+| `substring(s, start, end)` | `pcy_rt_substring(s, start, end)` |
+| `read_file(path)` | `pcy_rt_read_file(path)` |
+| `argv()` | `pcy_rt_argv()` |
+| `exit(status)` | `pcy_rt_exit(status)` |
 
 Arguments are rendered left to right, and the first failure among them stops the
 call: a call is never emitted with a hole where an argument failed. `print` chooses
@@ -410,7 +410,7 @@ An expression is a fragment, not a line, so it is returned as a string rather th
 written through the output accumulator. Rendering a node concatenates its
 children's text, which is the shape the reference uses; for a chain of depth *d*
 that copies about *d* squared characters in total. The corpus measures the cost
-(`TestKittenExpressionsScaling`) rather than hiding it: the quadratic term is a
+(`TestPercyExpressionsScaling`) rather than hiding it: the quadratic term is a
 property of the representation the reference chose, so matching the reference
 byte for byte means inheriting it. A fragment-based representation could remove it
 in a later phase, and would need the emitter to return something richer than a
@@ -420,7 +420,7 @@ string.
 
 ```sh
 # From the repository root.
-purr build selfhost/expressions.ktn -o /tmp/expressions-probe
+purr build selfhost/expressions.pcy -o /tmp/expressions-probe
 mkdir -p /tmp/example && cd /tmp/example
 printf 'fn main() {\n    int a = 1;\n    print(a + 2);\n}\n' > input.txt
 printf '' > input2.txt
@@ -453,7 +453,7 @@ than the derived bound, which is how a pool known to be too small is supplied.
 
 ## String literal pool
 
-`selfhost/codegen/literals.ktn` holds the string literals a translation unit uses.
+`selfhost/codegen/literals.pcy` holds the string literals a translation unit uses.
 It reproduces the reference's pool:
 
 - **Collection order.** A literal is interned where it is rendered, so the entries
@@ -462,13 +462,13 @@ It reproduces the reference's pool:
   reference renders those values in field declaration order, not source order, and
   so does the emitter's walk. A literal written last in such a literal can
   therefore be pooled first, which
-  `TestKittenLiteralsOrderFollowsFieldDeclaration` checks directly.
+  `TestPercyLiteralsOrderFollowsFieldDeclaration` checks directly.
 - **Deduplication.** The key is the literal's C spelling, exactly as in the
   reference, so two literals that share a spelling share one object whatever
   expression they appear in.
-- **Ownership.** The pool names the objects `ktn_literal_<n>`, one-based, using the
-  `literal_name` helper from `names.ktn`, and expression emission refers to one as
-  `(&ktn_literal_<n>)`. Nothing else may name a pooled object.
+- **Ownership.** The pool names the objects `pcy_literal_<n>`, one-based, using the
+  `literal_name` helper from `names.pcy`, and expression emission refers to one as
+  `(&pcy_literal_<n>)`. Nothing else may name a pooled object.
 - **Placement.** `literal_pool_text` returns the declarations, each line exactly
   the reference's, with one blank line after them, and the empty string for a
   program with no literals. In a generated file they belong after the constructors
@@ -504,7 +504,7 @@ written.
 
 ## Statement and function emitter
 
-`selfhost/codegen/statements.ktn` renders the body of every function, and
+`selfhost/codegen/statements.pcy` renders the body of every function, and
 `emit_function_bodies` returns the whole body section: one definition per function
 declaration, in module and source order, each followed by a blank line, exactly as
 the reference emits them.
@@ -536,13 +536,13 @@ also adds a layer around a condition that is an assignment, because C's
 parentheses.
 
 **Match.** The scrutinee is evaluated once into a temporary named
-`ktn_match_<n>`, numbered across the whole unit in emission order, which is what
+`pcy_match_<n>`, numbered across the whole unit in emission order, which is what
 makes the names unique and deterministic. A union scrutinee is checked for null
 before its tag is read, so matching a null reference is a deterministic runtime
 error rather than undefined behavior. Each arm becomes `case <tag>: { ... }`, binds
 the variant's fields to locals of the field types, emits `(void)<binding>;` so that
 an unused binding does not warn, then the arm's statements, then `break;`. The
-`default:` arm fails through `ktn_rt_fail`, which the checker's exhaustiveness rule
+`default:` arm fails through `pcy_rt_fail`, which the checker's exhaustiveness rule
 makes unreachable.
 
 ### API
@@ -581,8 +581,8 @@ report an overflow instead of the body the reference produces.
 
 ```sh
 # From the repository root.
-purr build selfhost/functions.ktn -o /tmp/functions-probe
-purr build selfhost/unit.ktn -o /tmp/unit-probe
+purr build selfhost/functions.pcy -o /tmp/functions-probe
+purr build selfhost/unit.pcy -o /tmp/unit-probe
 mkdir -p /tmp/example && cd /tmp/example
 printf 'fn count(int limit) -> int {\n    int index = 0;\n    while (index < limit) {\n        index++;\n    }\n    return index;\n}\nfn main() {\n}\n' > input.txt
 printf '' > input2.txt
@@ -594,9 +594,9 @@ definitions, in the order a generated file has them.
 
 ## Translation unit
 
-`selfhost/codegen/unit.ktn` renders a complete C translation unit:
+`selfhost/codegen/unit.pcy` renders a complete C translation unit:
 
-```kitten
+```percy
 emit_translation_unit(model) -> TranslationUnitResult
 ```
 
@@ -612,9 +612,9 @@ The sections, in the reference's order, with the reference's blank lines:
    all for a program with no literals;
 3. one definition per function, each followed by a blank line, from the statement
    emitter;
-4. `int main(int argc, char **argv)`, which calls `ktn_rt_init()`, saves the
-   argument vector with `ktn_rt_set_args(argc, argv)`, and then calls the root module's
-   `ktn_fn_main()`, and returns 0.
+4. `int main(int argc, char **argv)`, which calls `pcy_rt_init()`, saves the
+   argument vector with `pcy_rt_set_args(argc, argv)`, and then calls the root module's
+   `pcy_fn_main()`, and returns 0.
 
 The parts are concatenated once each, so the assembly itself copies the unit a
 constant number of times.
@@ -652,7 +652,7 @@ statement emitter's counted line bound is what makes one pass enough.
 
 ```sh
 # From the repository root.
-purr build selfhost/unit.ktn -o /tmp/unit-probe
+purr build selfhost/unit.pcy -o /tmp/unit-probe
 mkdir -p /tmp/example && cd /tmp/example
 printf 'fn main() {\n}\n' > input.txt
 printf '' > input2.txt
@@ -664,11 +664,11 @@ covers every section. A rejected program prints a single `error ...` line instea
 
 ## Output accumulation
 
-Kitten strings are immutable: `+` allocates a copy of both operands. Accumulating
+Percy strings are immutable: `+` allocates a copy of both operands. Accumulating
 a translation unit with `buffer += text` therefore costs the size of the output
-per append, which is quadratic overall. Kitten has no string builder, no
+per append, which is quadratic overall. Percy has no string builder, no
 resizable array, and no runtime append that grows in place —
-`ktn_rt_string_append` is itself a concatenation.
+`pcy_rt_string_append` is itself a concatenation.
 
 Text is therefore accumulated as a bounded array of chunks, exactly as the parser
 accumulates AST lists. `output_write` appends to a pending line and moves each
@@ -699,7 +699,7 @@ Measured on a 2.5 GHz x86-64 host, accumulating *n* lines and finalizing them:
 
 Balanced joining grows linearly — four times the input costs about four times as
 much — while left-to-right joining grows quadratically. The measurement is
-reproduced by `TestKittenCodegenAccumulationScaling`, which also fails if
+reproduced by `TestPercyCodegenAccumulationScaling`, which also fails if
 sixteen times the input costs more than forty times as much.
 
 ## Differential testing
@@ -714,7 +714,7 @@ reference's logic:
 - **Escaping and byte length.** For every literal in the curated set and the
   corpus, the harness generates C with the reference generator for a program
   whose only string literal it is, extracts the pooled declaration
-  `static const ktn_string ktn_literal_1 = { LENGTH, "ESCAPED" };`, and requires
+  `static const pcy_string pcy_literal_1 = { LENGTH, "ESCAPED" };`, and requires
   the probe's escaped text and length to equal it. Both fields are read out of
   the reference's own output, and the single-literal program makes the
   association between literal and pooled entry unambiguous.
@@ -723,7 +723,7 @@ reference's logic:
   The direction is one-way: the harness checks that the reference uses the name
   the probe predicted, not that the reference uses no other name.
 - **C types.** Each complex spelling must appear in the reference C in a
-  declaration of a local of that type, for example `ktn_array * ktn_var_values`.
+  declaration of a local of that type, for example `pcy_array * pcy_var_values`.
 
 The escaping corpus is every distinct string literal, valid as UTF-8, in the
 checker corpus: invalid-UTF-8 input is skipped, because the reference lexer scans
@@ -731,7 +731,7 @@ runes and would replace an invalid byte before the literal is spelled out. That 
 the lexer's documented byte-oriented difference, and it is covered by the lexer
 harness rather than here.
 
-Running `go test -count=1 -v -run TestKittenCodegen ./cmd/purr/` reports:
+Running `go test -count=1 -v -run TestPercyCodegen ./cmd/purr/` reports:
 
 - 29 mangled names anchored to the reference generator's C.
 - 15 C type spellings anchored to the reference generator's C.
@@ -745,12 +745,12 @@ Running `go test -count=1 -v -run TestKittenCodegen ./cmd/purr/` reports:
 itself. The reference emits the whole translation unit, so the harness separates
 the section structurally rather than by offset: the section ends at whichever
 comes first of a pooled literal declaration, which is the only line beginning
-`static const ktn_string ktn_literal_`, and a function definition, which is a
+`static const pcy_string pcy_literal_`, and a function definition, which is a
 prototype with ` {` in place of `;`. Neither boundary depends on a string literal
 being present, and neither can be confused with a constructor, which is named
-`ktn_new_`.
+`pcy_new_`.
 
-Running `go test -count=1 -v -run TestKittenDeclarations ./cmd/purr/` reports:
+Running `go test -count=1 -v -run TestPercyDeclarations ./cmd/purr/` reports:
 
 - 16 targeted programs whose sections match byte for byte, covering primitives,
   strings, arrays, maps, structs, structs referring to later structs, enums,
@@ -780,7 +780,7 @@ extractable position: a print argument is the balanced parenthesized text after 
 print helper's opening parenthesis, in emission order. Every kind is implemented,
 so the emitter's failure message has no remaining kind to describe.
 
-Running `go test -count=1 -v -run TestKittenExpressions ./cmd/purr/` reports:
+Running `go test -count=1 -v -run TestPercyExpressions ./cmd/purr/` reports:
 
 - 248 of 1537 expected lines of the 39 targeted programs compared byte for byte,
   covering every literal kind, both booleans, every unary and binary operator,
@@ -810,7 +810,7 @@ reconstruction. Each case also compares the expression lines that produced the
 pool, so a pooled symbol cannot be right while the expression referring to it is
 wrong.
 
-Running `go test -count=1 -v -run TestKittenLiterals ./cmd/purr/` reports:
+Running `go test -count=1 -v -run TestPercyLiterals ./cmd/purr/` reports:
 
 - 15 programs whose pools match byte for byte, over **36 pooled entries**: one
   literal, empty strings, multiple distinct strings, a literal repeated across
@@ -837,7 +837,7 @@ and the first definition, and the definitions from there to the entry point - an
 compares each byte for byte. A body that cannot be rendered fails the comparison
 rather than being counted as a match.
 
-Running `go test -count=1 -v -run TestKittenFunctions ./cmd/purr/` reports:
+Running `go test -count=1 -v -run TestPercyFunctions ./cmd/purr/` reports:
 
 - 27 targeted programs over **69 functions and 720 lines** compared byte for byte:
   empty bodies, locals with and without initializers, expression statements,
@@ -867,7 +867,7 @@ bodies, and the entry point at once, and no expected output is hand-maintained. 
 program the reference rejects is compared through its error instead, rendered in the
 driver's shape including the file, which only the entry point rule sets.
 
-Running `go test -count=1 -v -run TestKittenUnit ./cmd/purr/` reports:
+Running `go test -count=1 -v -run TestPercyUnit ./cmd/purr/` reports:
 
 - **66 whole units identical over 4265 lines** in the targeted corpus: a minimal
   `main`; an `eprint` unit; an `exit` unit; a `main` that runs a loop, a string
@@ -904,7 +904,7 @@ Running `go test -count=1 -v -run TestKittenUnit ./cmd/purr/` reports:
 whose expressions are calls, and, because a program can now print, compiles, links,
 and runs both generated programs and compares what they write.
 
-Running `go test -count=1 -v -run TestKittenCalls ./cmd/purr/` reports:
+Running `go test -count=1 -v -run TestPercyCalls ./cmd/purr/` reports:
 
 - **29 whole units identical over 1221 lines**: `print` and `eprint` with every
   primitive type and with several at once; `exit` with an int expression; user
@@ -933,12 +933,12 @@ Running `go test -count=1 -v -run TestKittenCalls ./cmd/purr/` reports:
   between, and nested calls of depth 25, 50, and 100 costing 3, 4, and 6 ms.
 
 `cmd/purr/fixtures_differential_test.go` puts the fixtures under `tests/` through
-the Kitten backend end to end. Each fixture is handed to the unit driver: a fixture
+the Percy backend end to end. Each fixture is handed to the unit driver: a fixture
 the backend generates must match the reference's unit byte for byte and, compiled
 against the real runtime and run under the environment's C compiler, print exactly
 its `.expected` file.
 
-Running `go test -count=1 -v -run TestKittenFixtures ./cmd/purr/` reports:
+Running `go test -count=1 -v -run TestPercyFixtures ./cmd/purr/` reports:
 
 - **All 9 fixtures** generated, compiled, run, and matching their expected output:
   `hello`, `fizzbuzz`, `math`, `room`, `strings`, `arrays`, `variants`, `maps`, and
@@ -948,21 +948,21 @@ Running `go test -count=1 -v -run TestKittenFixtures ./cmd/purr/` reports:
 
 ## What is deliberately not here
 
-- **Production integration of the loader.** The Kitten-written loader lives under
+- **Production integration of the loader.** The Percy-written loader lives under
   `selfhost/loader` and discovers imports for an absolute root path, including
   missing/unreadable-file diagnostics, but `purr build` still uses the Go loader.
 - **Writing the unit anywhere but standard output.** The unit driver prints the C;
   the self-hosted runtime offers no file writing, no command-line arguments, and no
   program-selected exit status.
 
-Kitten is not self-hosting, and these phases do not make it so: the backend emits
+Percy is not self-hosting, and these phases do not make it so: the backend emits
 complete translation units for every expression kind the language has and the
-Kitten-written loader discovers imports for an absolute root path and reports read
+Percy-written loader discovers imports for an absolute root path and reports read
 errors, but a full compiler still needs a driver that writes and builds, and a
-bootstrap in which the Kitten-written compiler compiles its own source. Until
+bootstrap in which the Percy-written compiler compiles its own source. Until
 then the Go compiler remains the bootstrap reference and the only pipeline
 `purr build` and `purr run` use: the lexer, the
 parser, the checker, and the generator's helper, declaration, expression,
-literal-pool, statement, and unit layers are Kitten, and the loader core is Kitten
+literal-pool, statement, and unit layers are Percy, and the loader core is Percy
 too, while the production loader integration, the pipeline that writes and
 compiles the output, and the production compiler itself are Go.

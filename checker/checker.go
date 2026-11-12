@@ -3,7 +3,7 @@ package checker
 import (
 	"fmt"
 
-	"kitten/parser"
+	"percy/parser"
 )
 
 // ErrorKind categorizes a semantic error so that callers can distinguish the
@@ -52,6 +52,9 @@ const (
 	// PrivateAccess covers referencing a declaration that another module
 	// declares, but does not make public.
 	PrivateAccess
+
+	// InvalidLoopControl covers break and continue outside a loop.
+	InvalidLoopControl
 )
 
 // String returns a stable label for the kind, useful in tests and diagnostics.
@@ -77,6 +80,8 @@ func (k ErrorKind) String() string {
 		return "invalid expression"
 	case PrivateAccess:
 		return "private access"
+	case InvalidLoopControl:
+		return "invalid loop control"
 	default:
 		return "error"
 	}
@@ -185,6 +190,10 @@ type checker struct {
 
 	// returnType is the return type of the function currently being checked.
 	returnType *Type
+
+	// loopDepth is the number of enclosing while/for bodies, so break and
+	// continue can reject uses outside a loop.
+	loopDepth int
 }
 
 // Check performs semantic analysis and type checking on a single parsed program.
@@ -396,6 +405,11 @@ func (c *checker) builtinFunctions() map[string]*Function {
 			ParameterTypes: []*Type{c.arrayType(ByteType)},
 			ReturnType:     StringType,
 			Builtin:        BuiltinBytesToString,
+		},
+		"push": {
+			Name:       "push",
+			ReturnType: IntType,
+			Builtin:    BuiltinPush,
 		},
 	}
 }

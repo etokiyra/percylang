@@ -1,6 +1,0 @@
-enum Hue {
-    Red,
-    Blue
-}
-fn main() {
-}

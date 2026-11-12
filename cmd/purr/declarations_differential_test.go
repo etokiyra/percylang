@@ -1,7 +1,7 @@
 package main
 
-// Differential testing for the Kitten-written declaration emitter
-// (selfhost/codegen/declarations.ktn, driven by selfhost/declarations.ktn).
+// Differential testing for the Percy-written declaration emitter
+// (selfhost/codegen/declarations.pcy, driven by selfhost/declarations.pcy).
 //
 // The harness builds the declaration probe once, feeds it a pair of modules, and
 // compares its standard output with the declaration section of the C the
@@ -14,7 +14,7 @@ package main
 // one per function, and a definition is the same signature followed by " {" in
 // place of ";". The section therefore ends at the earliest line that is a
 // prototype with its semicolon replaced by " {". Constructors cannot be mistaken
-// for it, because they are named ktn_new_ and no prototype precedes them with the
+// for it, because they are named pcy_new_ and no prototype precedes them with the
 // same signature, and a call inside a body is indented, so it is not a prototype
 // line. The extraction never looks at the literal pool or the entry point, so it
 // does not depend on whether a program uses a string literal.
@@ -26,7 +26,7 @@ package main
 // by a test of their own. Function bodies, expressions, statements, the literal
 // pool, and the C entry point are later phases.
 //
-// The reference is the Go generator in kitten/codegen, which remains the
+// The reference is the Go generator in percy/codegen, which remains the
 // production backend.
 
 import (
@@ -39,29 +39,29 @@ import (
 	"strings"
 	"testing"
 
-	"kitten/checker"
-	"kitten/codegen"
-	"kitten/lexer"
-	"kitten/parser"
-	"kitten/runtime"
+	"percy/checker"
+	"percy/codegen"
+	"percy/lexer"
+	"percy/parser"
+	"percy/runtime"
 )
 
-// kittenDeclarationsProgram is the driver program that prints the declaration
+// percyDeclarationsProgram is the driver program that prints the declaration
 // section.
-func kittenDeclarationsProgram() string {
-	return filepath.Join("..", "..", "selfhost", "declarations.ktn")
+func percyDeclarationsProgram() string {
+	return filepath.Join("..", "..", "selfhost", "declarations.pcy")
 }
 
-// buildKittenDeclarations builds the declaration probe. It fails if the build
+// buildPercyDeclarations builds the declaration probe. It fails if the build
 // produces any C diagnostic, so the probe must compile warning-free.
-func buildKittenDeclarations(t *testing.T) string {
+func buildPercyDeclarations(t *testing.T) string {
 	t.Helper()
 
 	requireToolchain(t)
 
-	executable := filepath.Join(t.TempDir(), "kitten-declarations")
+	executable := filepath.Join(t.TempDir(), "percy-declarations")
 	var diagnostics bytes.Buffer
-	if err := buildExecutable(kittenDeclarationsProgram(), executable, &diagnostics); err != nil {
+	if err := buildExecutable(percyDeclarationsProgram(), executable, &diagnostics); err != nil {
 		t.Fatalf("building the declaration probe: %v\n%s", err, diagnostics.String())
 	}
 	if warnings := strings.TrimSpace(diagnostics.String()); warnings != "" {
@@ -70,11 +70,11 @@ func buildKittenDeclarations(t *testing.T) string {
 	return executable
 }
 
-// runKittenDeclarations writes the modules and runs the declaration probe. A
+// runPercyDeclarations writes the modules and runs the declaration probe. A
 // non-zero capacity is passed as the probe's "#capacity" directive, which is how
 // the capacity tests ask for a specific chunk count; zero asks for the derived
 // one.
-func runKittenDeclarations(t *testing.T, executable, directory, root, imported string, capacity int) (string, error) {
+func runPercyDeclarations(t *testing.T, executable, directory, root, imported string, capacity int) (string, error) {
 	t.Helper()
 
 	source := root
@@ -182,11 +182,11 @@ func generateErrorLine(err error) (string, bool) {
 // at whichever comes first:
 //
 //   - a pooled literal declaration, which is the only line that begins with
-//     "static const ktn_string ktn_literal_";
+//     "static const pcy_string pcy_literal_";
 //   - a function definition, which is a prototype with " {" in place of ";".
 //
 // Both are recognized structurally. Constructors cannot be mistaken for a
-// definition, because they are named ktn_new_ and no prototype shares a
+// definition, because they are named pcy_new_ and no prototype shares a
 // constructor's signature, and a call inside a body is indented, so it is not a
 // prototype line.
 func referenceDeclarationSection(t *testing.T, generated string) string {
@@ -235,7 +235,7 @@ func referenceSectionBoundaries(t *testing.T, generated string) (int, int) {
 		if line == "" || line[0] == ' ' || line[0] == '\t' {
 			continue
 		}
-		if !strings.HasSuffix(line, ";") || !strings.Contains(line, " ktn_fn_") {
+		if !strings.HasSuffix(line, ";") || !strings.Contains(line, " pcy_fn_") {
 			continue
 		}
 		signatures = append(signatures, strings.TrimSuffix(line, ";"))
@@ -618,17 +618,17 @@ func longListsProgram(count int) string {
 	return builder.String()
 }
 
-// TestKittenDeclarationsMatchReference compares the probe's declaration section
+// TestPercyDeclarationsMatchReference compares the probe's declaration section
 // with the reference generator's for each targeted program.
-func TestKittenDeclarationsMatchReference(t *testing.T) {
+func TestPercyDeclarationsMatchReference(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenDeclarations(t)
+	executable := buildPercyDeclarations(t)
 	directory := t.TempDir()
 
 	compared := 0
 	for _, testCase := range declarationsCases() {
-		got, err := runKittenDeclarations(t, executable, directory, testCase.root, testCase.imported, 0)
+		got, err := runPercyDeclarations(t, executable, directory, testCase.root, testCase.imported, 0)
 		if err != nil {
 			t.Errorf("%s: %v", testCase.description, err)
 			continue
@@ -643,10 +643,10 @@ func TestKittenDeclarationsMatchReference(t *testing.T) {
 			t.Errorf("%s: declaration section differs\n--- probe ---\n%s--- reference ---\n%s", testCase.description, got, want)
 			continue
 		}
-		if !strings.HasPrefix(got, "/* Generated by the Kitten compiler. Do not edit. */\n") {
+		if !strings.HasPrefix(got, "/* Generated by the Percy compiler. Do not edit. */\n") {
 			t.Errorf("%s: the section does not begin with the generated-file comment", testCase.description)
 		}
-		if !strings.Contains(got, "#include \"kitten_runtime.h\"\n") {
+		if !strings.Contains(got, "#include \"percy_runtime.h\"\n") {
 			t.Errorf("%s: the section does not include the runtime header", testCase.description)
 		}
 		compared++
@@ -658,31 +658,31 @@ func TestKittenDeclarationsMatchReference(t *testing.T) {
 	t.Logf("declaration sections: %d targeted programs match the reference byte for byte", compared)
 }
 
-// TestKittenDeclarationsSectionsArePresent checks that the targeted programs
+// TestPercyDeclarationsSectionsArePresent checks that the targeted programs
 // actually exercise every declaration section, so a section that silently emits
 // nothing cannot pass the comparison.
-func TestKittenDeclarationsSectionsArePresent(t *testing.T) {
+func TestPercyDeclarationsSectionsArePresent(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenDeclarations(t)
+	executable := buildPercyDeclarations(t)
 	directory := t.TempDir()
 
 	var sections = []struct {
 		description string
 		marker      string
 	}{
-		{"forward typedefs", "typedef struct ktn_s_Point ktn_s_Point;"},
-		{"struct definitions", "struct ktn_s_Point {"},
-		{"struct constructors", "ktn_s_Point *ktn_new_Point("},
-		{"enum declarations", "typedef int64_t ktn_e_Color;"},
-		{"enum cases", "ktn_ec_Color_Red = 0,"},
-		{"union tag constants", "ktn_uc_Value_Number = 0,"},
-		{"union definitions", "struct ktn_s_Value {"},
-		{"union tag member", "int64_t ktn_tag;"},
-		{"variant payload members", "int64_t ktn_v_Number_n;"},
-		{"variant constructors", "ktn_s_Value *ktn_new_Value_Number("},
-		{"function prototypes", "void ktn_fn_main(void);"},
-		{"allocation call", "ktn_rt_alloc(sizeof(ktn_s_Point))"},
+		{"forward typedefs", "typedef struct pcy_s_Point pcy_s_Point;"},
+		{"struct definitions", "struct pcy_s_Point {"},
+		{"struct constructors", "pcy_s_Point *pcy_new_Point("},
+		{"enum declarations", "typedef int64_t pcy_e_Color;"},
+		{"enum cases", "pcy_ec_Color_Red = 0,"},
+		{"union tag constants", "pcy_uc_Value_Number = 0,"},
+		{"union definitions", "struct pcy_s_Value {"},
+		{"union tag member", "int64_t pcy_tag;"},
+		{"variant payload members", "int64_t pcy_v_Number_n;"},
+		{"variant constructors", "pcy_s_Value *pcy_new_Value_Number("},
+		{"function prototypes", "void pcy_fn_main(void);"},
+		{"allocation call", "pcy_rt_alloc(sizeof(pcy_s_Point))"},
 	}
 	root := `struct Point {
     int x;
@@ -697,7 +697,7 @@ fn main() {
     print(p.x);
 }
 `
-	got, err := runKittenDeclarations(t, executable, directory, root, "", 0)
+	got, err := runPercyDeclarations(t, executable, directory, root, "", 0)
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -708,20 +708,20 @@ fn main() {
 	}
 }
 
-// TestKittenDeclarationsEmptySecondModuleIsInert checks that an empty imported
+// TestPercyDeclarationsEmptySecondModuleIsInert checks that an empty imported
 // module changes nothing, which is what lets the probe always read two modules
 // while a targeted case supplies one.
-func TestKittenDeclarationsEmptySecondModuleIsInert(t *testing.T) {
+func TestPercyDeclarationsEmptySecondModuleIsInert(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenDeclarations(t)
+	executable := buildPercyDeclarations(t)
 	directory := t.TempDir()
 
 	for _, testCase := range declarationsCases() {
 		if testCase.imported != "" {
 			continue
 		}
-		withEmpty, err := runKittenDeclarations(t, executable, directory, testCase.root, "", 0)
+		withEmpty, err := runPercyDeclarations(t, executable, directory, testCase.root, "", 0)
 		if err != nil {
 			t.Errorf("%s: %v", testCase.description, err)
 			continue
@@ -735,17 +735,17 @@ func TestKittenDeclarationsEmptySecondModuleIsInert(t *testing.T) {
 
 // --- Corpus ------------------------------------------------------------------
 
-// TestKittenDeclarationsCorpus compares the probe with the reference over the
+// TestPercyDeclarationsCorpus compares the probe with the reference over the
 // checker corpus, which includes every fixture, every self-hosted source, and the
 // targeted checker cases. A program the checker rejects must be reported by the
 // probe with the same error, and so must a program the reference generator
 // rejects for a reason the declaration sections can reach. A program the
 // reference rejects for its entry point rule is skipped, because that rule is not
 // part of this phase.
-func TestKittenDeclarationsCorpus(t *testing.T) {
+func TestPercyDeclarationsCorpus(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenDeclarations(t)
+	executable := buildPercyDeclarations(t)
 	directory := t.TempDir()
 
 	cases := checkerCorpus(t)
@@ -770,7 +770,7 @@ func TestKittenDeclarationsCorpus(t *testing.T) {
 				t.Errorf("%s: the reference checker returned %T", testCase.name, checkError)
 				continue
 			}
-			got, err := runKittenDeclarations(t, executable, directory, testCase.root, testCase.imported, 0)
+			got, err := runPercyDeclarations(t, executable, directory, testCase.root, testCase.imported, 0)
 			if err != nil {
 				t.Errorf("%s: %v", testCase.name, err)
 				continue
@@ -795,7 +795,7 @@ func TestKittenDeclarationsCorpus(t *testing.T) {
 				t.Errorf("%s: the reference generator returned %T", testCase.name, generationError)
 				continue
 			}
-			got, err := runKittenDeclarations(t, executable, directory, testCase.root, testCase.imported, 0)
+			got, err := runPercyDeclarations(t, executable, directory, testCase.root, testCase.imported, 0)
 			if err != nil {
 				t.Errorf("%s: %v", testCase.name, err)
 				continue
@@ -809,7 +809,7 @@ func TestKittenDeclarationsCorpus(t *testing.T) {
 		}
 
 		want := referenceDeclarationSection(t, generated)
-		got, err := runKittenDeclarations(t, executable, directory, testCase.root, testCase.imported, 0)
+		got, err := runPercyDeclarations(t, executable, directory, testCase.root, testCase.imported, 0)
 		if err != nil {
 			t.Errorf("%s: %v", testCase.name, err)
 			continue
@@ -850,7 +850,7 @@ func countFunctionDeclarations(modules []*parser.Module) int {
 	return total
 }
 
-// TestKittenDeclarationsCorpusWithoutEntryPoint verifies the declaration section
+// TestPercyDeclarationsCorpusWithoutEntryPoint verifies the declaration section
 // of the valid corpus programs whose root module has no entry point.
 //
 // The reference validates the entry point before it emits anything, so it refuses
@@ -868,10 +868,10 @@ func countFunctionDeclarations(modules []*parser.Module) int {
 // must equal what the probe emitted for the unmodified program. A program whose
 // modified form does not check or generate is left out, which is how a collision
 // with a declaration named main is handled.
-func TestKittenDeclarationsCorpusWithoutEntryPoint(t *testing.T) {
+func TestPercyDeclarationsCorpusWithoutEntryPoint(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenDeclarations(t)
+	executable := buildPercyDeclarations(t)
 	directory := t.TempDir()
 
 	verified := 0
@@ -901,7 +901,7 @@ func TestKittenDeclarationsCorpusWithoutEntryPoint(t *testing.T) {
 			continue
 		}
 
-		got, err := runKittenDeclarations(t, executable, directory, testCase.root, testCase.imported, 0)
+		got, err := runPercyDeclarations(t, executable, directory, testCase.root, testCase.imported, 0)
 		if err != nil {
 			t.Errorf("%s: %v", testCase.name, err)
 			continue
@@ -915,7 +915,7 @@ func TestKittenDeclarationsCorpusWithoutEntryPoint(t *testing.T) {
 
 		// Removing the prepended prototype must leave no trace of the prototype
 		// block when the original program had no functions either.
-		prototype := "void ktn_fn_main(void);\n"
+		prototype := "void pcy_fn_main(void);\n"
 		if countFunctionDeclarations(modules) == 0 {
 			prototype += "\n"
 		}
@@ -939,18 +939,18 @@ func TestKittenDeclarationsCorpusWithoutEntryPoint(t *testing.T) {
 
 // --- Capacity ----------------------------------------------------------------
 
-// TestKittenDeclarationsCapacity checks the derived capacity is exact: emitting
+// TestPercyDeclarationsCapacity checks the derived capacity is exact: emitting
 // with it succeeds and produces the section, emitting with one line fewer fails
 // rather than producing a short section, and no smaller capacity succeeds either,
 // which is what "exact" means for a chunk count.
-func TestKittenDeclarationsCapacity(t *testing.T) {
+func TestPercyDeclarationsCapacity(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenDeclarations(t)
+	executable := buildPercyDeclarations(t)
 	directory := t.TempDir()
 
 	for _, testCase := range declarationsCases() {
-		derived, err := runKittenDeclarations(t, executable, directory, testCase.root, testCase.imported, 0)
+		derived, err := runPercyDeclarations(t, executable, directory, testCase.root, testCase.imported, 0)
 		if err != nil {
 			t.Errorf("%s: %v", testCase.description, err)
 			continue
@@ -963,7 +963,7 @@ func TestKittenDeclarationsCapacity(t *testing.T) {
 
 		// succeeds reports whether a capacity produces exactly the section.
 		succeeds := func(capacity int) bool {
-			got, err := runKittenDeclarations(t, executable, directory, testCase.root, testCase.imported, capacity)
+			got, err := runPercyDeclarations(t, executable, directory, testCase.root, testCase.imported, capacity)
 			if err != nil {
 				t.Errorf("%s: capacity %d: %v", testCase.description, capacity, err)
 				return false
@@ -975,7 +975,7 @@ func TestKittenDeclarationsCapacity(t *testing.T) {
 		if !succeeds(lines) {
 			t.Errorf("%s: emitting with the exact capacity did not reproduce the section", testCase.description)
 		}
-		roomy, err := runKittenDeclarations(t, executable, directory, testCase.root, testCase.imported, lines+64)
+		roomy, err := runPercyDeclarations(t, executable, directory, testCase.root, testCase.imported, lines+64)
 		if err != nil {
 			t.Errorf("%s: %v", testCase.description, err)
 			continue
@@ -985,7 +985,7 @@ func TestKittenDeclarationsCapacity(t *testing.T) {
 		}
 
 		// One line fewer must be rejected, and must not yield a short section.
-		short, err := runKittenDeclarations(t, executable, directory, testCase.root, testCase.imported, lines-1)
+		short, err := runPercyDeclarations(t, executable, directory, testCase.root, testCase.imported, lines-1)
 		if err != nil {
 			t.Errorf("%s: %v", testCase.description, err)
 			continue
@@ -1001,7 +1001,7 @@ func TestKittenDeclarationsCapacity(t *testing.T) {
 		if !strings.Contains(short, "capacity") {
 			t.Errorf("%s: the failure does not name the capacity: %q", testCase.description, short)
 		}
-		if strings.Contains(short, "typedef") || strings.Contains(short, "ktn_fn_") {
+		if strings.Contains(short, "typedef") || strings.Contains(short, "pcy_fn_") {
 			t.Errorf("%s: the failure printed part of a section:\n%s", testCase.description, short)
 		}
 
@@ -1029,13 +1029,13 @@ func TestKittenDeclarationsCapacity(t *testing.T) {
 
 // --- Failures and the entry point boundary -----------------------------------
 
-// TestKittenDeclarationsRejectsInvalidPrograms checks that a program the checker
+// TestPercyDeclarationsRejectsInvalidPrograms checks that a program the checker
 // rejects is never reported as a section, and that the error is the checker's
 // own.
-func TestKittenDeclarationsRejectsInvalidPrograms(t *testing.T) {
+func TestPercyDeclarationsRejectsInvalidPrograms(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenDeclarations(t)
+	executable := buildPercyDeclarations(t)
 	directory := t.TempDir()
 
 	cases := []struct {
@@ -1057,7 +1057,7 @@ func TestKittenDeclarationsRejectsInvalidPrograms(t *testing.T) {
 	}
 
 	for _, testCase := range cases {
-		got, err := runKittenDeclarations(t, executable, directory, testCase.root, testCase.imported, 0)
+		got, err := runPercyDeclarations(t, executable, directory, testCase.root, testCase.imported, 0)
 		if err != nil {
 			t.Errorf("%s: %v", testCase.description, err)
 			continue
@@ -1066,44 +1066,44 @@ func TestKittenDeclarationsRejectsInvalidPrograms(t *testing.T) {
 			t.Errorf("%s: expected a %q report, got:\n%s", testCase.description, testCase.wantPrefix, got)
 			continue
 		}
-		if strings.Contains(got, "ktn_") {
+		if strings.Contains(got, "pcy_") {
 			t.Errorf("%s: a rejected program produced declaration text:\n%s", testCase.description, got)
 		}
 	}
 }
 
-// TestKittenDeclarationsWithoutEntryPoint pins the documented boundary: the
+// TestPercyDeclarationsWithoutEntryPoint pins the documented boundary: the
 // declaration emitter does not validate the entry point, so it emits a section
 // for a program the reference generator rejects for that reason. The expected
 // section is written out by hand, so this also pins the exact format.
-func TestKittenDeclarationsWithoutEntryPoint(t *testing.T) {
+func TestPercyDeclarationsWithoutEntryPoint(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenDeclarations(t)
+	executable := buildPercyDeclarations(t)
 	directory := t.TempDir()
 
 	root := "struct S {\n    int a;\n}\nfn helper() -> int {\n    return 1;\n}\n"
-	got, err := runKittenDeclarations(t, executable, directory, root, "", 0)
+	got, err := runPercyDeclarations(t, executable, directory, root, "", 0)
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
 
 	want := expectedProbeOutput([]string{
-		"/* Generated by the Kitten compiler. Do not edit. */",
-		"#include \"kitten_runtime.h\"",
+		"/* Generated by the Percy compiler. Do not edit. */",
+		"#include \"percy_runtime.h\"",
 		"",
-		"typedef struct ktn_s_S ktn_s_S;",
+		"typedef struct pcy_s_S pcy_s_S;",
 		"",
-		"int64_t ktn_fn_helper(void);",
+		"int64_t pcy_fn_helper(void);",
 		"",
-		"struct ktn_s_S {",
-		"    int64_t ktn_f_a;",
+		"struct pcy_s_S {",
+		"    int64_t pcy_f_a;",
 		"};",
 		"",
-		"ktn_s_S *ktn_new_S(int64_t ktn_arg_a) {",
-		"    ktn_s_S *ktn_object = (ktn_s_S *)ktn_rt_alloc(sizeof(ktn_s_S));",
-		"    ktn_object->ktn_f_a = ktn_arg_a;",
-		"    return ktn_object;",
+		"pcy_s_S *pcy_new_S(int64_t pcy_arg_a) {",
+		"    pcy_s_S *pcy_object = (pcy_s_S *)pcy_rt_alloc(sizeof(pcy_s_S));",
+		"    pcy_object->pcy_f_a = pcy_arg_a;",
+		"    return pcy_object;",
 		"}",
 		"",
 	})
@@ -1128,7 +1128,7 @@ func TestKittenDeclarationsWithoutEntryPoint(t *testing.T) {
 
 // --- Native compilation ------------------------------------------------------
 
-// TestKittenDeclarationsCompile checks that representative declaration sections
+// TestPercyDeclarationsCompile checks that representative declaration sections
 // are valid C: each is compiled on its own against the runtime header with the
 // project's warning flags, under both discovered compilers when the environment
 // selects them.
@@ -1137,14 +1137,14 @@ func TestKittenDeclarationsWithoutEntryPoint(t *testing.T) {
 // bodies and no entry point - so this compiles it, it does not link it, and it
 // does not claim that a complete generated program builds. That belongs to the
 // phase that emits the rest of the unit.
-func TestKittenDeclarationsCompile(t *testing.T) {
+func TestPercyDeclarationsCompile(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenDeclarations(t)
+	executable := buildPercyDeclarations(t)
 	probeDirectory := t.TempDir()
 
 	for _, testCase := range declarationsCases() {
-		section, err := runKittenDeclarations(t, executable, probeDirectory, testCase.root, testCase.imported, 0)
+		section, err := runPercyDeclarations(t, executable, probeDirectory, testCase.root, testCase.imported, 0)
 		if err != nil {
 			t.Errorf("%s: %v", testCase.description, err)
 			continue

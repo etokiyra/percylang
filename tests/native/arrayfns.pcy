@@ -1,0 +1,16 @@
+fn sum(int[] values) -> int {
+    return values[0] + values[1];
+}
+
+fn make() -> int[] {
+    int[] values = new int[2];
+    values[0] = 7;
+    values[1] = 8;
+    return values;
+}
+
+fn main() {
+    int[] values = make();
+    print(sum(values));
+    print(length(values));
+}

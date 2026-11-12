@@ -1,0 +1,10 @@
+fn main() {
+    match (try_read_file("missing.txt")) {
+        Ok(text) {
+            print("ok", length(text));
+        }
+        Failed(message) {
+            print("fail", message);
+        }
+    }
+}

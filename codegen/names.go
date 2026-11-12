@@ -4,38 +4,38 @@ import (
 	"fmt"
 	"strconv"
 
-	"kitten/checker"
-	"kitten/parser"
+	"percy/checker"
+	"percy/parser"
 )
 
-// Generated C identifiers use reserved prefixes so that arbitrary Kitten
+// Generated C identifiers use reserved prefixes so that arbitrary Percy
 // identifiers can never collide with C keywords, with runtime and entry-point
-// names, or with each other. Kitten identifiers are ASCII letters, digits, and
+// names, or with each other. Percy identifiers are ASCII letters, digits, and
 // underscores, so prefixing always yields a valid C identifier.
 const (
-	functionPrefix     = "ktn_fn_"
-	variablePrefix     = "ktn_var_"
-	structPrefix       = "ktn_s_"
-	fieldPrefix        = "ktn_f_"
-	constructorPrefix  = "ktn_new_"
-	argumentPrefix     = "ktn_arg_"
-	enumPrefix         = "ktn_e_"
-	enumCasePrefix     = "ktn_ec_"
-	unionTagPrefix     = "ktn_uc_"
-	variantFieldPrefix = "ktn_v_"
-	matchPrefix        = "ktn_match_"
-	literalPrefix      = "ktn_literal_"
+	functionPrefix     = "pcy_fn_"
+	variablePrefix     = "pcy_var_"
+	structPrefix       = "pcy_s_"
+	fieldPrefix        = "pcy_f_"
+	constructorPrefix  = "pcy_new_"
+	argumentPrefix     = "pcy_arg_"
+	enumPrefix         = "pcy_e_"
+	enumCasePrefix     = "pcy_ec_"
+	unionTagPrefix     = "pcy_uc_"
+	variantFieldPrefix = "pcy_v_"
+	matchPrefix        = "pcy_match_"
+	literalPrefix      = "pcy_literal_"
 
 	// objectName is the local used inside generated struct constructors.
-	objectName = "ktn_object"
+	objectName = "pcy_object"
 
 	// tagFieldName is the C member holding a union value's active variant tag.
-	tagFieldName = "ktn_tag"
+	tagFieldName = "pcy_tag"
 )
 
 // modulePrefix returns the C name prefix for a module. The root module (ID 0)
 // has no prefix, so single-module programs generate the same names as before.
-// Imported modules use "<id>_"; because a Kitten identifier cannot begin with a
+// Imported modules use "<id>_"; because a Percy identifier cannot begin with a
 // digit, a mangled imported name can never collide with a root-module name, and
 // distinct IDs keep imported modules distinct.
 func modulePrefix(module int) string {
@@ -45,24 +45,24 @@ func modulePrefix(module int) string {
 	return strconv.Itoa(module) + "_"
 }
 
-// functionName maps a Kitten function name in a module to its C identifier.
+// functionName maps a Percy function name in a module to its C identifier.
 func functionName(name string, module int) string {
 	return functionPrefix + modulePrefix(module) + name
 }
 
-// variableName maps a Kitten variable or parameter name to its C identifier.
+// variableName maps a Percy variable or parameter name to its C identifier.
 // Local names are not module-scoped, so they are not mangled.
 func variableName(name string) string { return variablePrefix + name }
 
-// structName maps a Kitten struct name in a module to its C struct type name.
+// structName maps a Percy struct name in a module to its C struct type name.
 func structName(name string, module int) string {
 	return structPrefix + modulePrefix(module) + name
 }
 
-// fieldName maps a Kitten struct field name to its C member name.
+// fieldName maps a Percy struct field name to its C member name.
 func fieldName(name string) string { return fieldPrefix + name }
 
-// constructorName maps a Kitten struct name in a module to the name of the
+// constructorName maps a Percy struct name in a module to the name of the
 // function that allocates and initializes one instance.
 func constructorName(name string, module int) string {
 	return constructorPrefix + modulePrefix(module) + name
@@ -72,7 +72,7 @@ func constructorName(name string, module int) string {
 // generated constructor.
 func argumentName(name string) string { return argumentPrefix + name }
 
-// enumName maps a Kitten enum type to its C typedef name.
+// enumName maps a Percy enum type to its C typedef name.
 func enumName(name string, module int) string {
 	return enumPrefix + modulePrefix(module) + name
 }
@@ -103,57 +103,57 @@ func variantConstructorName(unionType *checker.Type, variantName string) string 
 // preludeTryReadFileHelperName is the generated helper that builds the
 // predeclared ReadFileResult from the runtime's non-fatal read primitive.
 func preludeTryReadFileHelperName(module int) string {
-	return "ktn_prelude_" + strconv.Itoa(module) + "_try_read_file"
+	return "pcy_prelude_" + strconv.Itoa(module) + "_try_read_file"
 }
 
 // preludeHelperName is the generated helper for one used file or directory
 // built-in in the prelude module. The read helper keeps its original name.
 func preludeHelperName(module int, builtin string) string {
-	return "ktn_prelude_" + strconv.Itoa(module) + "_" + builtin
+	return "pcy_prelude_" + strconv.Itoa(module) + "_" + builtin
 }
 
-// cType maps a resolved Kitten type to its C representation:
+// cType maps a resolved Percy type to its C representation:
 //
 //	int    -> int64_t             (signed 64-bit)
 //	float  -> double              (IEEE 754 binary64)
 //	bool   -> bool                (stdbool.h)
-//	string -> const ktn_string *  (immutable, length-carrying byte string)
+//	string -> const pcy_string *  (immutable, length-carrying byte string)
 //	void   -> void                (function return position only)
 //	struct -> struct pointer      (GC-managed reference)
-//	array  -> ktn_array *         (GC-managed dynamic array)
+//	array  -> pcy_array *         (GC-managed dynamic array)
 //
-// A Kitten string is a pointer to the runtime's ktn_string, which stores the
+// A Percy string is a pointer to the runtime's pcy_string, which stores the
 // byte length next to the bytes, so length and indexing are constant-time and
 // the bytes are still NUL-terminated. The pointer is const-qualified because
-// strings are immutable; a static literal is a `static const ktn_string` and a
-// constructed string is a GC-managed ktn_string that the runtime fills before
+// strings are immutable; a static literal is a `static const pcy_string` and a
+// constructed string is a GC-managed pcy_string that the runtime fills before
 // returning it.
-func cType(kittenType *checker.Type) (string, error) {
+func cType(percyType *checker.Type) (string, error) {
 	switch {
-	case kittenType == nil:
+	case percyType == nil:
 		return "", fmt.Errorf("missing type")
-	case kittenType == checker.IntType:
+	case percyType == checker.IntType:
 		return "int64_t", nil
-	case kittenType == checker.FloatType:
+	case percyType == checker.FloatType:
 		return "double", nil
-	case kittenType == checker.BoolType:
+	case percyType == checker.BoolType:
 		return "bool", nil
-	case kittenType == checker.StringType:
-		return "const ktn_string *", nil
-	case kittenType == checker.ByteType:
+	case percyType == checker.StringType:
+		return "const pcy_string *", nil
+	case percyType == checker.ByteType:
 		return "uint8_t", nil
-	case kittenType == checker.VoidType:
+	case percyType == checker.VoidType:
 		return "void", nil
-	case kittenType.Kind == checker.KindArray:
-		return "ktn_array *", nil
-	case kittenType.Kind == checker.KindMap:
-		return "ktn_map *", nil
-	case kittenType.Kind == checker.KindEnum:
-		return enumName(kittenType.Name, kittenType.Module), nil
-	case kittenType.Kind == checker.KindUnion, kittenType.Kind == checker.KindStruct:
-		return structName(kittenType.Name, kittenType.Module) + " *", nil
+	case percyType.Kind == checker.KindArray:
+		return "pcy_array *", nil
+	case percyType.Kind == checker.KindMap:
+		return "pcy_map *", nil
+	case percyType.Kind == checker.KindEnum:
+		return enumName(percyType.Name, percyType.Module), nil
+	case percyType.Kind == checker.KindUnion, percyType.Kind == checker.KindStruct:
+		return structName(percyType.Name, percyType.Module) + " *", nil
 	default:
-		return "", fmt.Errorf("unsupported type %q", kittenType)
+		return "", fmt.Errorf("unsupported type %q", percyType)
 	}
 }
 

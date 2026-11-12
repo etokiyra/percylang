@@ -1,0 +1,30 @@
+fn maxbyte(byte left, byte right) -> byte {
+    if (left < right) {
+        return right;
+    }
+    return left;
+}
+
+fn main() {
+    byte[] octets = new byte[4];
+    octets[0] = byte_from_int(65);
+    octets[1] = byte_from_int(66);
+    octets[2] = byte_from_int(255);
+    octets[3] = byte_from_int(-1);
+    print(octets[0]);
+    print(octets[1]);
+    print(octets[2]);
+    print(octets[3]);
+    print(int_from_byte(octets[2]));
+    print(octets[0] < octets[1]);
+    print(octets[2] == byte_from_int(255));
+    print(maxbyte(octets[0], octets[2]));
+
+    byte[] ascii = new byte[3];
+    ascii[0] = byte_from_int(65);
+    ascii[1] = byte_from_int(66);
+    ascii[2] = byte_from_int(67);
+    string text = bytes_to_string(ascii);
+    print(text);
+    print(length(string_to_bytes(text)));
+}

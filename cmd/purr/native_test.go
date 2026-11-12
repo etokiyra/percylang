@@ -1,13 +1,13 @@
 package main
 
 // Pinned tests for the native backend's typed-IR scene, driven by
-// selfhost/native.ktn. The probe builds the Phase 10.1 scene corpus (the
+// selfhost/native.pcy. The probe builds the Phase 10.1 scene corpus (the
 // print-hello skeleton target and a growth scene) plus the Phase 10.3
 // arithmetic-and-control-flow scene and its divide-failure sibling, checks
 // them with check_scene, and renders them with the text renderer; their
 // output and every validation message are pinned literally here. Since Phase
 // 10.4 the probe also lowers real sources: the `lower` mode loads and checks
-// a program with the Kitten-written loader and checker and reduces its
+// a program with the Percy-written loader and checker and reduces its
 // scalar subset into a scene, whose rendering and executable the tests pin
 // and compare with the C pipeline's behavior for the same source. The ELF
 // tests execute the produced executables and compare them with the C
@@ -35,7 +35,7 @@ func buildNativeProbe(t *testing.T) string {
 		repoPath(t, "..", "..", "runtime", "csrc"),
 	}), func(executable string) error {
 		var diagnostics bytes.Buffer
-		if err := buildExecutable(repoPath(t, "..", "..", "selfhost", "native.ktn"), executable, &diagnostics); err != nil {
+		if err := buildExecutable(repoPath(t, "..", "..", "selfhost", "native.pcy"), executable, &diagnostics); err != nil {
 			return err
 		}
 		if warnings := strings.TrimSpace(diagnostics.String()); warnings != "" {
@@ -346,7 +346,7 @@ func TestNativeProbeSkeleton(t *testing.T) {
 	}
 
 	// The C pipeline's program for the same source behaves identically.
-	cSource := filepath.Join(directory, "hello-c.ktn")
+	cSource := filepath.Join(directory, "hello-c.pcy")
 	if err := os.WriteFile(cSource, []byte("fn main() {\n    print(\"hello\");\n}\n"), 0o644); err != nil {
 		t.Fatalf("writing the C-parity source: %v", err)
 	}
@@ -407,7 +407,7 @@ func TestNativeProbeArith(t *testing.T) {
 		t.Fatalf("two arith productions differ in %d bytes", len(first))
 	}
 
-	cSource := filepath.Join(directory, "arith-c.ktn")
+	cSource := filepath.Join(directory, "arith-c.pcy")
 	source := `fn step(int value) -> int {
     return value * 3 - 1;
 }
@@ -463,7 +463,7 @@ func TestNativeProbeDivzero(t *testing.T) {
 		t.Fatalf("native divzero run: status %d, stdout %q, stderr %q", run.status, run.stdout, run.stderr)
 	}
 
-	cSource := filepath.Join(directory, "divzero-c.ktn")
+	cSource := filepath.Join(directory, "divzero-c.pcy")
 	source := "fn main() {\n    int zero = 0;\n    print(5 / zero);\n}\n"
 	if err := os.WriteFile(cSource, []byte(source), 0o644); err != nil {
 		t.Fatalf("writing the C-parity source: %v", err)
@@ -485,11 +485,35 @@ func goPurrReference(t *testing.T) string {
 // helper's newline blob comes first, and the helper is named "$print" so no
 // user name can collide with it.
 const wantPoolScene = `scene
-data $blob0: 48 bytes 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255
-data $blob1: 16 bytes 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255
-data $blob2: 1 bytes 10
-data $blob3: 4 bytes 115 97 109 101
-data $blob4: 5 bytes 111 116 104 101 114
+data $blob0: 8 bytes 32 32 32 32 32 32 32 32
+data $blob1: 48 bytes 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255
+data $blob2: 16 bytes 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255
+data $blob3: 6 bytes 112 117 114 114 58 32
+data $blob4: 1 bytes 10
+data $blob5: 18 bytes 112 117 114 114 58 32 97 114 114 97 121 32 105 110 100 101 120 32
+data $blob6: 28 bytes 32 105 115 32 111 117 116 32 111 102 32 114 97 110 103 101 32 102 111 114 32 108 101 110 103 116 104 32
+data $blob7: 31 bytes 97 114 114 97 121 32 108 101 110 103 116 104 32 99 97 110 110 111 116 32 98 101 32 110 101 103 97 116 105 118 101
+data $blob8: 35 bytes 97 114 114 97 121 32 101 108 101 109 101 110 116 32 115 105 122 101 32 109 117 115 116 32 98 101 32 112 111 115 105 116 105 118 101
+data $blob9: 29 bytes 97 114 114 97 121 32 97 108 108 111 99 97 116 105 111 110 32 105 115 32 116 111 111 32 108 97 114 103 101
+data $blob10: 38 bytes 97 114 114 97 121 32 97 99 99 101 115 115 32 111 110 32 97 32 110 117 108 108 32 97 114 114 97 121 32 114 101 102 101 114 101 110 99 101
+data $blob11: 32 bytes 108 101 110 103 116 104 32 111 102 32 97 32 110 117 108 108 32 97 114 114 97 121 32 114 101 102 101 114 101 110 99 101
+data $blob12: 32 bytes 97 112 112 101 110 100 32 116 111 32 97 32 110 117 108 108 32 97 114 114 97 121 32 114 101 102 101 114 101 110 99 101
+data $blob13: 46 bytes 112 117 114 114 58 32 98 121 116 101 32 97 114 114 97 121 32 99 111 110 116 97 105 110 115 32 97 32 78 85 76 32 98 121 116 101 32 97 116 32 105 110 100 101 120 32
+data $blob14: 18 bytes 98 121 116 101 32 97 114 114 97 121 32 105 115 32 110 117 108 108
+data $blob15: 32 bytes 98 121 116 101 32 97 114 114 97 121 32 101 108 101 109 101 110 116 32 115 105 122 101 32 105 115 32 110 111 116 32 49
+data $blob16: 19 bytes 112 117 114 114 58 32 115 116 114 105 110 103 32 105 110 100 101 120 32
+data $blob17: 22 bytes 112 117 114 114 58 32 115 117 98 115 116 114 105 110 103 32 114 97 110 103 101 32
+data $blob18: 18 bytes 112 117 114 114 58 32 115 104 105 102 116 32 99 111 117 110 116 32
+data $blob19: 17 bytes 32 105 115 32 111 117 116 115 105 100 101 32 48 46 46 54 51
+data $blob20: 2 bytes 46 46
+data $blob21: 1 bytes 32
+data $blob22: 4 bytes 116 114 117 101
+data $blob23: 5 bytes 102 97 108 115 101
+data $blob24: 1 bytes 48
+data $blob25: 1 bytes 10
+data $blob26: 1 bytes 32
+data $blob27: 4 bytes 115 97 109 101
+data $blob28: 5 bytes 111 116 104 101 114
 entry 0 @main
 fn @main () -> void
   b0: ref binding
@@ -498,15 +522,15 @@ fn @main () -> void
   b3: ref binding
   b4: ref binding
   b5: ref binding
-  b1: ref = data $blob3
+  b1: ref = data $blob27
   b0: ref = copy b1
-  b3: ref = data $blob3
+  b3: ref = data $blob27
   b2: ref = copy b3
-  b5: ref = data $blob4
+  b5: ref = data $blob28
   b4: ref = copy b5
-  call @19 b0
-  call @19 b2
-  call @19 b4
+  call @41 b0
+  call @41 b2
+  call @41 b4
 fn @$mmap (p0: int) -> int
   b0: int binding
   b1: int binding
@@ -534,21 +558,21 @@ fn @$map () -> void
   b4: int binding
   b5: int binding
   b6: int binding
-  b0: int = const 268435456
-  b1: int = const 33554440
+  b0: int = const 536870912
+  b1: int = const 67108872
   b2: int = call @1 b0
   b3: int = call @1 b1
-  b4: int = stack_pointer
+  b4: int = get_static $blob0 24
   b5: int = const 
   b6: int = add b2 b0
-  set_static $blob0 24 b2
-  set_static $blob0 32 b2
-  set_static $blob0 40 b6
-  set_static $blob0 48 b5
-  set_static $blob0 56 b5
-  set_static $blob0 64 b5
-  set_static $blob1 24 b3
-  set_static $blob1 32 b4
+  set_static $blob1 24 b2
+  set_static $blob1 32 b2
+  set_static $blob1 40 b6
+  set_static $blob1 48 b5
+  set_static $blob1 56 b5
+  set_static $blob1 64 b5
+  set_static $blob2 24 b3
+  set_static $blob2 32 b4
   return
 fn @$pad8 (p0: int) -> int
   b0: int binding
@@ -580,11 +604,11 @@ fn @$byte_set1 (p0: int) -> void
   b5: int binding
   b6: int binding
   b7: int binding
-  b1: int = get_static $blob0 24
+  b1: int = get_static $blob1 24
   b2: int = subtract b0 b1
   b3: int = const 8
   b4: int = whole_divide b2 b3
-  b5: int = get_static $blob1 24
+  b5: int = get_static $blob2 24
   b6: int = add b5 b4
   b7: int = const 1
   raw_store8 b6 0 b7
@@ -598,11 +622,11 @@ fn @$byte_set0 (p0: int) -> void
   b5: int binding
   b6: int binding
   b7: int binding
-  b1: int = get_static $blob0 24
+  b1: int = get_static $blob1 24
   b2: int = subtract b0 b1
   b3: int = const 8
   b4: int = whole_divide b2 b3
-  b5: int = get_static $blob1 24
+  b5: int = get_static $blob2 24
   b6: int = add b5 b4
   b7: int = const 0
   raw_store8 b6 0 b7
@@ -624,7 +648,7 @@ fn @$search (p0: int) -> int
   b13: int binding
   b14: int binding
   b1: int = const 0
-  b2: int = get_static $blob0 48
+  b2: int = get_static $blob1 48
   b3: int = copy b1
   b4: int = copy b2
   b5: int = const 16
@@ -644,7 +668,7 @@ fn @$search (p0: int) -> int
   b10: bool = equal b3 b1
   branch b10 %4 %5
   label %4
-  set_static $blob0 48 b9
+  set_static $blob1 48 b9
   jump %6
   label %5
   raw_store64 b3 8 b9
@@ -655,9 +679,9 @@ fn @$search (p0: int) -> int
   label %7
   b13: int = add b4 b0
   raw_store64 b13 0 b11
-  b14: int = get_static $blob0 48
+  b14: int = get_static $blob1 48
   raw_store64 b13 8 b14
-  set_static $blob0 48 b13
+  set_static $blob1 48 b13
   jump %8
   label %8
   raw_store64 b4 0 b0
@@ -673,55 +697,87 @@ fn @$bump (p0: int) -> int
   b4: int binding
   b5: bool binding
   b1: int = const 0
-  b2: int = get_static $blob0 32
-  b3: int = get_static $blob0 40
+  b2: int = get_static $blob1 32
+  b3: int = get_static $blob1 40
   b4: int = add b2 b0
   b5: bool = less_than b3 b4
   branch b5 %0 %1
   label %1
-  set_static $blob0 32 b4
+  set_static $blob1 32 b4
   raw_store64 b2 0 b0
   call @4 b2
   return b2
   label %0
   return b1
-fn @$mark_at (p0: int) -> void
+fn @$mark_at (p0: int) -> int
   b0: int binding
   b1: int binding
-  b2: bool binding
-  b3: int binding
-  b4: bool binding
-  b5: int binding
+  b2: int binding
+  b3: bool binding
+  b4: int binding
+  b5: bool binding
   b6: int binding
   b7: int binding
   b8: int binding
   b9: int binding
   b10: int binding
   b11: int binding
-  b12: bool binding
-  b13: int binding
-  b1: int = get_static $blob0 24
-  b2: bool = less_than b0 b1
-  branch b2 %0 %1
+  b12: int binding
+  b13: bool binding
+  b14: int binding
+  b1: int = const 0
+  b2: int = get_static $blob1 24
+  b3: bool = less_than b0 b2
+  branch b3 %0 %1
   label %1
-  b3: int = get_static $blob0 40
-  b4: bool = less_than b3 b0
-  branch b4 %0 %2
+  b4: int = get_static $blob1 40
+  b5: bool = less_than b4 b0
+  branch b5 %0 %2
   label %2
-  b5: int = const 8
-  b6: int = subtract b0 b1
-  b7: int = whole_divide b6 b5
-  b8: int = get_static $blob1 24
-  b9: int = add b8 b7
-  b10: int = raw_load8 b9 0
-  b11: int = const 1
-  b12: bool = equal b10 b11
-  branch b12 %3 %0
+  b6: int = const 8
+  b7: int = subtract b0 b2
+  b8: int = whole_divide b7 b6
+  b9: int = get_static $blob2 24
+  b10: int = add b9 b8
+  b11: int = raw_load8 b10 0
+  b12: int = const 1
+  b13: bool = equal b11 b12
+  branch b13 %3 %0
   label %3
-  b13: int = const 2
-  raw_store8 b9 0 b13
+  b14: int = const 2
+  raw_store8 b10 0 b14
+  b1: int = const 1
   label %0
-  return
+  return b1
+fn @$ledger_at (p0: int) -> int
+  b0: int binding
+  b1: int binding
+  b2: int binding
+  b3: bool binding
+  b4: int binding
+  b5: bool binding
+  b6: int binding
+  b7: int binding
+  b8: int binding
+  b9: int binding
+  b10: int binding
+  b1: int = const 0
+  b2: int = get_static $blob1 24
+  b3: bool = less_than b0 b2
+  branch b3 %0 %1
+  label %1
+  b4: int = get_static $blob1 40
+  b5: bool = less_than b4 b0
+  branch b5 %0 %2
+  label %2
+  b6: int = const 8
+  b7: int = subtract b0 b2
+  b8: int = whole_divide b7 b6
+  b9: int = get_static $blob2 24
+  b10: int = add b9 b8
+  b1: int = raw_load8 b10 0
+  label %0
+  return b1
 fn @$scan_roots () -> void
   b0: int binding
   b1: int binding
@@ -730,7 +786,8 @@ fn @$scan_roots () -> void
   b4: int binding
   b5: bool binding
   b6: int binding
-  b0: int = get_static $blob1 32
+  b7: int binding
+  b0: int = get_static $blob2 32
   b1: int = stack_pointer
   b2: int = const 7
   b3: int = const 8
@@ -742,11 +799,68 @@ fn @$scan_roots () -> void
   branch b5 %1 %2
   label %1
   b6: int = raw_load64 b4 0
-  call @8 b6
+  b7: int = call @8 b6
   b4: int = add b4 b3
   jump %0
   label %2
   return
+fn @$scan_heap () -> int
+  b0: int binding
+  b1: int binding
+  b2: int binding
+  b3: int binding
+  b4: int binding
+  b5: int binding
+  b6: int binding
+  b7: int binding
+  b8: int binding
+  b9: int binding
+  b10: int binding
+  b11: int binding
+  b12: int binding
+  b13: bool binding
+  b14: int binding
+  b15: int binding
+  b16: bool binding
+  b17: int binding
+  b18: int binding
+  b19: bool binding
+  b0: int = const 0
+  b1: int = const 2
+  b2: int = const 8
+  b3: int = get_static $blob1 24
+  b4: int = get_static $blob1 32
+  b5: int = copy b3
+  b6: int = copy b0
+  label %0
+  b19: bool = less_than b5 b4
+  branch b19 %1 %2
+  label %1
+  b7: int = raw_load64 b5 0
+  b8: int = subtract b5 b3
+  b9: int = whole_divide b8 b2
+  b10: int = get_static $blob2 24
+  b11: int = add b10 b9
+  b12: int = raw_load8 b11 0
+  b13: bool = equal b12 b1
+  branch b13 %3 %4
+  label %3
+  b14: int = add b5 b2
+  b15: int = add b5 b7
+  label %5
+  b16: bool = less_than b14 b15
+  branch b16 %6 %4
+  label %6
+  b17: int = raw_load64 b14 0
+  b18: int = call @8 b17
+  b6: int = add b6 b18
+  b14: int = add b14 b2
+  jump %5
+  label %4
+  b5: int = add b5 b7
+  jump %0
+  label %2
+  return b6
 fn @$free_block (p0: int, p1: int) -> void
   b0: int binding
   b1: int binding
@@ -760,9 +874,9 @@ fn @$free_block (p0: int, p1: int) -> void
   b9: int binding
   b10: int binding
   b2: int = const 0
-  b3: int = get_static $blob0 48
-  b4: int = get_static $blob0 56
-  b5: int = get_static $blob0 64
+  b3: int = get_static $blob1 48
+  b4: int = get_static $blob1 56
+  b5: int = get_static $blob1 64
   b6: bool = equal b5 b0
   branch b6 %0 %1
   label %0
@@ -770,15 +884,15 @@ fn @$free_block (p0: int, p1: int) -> void
   b8: int = add b7 b1
   raw_store64 b4 0 b8
   b9: int = add b0 b1
-  set_static $blob0 64 b9
+  set_static $blob1 64 b9
   call @5 b0
   return
   label %1
   b10: int = add b0 b1
   raw_store64 b0 8 b3
-  set_static $blob0 48 b0
-  set_static $blob0 56 b0
-  set_static $blob0 64 b10
+  set_static $blob1 48 b0
+  set_static $blob1 56 b0
+  set_static $blob1 64 b10
   call @5 b0
   return
 fn @$sweep_block (p0: int) -> int
@@ -794,11 +908,11 @@ fn @$sweep_block (p0: int) -> int
   b9: int binding
   b10: int binding
   b11: bool binding
-  b1: int = get_static $blob0 24
+  b1: int = get_static $blob1 24
   b2: int = subtract b0 b1
   b3: int = const 8
   b4: int = whole_divide b2 b3
-  b5: int = get_static $blob1 24
+  b5: int = get_static $blob2 24
   b6: int = add b5 b4
   b7: int = raw_load8 b6 0
   b8: int = raw_load64 b0 0
@@ -813,7 +927,7 @@ fn @$sweep_block (p0: int) -> int
   b11: bool = equal b7 b10
   branch b11 %2 %3
   label %2
-  call @10 b0 b8
+  call @12 b0 b8
   return b8
   label %3
   return b8
@@ -824,24 +938,33 @@ fn @$sweep () -> void
   b3: bool binding
   b4: int binding
   b5: int binding
-  b0: int = get_static $blob0 24
-  b1: int = get_static $blob0 32
+  b0: int = get_static $blob1 24
+  b1: int = get_static $blob1 32
   b2: int = copy b0
   label %0
   b3: bool = less_than b2 b1
   branch b3 %1 %2
   label %1
-  b4: int = call @11 b2
+  b4: int = call @13 b2
   b2: int = add b2 b4
   jump %0
   label %2
   b5: int = const 
-  set_static $blob0 56 b5
-  set_static $blob0 64 b5
+  set_static $blob1 56 b5
+  set_static $blob1 64 b5
   return
 fn @$collect () -> void
-  call @9
-  call @12
+  b0: int binding
+  b1: int binding
+  b2: bool binding
+  call @10
+  b0: int = const 0
+  label %0
+  b1: int = call @11
+  b2: bool = equal b1 b0
+  branch b2 %1 %0
+  label %1
+  call @14
   return
 fn @$alloc (p0: int) -> int
   b0: int binding
@@ -854,7 +977,7 @@ fn @$alloc (p0: int) -> int
   b7: int binding
   b8: bool binding
   b1: int = const 0
-  b2: int = get_static $blob0 32
+  b2: int = get_static $blob1 32
   b3: bool = less_than b2 b1
   branch b3 %0 %1
   label %0
@@ -869,7 +992,7 @@ fn @$alloc (p0: int) -> int
   b8: bool = equal b7 b1
   branch b8 %3 %6
   label %3
-  call @13
+  call @15
   b5: int = call @6 b4
   b6: bool = equal b5 b1
   branch b6 %4 %7
@@ -886,8 +1009,19 @@ fn @$alloc (p0: int) -> int
 fn @$string_length (p0: ref) -> int
   b0: ref binding
   b1: int binding
-  b1: int = raw_load64 b0 8
-  return b1
+  b2: int binding
+  b3: int binding
+  b4: bool binding
+  b1: int = const 0
+  b2: int = copy b0
+  b3: int = copy b1
+  b4: bool = equal b2 b1
+  branch b4 %0 %1
+  label %0
+  return b3
+  label %1
+  b3: int = raw_load64 b0 8
+  return b3
 fn @$copy_bytes (p0: int, p1: int, p2: int) -> void
   b0: int binding
   b1: int binding
@@ -917,45 +1051,69 @@ fn @$string_equal (p0: ref, p1: ref) -> bool
   b1: ref binding
   b2: int binding
   b3: int binding
-  b4: bool binding
-  b5: bool binding
+  b4: int binding
+  b5: int binding
   b6: int binding
   b7: int binding
-  b8: int binding
+  b8: bool binding
   b9: int binding
   b10: int binding
-  b11: int binding
-  b12: int binding
-  b13: int binding
-  b14: bool binding
-  b2: int = raw_load64 b0 8
-  b3: int = raw_load64 b1 8
-  b4: bool = equal b2 b3
-  branch b4 %0 %1
+  b11: bool binding
+  b12: bool binding
+  b13: bool binding
+  b14: int binding
+  b15: int binding
+  b16: int binding
+  b17: int binding
+  b18: int binding
+  b19: bool binding
+  b2: int = const 0
+  b3: int = const 1
+  b4: int = copy b0
+  b5: int = copy b1
+  b6: int = copy b2
+  b7: int = copy b2
+  b8: bool = equal b4 b2
+  branch b8 %0 %1
   label %1
-  b5: bool = const false
-  return b5
-  label %0
-  b6: int = raw_load64 b0 16
-  b7: int = raw_load64 b1 16
-  b8: int = const 0
-  b9: int = const 1
-  label %2
-  b4: bool = less_than b8 b2
-  branch b4 %3 %4
-  label %3
-  b10: int = add b6 b8
-  b11: int = raw_load8 b10 0
-  b12: int = add b7 b8
-  b13: int = raw_load8 b12 0
-  b14: bool = equal b11 b13
-  branch b14 %5 %1
-  label %5
-  b8: int = add b8 b9
+  b6: int = raw_load64 b0 8
+  b7: int = raw_load64 b0 16
   jump %2
+  label %0
+  label %2
+  b9: int = copy b2
+  b10: int = copy b2
+  b11: bool = equal b5 b2
+  branch b11 %3 %4
   label %4
-  b5: bool = const true
-  return b5
+  b9: int = raw_load64 b1 8
+  b10: int = raw_load64 b1 16
+  jump %5
+  label %3
+  label %5
+  b12: bool = equal b6 b9
+  branch b12 %6 %7
+  label %7
+  b13: bool = const false
+  return b13
+  label %6
+  b14: int = const 0
+  label %8
+  b12: bool = less_than b14 b6
+  branch b12 %9 %10
+  label %9
+  b15: int = add b7 b14
+  b16: int = raw_load8 b15 0
+  b17: int = add b10 b14
+  b18: int = raw_load8 b17 0
+  b19: bool = equal b16 b18
+  branch b19 %11 %7
+  label %11
+  b14: int = add b14 b3
+  jump %8
+  label %10
+  b13: bool = const true
+  return b13
 fn @$string_concat (p0: ref, p1: ref) -> ref
   b0: ref binding
   b1: ref binding
@@ -963,31 +1121,694 @@ fn @$string_concat (p0: ref, p1: ref) -> ref
   b3: int binding
   b4: int binding
   b5: int binding
+  b6: bool binding
+  b7: int binding
+  b8: int binding
+  b9: int binding
+  b10: bool binding
+  b11: int binding
+  b12: int binding
+  b13: int binding
+  b14: int binding
+  b15: ref binding
+  b16: int binding
+  b17: int binding
+  b18: int binding
+  b2: int = const 0
+  b3: int = copy b0
+  b4: int = copy b2
+  b5: int = copy b2
+  b6: bool = equal b3 b2
+  branch b6 %0 %1
+  label %1
+  b4: int = raw_load64 b0 8
+  b5: int = raw_load64 b0 16
+  jump %2
+  label %0
+  label %2
+  b7: int = copy b1
+  b8: int = copy b2
+  b9: int = copy b2
+  b10: bool = equal b7 b2
+  branch b10 %3 %4
+  label %4
+  b8: int = raw_load64 b1 8
+  b9: int = raw_load64 b1 16
+  jump %5
+  label %3
+  label %5
+  b11: int = add b4 b8
+  b12: int = const 16
+  b13: int = add b11 b12
+  b14: int = call @16 b13
+  b15: ref = copy b14
+  b16: int = const 24
+  b17: int = add b15 b16
+  raw_store64 b15 8 b11
+  raw_store64 b15 16 b17
+  call @18 b17 b5 b4
+  b18: int = add b17 b4
+  call @18 b18 b9 b8
+  return b15
+fn @$write_byte_fd (p0: int, p1: int) -> void
+  b0: int binding
+  b1: int binding
+  b2: ref binding
+  b3: ref binding
+  b4: int binding
+  b5: int binding
+  set_static $blob24 24 b1
+  b2: ref = data $blob24
+  b3: ref = raw_load64 b2 16
+  b4: int = const 1
+  b5: int = raw_syscall syscall b4 b0 b3 b4
+  return
+fn @$write_blob_fd (p0: int, p1: ref) -> void
+  b0: int binding
+  b1: ref binding
+  b2: int binding
+  b3: ref binding
+  b4: int binding
+  b5: int binding
+  b2: int = raw_load64 b1 8
+  b3: ref = raw_load64 b1 16
+  b4: int = const 1
+  b5: int = raw_syscall syscall b4 b0 b3 b2
+  return
+fn @$write_digits_fd (p0: int, p1: int) -> void
+  b0: int binding
+  b1: int binding
+  b2: int binding
+  b3: int binding
+  b4: int binding
+  b5: int binding
+  b6: bool binding
+  b7: int binding
+  b8: int binding
+  b9: int binding
+  b2: int = const 10
+  b3: int = whole_divide b1 b2
+  b4: int = whole_remainder b1 b2
+  b5: int = const 0
+  b6: bool = equal b3 b5
+  branch b6 %0 %1
+  label %1
+  call @23 b0 b3
+  label %0
+  b7: int = negate b4
+  b8: int = const 48
+  b9: int = add b7 b8
+  call @21 b0 b9
+  return
+fn @$write_int_fd (p0: int, p1: int) -> void
+  b0: int binding
+  b1: int binding
+  b2: int binding
+  b3: bool binding
+  b4: int binding
+  b5: bool binding
   b6: int binding
   b7: int binding
+  b2: int = const 0
+  b3: bool = equal b1 b2
+  branch b3 %0 %1
+  label %0
+  b4: int = const 48
+  call @21 b0 b4
+  return
+  label %1
+  b5: bool = less_than b1 b2
+  branch b5 %2 %3
+  label %2
+  b6: int = const 45
+  call @21 b0 b6
+  call @23 b0 b1
+  return
+  label %3
+  b7: int = negate b1
+  call @23 b0 b7
+  return
+fn @$fail_blob (p0: ref) -> void
+  b0: ref binding
+  b1: int binding
+  b2: ref binding
+  b3: ref binding
+  b4: int binding
+  b5: int binding
+  b6: int binding
+  b1: int = const 2
+  b2: ref = data $blob3
+  call @22 b1 b2
+  call @22 b1 b0
+  b3: ref = data $blob4
+  call @22 b1 b3
+  b4: int = const 60
+  b5: int = const 1
+  b6: int = raw_syscall syscall b4 b5
+  return
+fn @$fail_bounds (p0: int, p1: int) -> void
+  b0: int binding
+  b1: int binding
+  b2: int binding
+  b3: ref binding
+  b4: ref binding
+  b5: ref binding
+  b6: int binding
+  b7: int binding
+  b8: int binding
+  b2: int = const 2
+  b3: ref = data $blob5
+  call @22 b2 b3
+  call @24 b2 b0
+  b4: ref = data $blob6
+  call @22 b2 b4
+  call @24 b2 b1
+  b5: ref = data $blob4
+  call @22 b2 b5
+  b6: int = const 60
+  b7: int = const 1
+  b8: int = raw_syscall syscall b6 b7
+  return
+fn @$fail_nul (p0: int) -> void
+  b0: int binding
+  b1: int binding
+  b2: ref binding
+  b3: ref binding
+  b4: int binding
+  b5: int binding
+  b6: int binding
+  b1: int = const 2
+  b2: ref = data $blob13
+  call @22 b1 b2
+  call @24 b1 b0
+  b3: ref = data $blob4
+  call @22 b1 b3
+  b4: int = const 60
+  b5: int = const 1
+  b6: int = raw_syscall syscall b4 b5
+  return
+fn @$fail_string_index (p0: int, p1: int) -> void
+  b0: int binding
+  b1: int binding
+  b2: int binding
+  b3: ref binding
+  b4: ref binding
+  b5: ref binding
+  b6: int binding
+  b7: int binding
+  b8: int binding
+  b2: int = const 2
+  b3: ref = data $blob16
+  call @22 b2 b3
+  call @24 b2 b0
+  b4: ref = data $blob6
+  call @22 b2 b4
+  call @24 b2 b1
+  b5: ref = data $blob4
+  call @22 b2 b5
+  b6: int = const 60
+  b7: int = const 1
+  b8: int = raw_syscall syscall b6 b7
+  return
+fn @$fail_substring (p0: int, p1: int, p2: int) -> void
+  b0: int binding
+  b1: int binding
+  b2: int binding
+  b3: int binding
+  b4: ref binding
+  b5: ref binding
+  b6: ref binding
+  b7: ref binding
+  b8: int binding
+  b9: int binding
+  b10: int binding
+  b3: int = const 2
+  b4: ref = data $blob17
+  call @22 b3 b4
+  call @24 b3 b0
+  b5: ref = data $blob20
+  call @22 b3 b5
+  call @24 b3 b1
+  b6: ref = data $blob6
+  call @22 b3 b6
+  call @24 b3 b2
+  b7: ref = data $blob4
+  call @22 b3 b7
+  b8: int = const 60
+  b9: int = const 1
+  b10: int = raw_syscall syscall b8 b9
+  return
+fn @$fail_shift (p0: int) -> void
+  b0: int binding
+  b1: int binding
+  b2: ref binding
+  b3: ref binding
+  b4: ref binding
+  b5: int binding
+  b6: int binding
+  b7: int binding
+  b1: int = const 2
+  b2: ref = data $blob18
+  call @22 b1 b2
+  call @24 b1 b0
+  b3: ref = data $blob19
+  call @22 b1 b3
+  b4: ref = data $blob4
+  call @22 b1 b4
+  b5: int = const 60
+  b6: int = const 1
+  b7: int = raw_syscall syscall b5 b6
+  return
+fn @$zero_bytes (p0: int, p1: int) -> void
+  b0: int binding
+  b1: int binding
+  b2: int binding
+  b3: int binding
+  b4: int binding
+  b5: bool binding
+  b6: int binding
+  b2: int = const 0
+  b3: int = const 1
+  b4: int = const 0
+  label %0
+  b5: bool = less_than b2 b1
+  branch b5 %1 %2
+  label %1
+  b6: int = add b0 b2
+  raw_store8 b6 0 b4
+  b2: int = add b2 b3
+  jump %0
+  label %2
+  return
+fn @$array_new (p0: int, p1: int) -> ref
+  b0: int binding
+  b1: int binding
+  b2: int binding
+  b3: int binding
+  b4: int binding
+  b5: int binding
+  b6: int binding
+  b7: ref binding
+  b8: bool binding
+  b9: ref binding
+  b10: bool binding
+  b11: ref binding
+  b12: int binding
+  b13: bool binding
+  b14: ref binding
+  b15: int binding
+  b16: int binding
+  b17: bool binding
+  b18: int binding
+  b19: int binding
+  b2: int = const 0
+  b3: int = const 1
+  b4: int = const 32
+  b5: int = const 8
+  b6: int = const 9223372036854775807
+  b7: ref = copy b2
+  b8: bool = less_than b0 b2
+  branch b8 %0 %1
+  label %0
+  b9: ref = data $blob7
+  call @25 b9
+  return b7
+  label %1
+  b10: bool = less_than b1 b3
+  branch b10 %2 %3
+  label %2
+  b11: ref = data $blob8
+  call @25 b11
+  return b7
+  label %3
+  b12: int = whole_divide b6 b1
+  b13: bool = less_than b12 b0
+  branch b13 %4 %5
+  label %4
+  b14: ref = data $blob9
+  call @25 b14
+  return b7
+  label %5
+  b15: int = call @16 b4
+  raw_store64 b15 8 b0
+  raw_store64 b15 16 b1
+  raw_store64 b15 24 b2
+  raw_store64 b15 32 b0
+  b7: ref = copy b15
+  b16: int = multiply b0 b1
+  b17: bool = equal b16 b2
+  branch b17 %6 %7
+  label %6
+  b16: int = const 1
+  label %7
+  b18: int = call @16 b16
+  raw_store64 b15 24 b18
+  b19: int = add b18 b5
+  call @31 b19 b16
+  return b7
+fn @$array_length (p0: ref) -> int
+  b0: ref binding
+  b1: int binding
+  b2: int binding
+  b3: bool binding
+  b4: ref binding
+  b5: int binding
+  b1: int = const 0
+  b2: int = copy b0
+  b3: bool = equal b2 b1
+  branch b3 %0 %1
+  label %0
+  b4: ref = data $blob11
+  call @25 b4
+  return b1
+  label %1
+  b5: int = raw_load64 b0 8
+  return b5
+fn @$array_push (p0: ref, p1: int) -> int
+  b0: ref binding
+  b1: int binding
+  b2: int binding
+  b3: int binding
+  b4: int binding
+  b5: int binding
+  b6: int binding
+  b7: bool binding
   b8: ref binding
   b9: int binding
   b10: int binding
   b11: int binding
+  b12: bool binding
+  b13: int binding
+  b14: bool binding
+  b15: int binding
+  b16: int binding
+  b17: bool binding
+  b18: ref binding
+  b19: int binding
+  b20: int binding
+  b21: int binding
+  b22: int binding
+  b23: int binding
+  b24: int binding
+  b25: int binding
+  b26: int binding
+  b27: int binding
+  b28: int binding
+  b29: bool binding
+  b30: int binding
+  b2: int = const 0
+  b3: int = const 1
+  b4: int = const 9223372036854775807
+  b5: int = const 8
+  b6: int = copy b0
+  b7: bool = equal b6 b2
+  branch b7 %0 %1
+  label %0
+  b8: ref = data $blob12
+  call @25 b8
+  return b2
+  label %1
+  b9: int = raw_load64 b0 8
+  b10: int = raw_load64 b0 16
+  b11: int = raw_load64 b0 32
+  b12: bool = equal b9 b11
+  branch b12 %2 %8
+  label %2
+  b13: int = copy b11
+  b14: bool = less_than b11 b3
+  branch b14 %3 %4
+  label %3
+  b13: int = copy b3
+  jump %5
+  label %4
+  b15: int = add b11 b11
+  b13: int = copy b15
+  label %5
+  b16: int = whole_divide b4 b10
+  b17: bool = less_than b16 b13
+  branch b17 %6 %7
+  label %6
+  b18: ref = data $blob9
+  call @25 b18
+  return b2
+  label %7
+  b19: int = multiply b13 b10
+  b20: int = call @16 b19
+  b21: int = multiply b9 b10
+  b22: int = raw_load64 b0 24
+  b23: int = add b20 b5
+  b24: int = add b22 b5
+  call @18 b23 b24 b21
+  raw_store64 b0 24 b20
+  raw_store64 b0 32 b13
+  label %8
+  b25: int = raw_load64 b0 24
+  b26: int = add b25 b5
+  b27: int = multiply b9 b10
+  b28: int = add b26 b27
+  b29: bool = equal b10 b3
+  branch b29 %9 %10
+  label %9
+  raw_store8 b28 0 b1
+  jump %11
+  label %10
+  raw_store64 b28 0 b1
+  label %11
+  b30: int = add b9 b3
+  raw_store64 b0 8 b30
+  return b30
+fn @$array_at (p0: ref, p1: int) -> int
+  b0: ref binding
+  b1: int binding
+  b2: int binding
+  b3: int binding
+  b4: int binding
+  b5: bool binding
+  b6: ref binding
+  b7: int binding
+  b8: bool binding
+  b9: bool binding
+  b10: int binding
+  b11: int binding
   b12: int binding
   b13: int binding
-  b2: int = raw_load64 b0 8
-  b3: int = raw_load64 b1 8
-  b4: int = add b2 b3
+  b14: int binding
+  b2: int = const 0
+  b3: int = const 8
+  b4: int = copy b0
+  b5: bool = equal b4 b2
+  branch b5 %0 %1
+  label %0
+  b6: ref = data $blob10
+  call @25 b6
+  return b2
+  label %1
+  b7: int = raw_load64 b0 8
+  b8: bool = less_than b1 b2
+  branch b8 %2 %3
+  label %3
+  b9: bool = less_than b1 b7
+  branch b9 %4 %2
+  label %2
+  call @26 b1 b7
+  return b2
+  label %4
+  b10: int = raw_load64 b0 16
+  b11: int = raw_load64 b0 24
+  b12: int = multiply b1 b10
+  b13: int = add b11 b3
+  b14: int = add b13 b12
+  return b14
+fn @$string_to_bytes (p0: ref) -> ref
+  b0: ref binding
+  b1: int binding
+  b2: int binding
+  b3: int binding
+  b4: ref binding
+  b5: int binding
+  b6: int binding
+  b7: int binding
+  b1: int = raw_load64 b0 8
+  b2: int = raw_load64 b0 16
+  b3: int = const 1
+  b4: ref = call @32 b1 b3
+  b5: int = raw_load64 b4 24
+  b6: int = const 8
+  b7: int = add b5 b6
+  call @18 b7 b2 b1
+  return b4
+fn @$bytes_to_string (p0: ref) -> ref
+  b0: ref binding
+  b1: int binding
+  b2: int binding
+  b3: int binding
+  b4: int binding
+  b5: int binding
+  b6: ref binding
+  b7: int binding
+  b8: bool binding
+  b9: ref binding
+  b10: int binding
+  b11: int binding
+  b12: bool binding
+  b13: ref binding
+  b14: int binding
+  b15: int binding
+  b16: int binding
+  b17: bool binding
+  b18: int binding
+  b19: int binding
+  b20: bool binding
+  b21: int binding
+  b22: int binding
+  b23: int binding
+  b2: int = const 24
+  b1: int = const 0
+  b3: int = const 1
+  b4: int = const 8
   b5: int = const 16
-  b6: int = add b4 b5
-  b7: int = call @14 b6
-  b8: ref = copy b7
-  b9: int = const 24
-  b10: int = add b8 b9
-  raw_store64 b8 8 b4
-  raw_store64 b8 16 b10
+  b6: ref = copy b1
+  b7: int = copy b0
+  b8: bool = equal b7 b1
+  branch b8 %0 %1
+  label %0
+  b9: ref = data $blob14
+  call @25 b9
+  return b6
+  label %1
+  b10: int = raw_load64 b0 8
   b11: int = raw_load64 b0 16
-  b12: int = raw_load64 b1 16
-  call @16 b10 b11 b2
-  b13: int = add b10 b2
-  call @16 b13 b12 b3
-  return b8
+  b12: bool = equal b11 b3
+  branch b12 %2 %3
+  label %3
+  b13: ref = data $blob15
+  call @25 b13
+  return b6
+  label %2
+  b14: int = raw_load64 b0 24
+  b15: int = add b14 b4
+  b16: int = const 0
+  label %4
+  b17: bool = less_than b16 b10
+  branch b17 %5 %6
+  label %5
+  b19: int = add b15 b16
+  b18: int = raw_load8 b19 0
+  b20: bool = equal b18 b1
+  branch b20 %7 %8
+  label %8
+  b16: int = add b16 b3
+  jump %4
+  label %7
+  call @27 b16
+  return b6
+  label %6
+  b21: int = add b10 b5
+  b22: int = call @16 b21
+  raw_store64 b22 8 b10
+  b23: int = add b22 b2
+  raw_store64 b22 16 b23
+  call @18 b23 b15 b10
+  b6: ref = copy b22
+  return b6
+fn @$string_at (p0: ref, p1: int) -> int
+  b0: ref binding
+  b1: int binding
+  b2: int binding
+  b3: int binding
+  b4: bool binding
+  b5: int binding
+  b6: bool binding
+  b7: bool binding
+  b8: int binding
+  b9: int binding
+  b10: int binding
+  b2: int = const 0
+  b3: int = copy b0
+  b4: bool = equal b3 b2
+  b5: int = const 0
+  branch b4 %1 %0
+  label %0
+  b5: int = raw_load64 b0 8
+  label %1
+  b6: bool = less_than b1 b2
+  branch b6 %2 %3
+  label %3
+  b7: bool = less_than b1 b5
+  branch b7 %4 %2
+  label %2
+  call @28 b1 b5
+  return b2
+  label %4
+  b8: int = raw_load64 b0 16
+  b9: int = add b8 b1
+  b10: int = raw_load8 b9 0
+  return b10
+fn @$substring (p0: ref, p1: int, p2: int) -> ref
+  b0: ref binding
+  b1: int binding
+  b2: int binding
+  b3: int binding
+  b4: int binding
+  b5: int binding
+  b6: ref binding
+  b7: int binding
+  b8: bool binding
+  b9: int binding
+  b10: bool binding
+  b11: bool binding
+  b12: bool binding
+  b13: int binding
+  b14: int binding
+  b15: int binding
+  b16: int binding
+  b17: int binding
+  b18: int binding
+  b4: int = const 24
+  b3: int = const 0
+  b5: int = const 16
+  b6: ref = copy b3
+  b7: int = copy b0
+  b8: bool = equal b7 b3
+  b9: int = const 0
+  branch b8 %1 %0
+  label %0
+  b9: int = raw_load64 b0 8
+  label %1
+  b10: bool = less_than b1 b3
+  branch b10 %2 %3
+  label %3
+  b11: bool = less_than b2 b1
+  branch b11 %2 %4
+  label %4
+  b12: bool = less_than b9 b2
+  branch b12 %2 %5
+  label %2
+  call @29 b1 b2 b9
+  return b6
+  label %5
+  b13: int = subtract b2 b1
+  b14: int = add b13 b5
+  b15: int = call @16 b14
+  raw_store64 b15 8 b13
+  b16: int = add b15 b4
+  raw_store64 b15 16 b16
+  b17: int = raw_load64 b0 16
+  b18: int = add b17 b1
+  call @18 b16 b18 b13
+  b6: ref = copy b15
+  return b6
+fn @$print_string_raw (p0: ref) -> void
+  b0: ref binding
+  b1: int binding
+  b2: ref binding
+  b3: int binding
+  b4: int binding
+  b1: int = raw_load64 b0 8
+  b2: ref = raw_load64 b0 16
+  b3: int = const 1
+  b4: int = raw_syscall syscall b3 b3 b2 b1
+  return
 fn @$print (p0: ref) -> void
   b0: ref binding
   b1: int binding
@@ -1002,10 +1823,20 @@ fn @$print (p0: ref) -> void
   b2: ref = raw_load64 b0 16
   b3: int = const 1
   b4: int = raw_syscall syscall b3 b3 b2 b1
-  b5: ref = data $blob2
+  b5: ref = data $blob25
   b6: ref = raw_load64 b5 16
   b7: int = const 1
   b8: int = raw_syscall syscall b7 b7 b6 b7
+  return
+fn @$print_newline () -> void
+  b0: ref binding
+  b1: ref binding
+  b2: int binding
+  b3: int binding
+  b0: ref = data $blob25
+  b1: ref = raw_load64 b0 16
+  b2: int = const 1
+  b3: int = raw_syscall syscall b2 b2 b1 b2
   return
 
 `
@@ -1014,10 +1845,34 @@ fn @$print (p0: ref) -> void
 // bit patterns as `constf`, the SSE2 forms carry the `f` suffix, and the
 // branch shapes stay identical to the scalar slices.
 const wantQuartersScene = `scene
-data $blob0: 48 bytes 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255
-data $blob1: 16 bytes 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255
-data $blob2: 1 bytes 10
-data $blob3: 8 bytes 113 117 97 114 116 101 114 115
+data $blob0: 8 bytes 32 32 32 32 32 32 32 32
+data $blob1: 48 bytes 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255
+data $blob2: 16 bytes 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255
+data $blob3: 6 bytes 112 117 114 114 58 32
+data $blob4: 1 bytes 10
+data $blob5: 18 bytes 112 117 114 114 58 32 97 114 114 97 121 32 105 110 100 101 120 32
+data $blob6: 28 bytes 32 105 115 32 111 117 116 32 111 102 32 114 97 110 103 101 32 102 111 114 32 108 101 110 103 116 104 32
+data $blob7: 31 bytes 97 114 114 97 121 32 108 101 110 103 116 104 32 99 97 110 110 111 116 32 98 101 32 110 101 103 97 116 105 118 101
+data $blob8: 35 bytes 97 114 114 97 121 32 101 108 101 109 101 110 116 32 115 105 122 101 32 109 117 115 116 32 98 101 32 112 111 115 105 116 105 118 101
+data $blob9: 29 bytes 97 114 114 97 121 32 97 108 108 111 99 97 116 105 111 110 32 105 115 32 116 111 111 32 108 97 114 103 101
+data $blob10: 38 bytes 97 114 114 97 121 32 97 99 99 101 115 115 32 111 110 32 97 32 110 117 108 108 32 97 114 114 97 121 32 114 101 102 101 114 101 110 99 101
+data $blob11: 32 bytes 108 101 110 103 116 104 32 111 102 32 97 32 110 117 108 108 32 97 114 114 97 121 32 114 101 102 101 114 101 110 99 101
+data $blob12: 32 bytes 97 112 112 101 110 100 32 116 111 32 97 32 110 117 108 108 32 97 114 114 97 121 32 114 101 102 101 114 101 110 99 101
+data $blob13: 46 bytes 112 117 114 114 58 32 98 121 116 101 32 97 114 114 97 121 32 99 111 110 116 97 105 110 115 32 97 32 78 85 76 32 98 121 116 101 32 97 116 32 105 110 100 101 120 32
+data $blob14: 18 bytes 98 121 116 101 32 97 114 114 97 121 32 105 115 32 110 117 108 108
+data $blob15: 32 bytes 98 121 116 101 32 97 114 114 97 121 32 101 108 101 109 101 110 116 32 115 105 122 101 32 105 115 32 110 111 116 32 49
+data $blob16: 19 bytes 112 117 114 114 58 32 115 116 114 105 110 103 32 105 110 100 101 120 32
+data $blob17: 22 bytes 112 117 114 114 58 32 115 117 98 115 116 114 105 110 103 32 114 97 110 103 101 32
+data $blob18: 18 bytes 112 117 114 114 58 32 115 104 105 102 116 32 99 111 117 110 116 32
+data $blob19: 17 bytes 32 105 115 32 111 117 116 115 105 100 101 32 48 46 46 54 51
+data $blob20: 2 bytes 46 46
+data $blob21: 1 bytes 32
+data $blob22: 4 bytes 116 114 117 101
+data $blob23: 5 bytes 102 97 108 115 101
+data $blob24: 1 bytes 48
+data $blob25: 1 bytes 10
+data $blob26: 1 bytes 32
+data $blob27: 8 bytes 113 117 97 114 116 101 114 115
 entry 0 @main
 fn @main () -> void
   b0: float64 binding
@@ -1033,8 +1888,8 @@ fn @main () -> void
   b4: bool = equalf b2 b3
   branch b4 %0 %1
   label %0
-  b5: ref = data $blob3
-  call @19 b5
+  b5: ref = data $blob27
+  call @41 b5
   label %1
 fn @$mmap (p0: int) -> int
   b0: int binding
@@ -1063,21 +1918,21 @@ fn @$map () -> void
   b4: int binding
   b5: int binding
   b6: int binding
-  b0: int = const 268435456
-  b1: int = const 33554440
+  b0: int = const 536870912
+  b1: int = const 67108872
   b2: int = call @1 b0
   b3: int = call @1 b1
-  b4: int = stack_pointer
+  b4: int = get_static $blob0 24
   b5: int = const 
   b6: int = add b2 b0
-  set_static $blob0 24 b2
-  set_static $blob0 32 b2
-  set_static $blob0 40 b6
-  set_static $blob0 48 b5
-  set_static $blob0 56 b5
-  set_static $blob0 64 b5
-  set_static $blob1 24 b3
-  set_static $blob1 32 b4
+  set_static $blob1 24 b2
+  set_static $blob1 32 b2
+  set_static $blob1 40 b6
+  set_static $blob1 48 b5
+  set_static $blob1 56 b5
+  set_static $blob1 64 b5
+  set_static $blob2 24 b3
+  set_static $blob2 32 b4
   return
 fn @$pad8 (p0: int) -> int
   b0: int binding
@@ -1109,11 +1964,11 @@ fn @$byte_set1 (p0: int) -> void
   b5: int binding
   b6: int binding
   b7: int binding
-  b1: int = get_static $blob0 24
+  b1: int = get_static $blob1 24
   b2: int = subtract b0 b1
   b3: int = const 8
   b4: int = whole_divide b2 b3
-  b5: int = get_static $blob1 24
+  b5: int = get_static $blob2 24
   b6: int = add b5 b4
   b7: int = const 1
   raw_store8 b6 0 b7
@@ -1127,11 +1982,11 @@ fn @$byte_set0 (p0: int) -> void
   b5: int binding
   b6: int binding
   b7: int binding
-  b1: int = get_static $blob0 24
+  b1: int = get_static $blob1 24
   b2: int = subtract b0 b1
   b3: int = const 8
   b4: int = whole_divide b2 b3
-  b5: int = get_static $blob1 24
+  b5: int = get_static $blob2 24
   b6: int = add b5 b4
   b7: int = const 0
   raw_store8 b6 0 b7
@@ -1153,7 +2008,7 @@ fn @$search (p0: int) -> int
   b13: int binding
   b14: int binding
   b1: int = const 0
-  b2: int = get_static $blob0 48
+  b2: int = get_static $blob1 48
   b3: int = copy b1
   b4: int = copy b2
   b5: int = const 16
@@ -1173,7 +2028,7 @@ fn @$search (p0: int) -> int
   b10: bool = equal b3 b1
   branch b10 %4 %5
   label %4
-  set_static $blob0 48 b9
+  set_static $blob1 48 b9
   jump %6
   label %5
   raw_store64 b3 8 b9
@@ -1184,9 +2039,9 @@ fn @$search (p0: int) -> int
   label %7
   b13: int = add b4 b0
   raw_store64 b13 0 b11
-  b14: int = get_static $blob0 48
+  b14: int = get_static $blob1 48
   raw_store64 b13 8 b14
-  set_static $blob0 48 b13
+  set_static $blob1 48 b13
   jump %8
   label %8
   raw_store64 b4 0 b0
@@ -1202,55 +2057,87 @@ fn @$bump (p0: int) -> int
   b4: int binding
   b5: bool binding
   b1: int = const 0
-  b2: int = get_static $blob0 32
-  b3: int = get_static $blob0 40
+  b2: int = get_static $blob1 32
+  b3: int = get_static $blob1 40
   b4: int = add b2 b0
   b5: bool = less_than b3 b4
   branch b5 %0 %1
   label %1
-  set_static $blob0 32 b4
+  set_static $blob1 32 b4
   raw_store64 b2 0 b0
   call @4 b2
   return b2
   label %0
   return b1
-fn @$mark_at (p0: int) -> void
+fn @$mark_at (p0: int) -> int
   b0: int binding
   b1: int binding
-  b2: bool binding
-  b3: int binding
-  b4: bool binding
-  b5: int binding
+  b2: int binding
+  b3: bool binding
+  b4: int binding
+  b5: bool binding
   b6: int binding
   b7: int binding
   b8: int binding
   b9: int binding
   b10: int binding
   b11: int binding
-  b12: bool binding
-  b13: int binding
-  b1: int = get_static $blob0 24
-  b2: bool = less_than b0 b1
-  branch b2 %0 %1
+  b12: int binding
+  b13: bool binding
+  b14: int binding
+  b1: int = const 0
+  b2: int = get_static $blob1 24
+  b3: bool = less_than b0 b2
+  branch b3 %0 %1
   label %1
-  b3: int = get_static $blob0 40
-  b4: bool = less_than b3 b0
-  branch b4 %0 %2
+  b4: int = get_static $blob1 40
+  b5: bool = less_than b4 b0
+  branch b5 %0 %2
   label %2
-  b5: int = const 8
-  b6: int = subtract b0 b1
-  b7: int = whole_divide b6 b5
-  b8: int = get_static $blob1 24
-  b9: int = add b8 b7
-  b10: int = raw_load8 b9 0
-  b11: int = const 1
-  b12: bool = equal b10 b11
-  branch b12 %3 %0
+  b6: int = const 8
+  b7: int = subtract b0 b2
+  b8: int = whole_divide b7 b6
+  b9: int = get_static $blob2 24
+  b10: int = add b9 b8
+  b11: int = raw_load8 b10 0
+  b12: int = const 1
+  b13: bool = equal b11 b12
+  branch b13 %3 %0
   label %3
-  b13: int = const 2
-  raw_store8 b9 0 b13
+  b14: int = const 2
+  raw_store8 b10 0 b14
+  b1: int = const 1
   label %0
-  return
+  return b1
+fn @$ledger_at (p0: int) -> int
+  b0: int binding
+  b1: int binding
+  b2: int binding
+  b3: bool binding
+  b4: int binding
+  b5: bool binding
+  b6: int binding
+  b7: int binding
+  b8: int binding
+  b9: int binding
+  b10: int binding
+  b1: int = const 0
+  b2: int = get_static $blob1 24
+  b3: bool = less_than b0 b2
+  branch b3 %0 %1
+  label %1
+  b4: int = get_static $blob1 40
+  b5: bool = less_than b4 b0
+  branch b5 %0 %2
+  label %2
+  b6: int = const 8
+  b7: int = subtract b0 b2
+  b8: int = whole_divide b7 b6
+  b9: int = get_static $blob2 24
+  b10: int = add b9 b8
+  b1: int = raw_load8 b10 0
+  label %0
+  return b1
 fn @$scan_roots () -> void
   b0: int binding
   b1: int binding
@@ -1259,7 +2146,8 @@ fn @$scan_roots () -> void
   b4: int binding
   b5: bool binding
   b6: int binding
-  b0: int = get_static $blob1 32
+  b7: int binding
+  b0: int = get_static $blob2 32
   b1: int = stack_pointer
   b2: int = const 7
   b3: int = const 8
@@ -1271,11 +2159,68 @@ fn @$scan_roots () -> void
   branch b5 %1 %2
   label %1
   b6: int = raw_load64 b4 0
-  call @8 b6
+  b7: int = call @8 b6
   b4: int = add b4 b3
   jump %0
   label %2
   return
+fn @$scan_heap () -> int
+  b0: int binding
+  b1: int binding
+  b2: int binding
+  b3: int binding
+  b4: int binding
+  b5: int binding
+  b6: int binding
+  b7: int binding
+  b8: int binding
+  b9: int binding
+  b10: int binding
+  b11: int binding
+  b12: int binding
+  b13: bool binding
+  b14: int binding
+  b15: int binding
+  b16: bool binding
+  b17: int binding
+  b18: int binding
+  b19: bool binding
+  b0: int = const 0
+  b1: int = const 2
+  b2: int = const 8
+  b3: int = get_static $blob1 24
+  b4: int = get_static $blob1 32
+  b5: int = copy b3
+  b6: int = copy b0
+  label %0
+  b19: bool = less_than b5 b4
+  branch b19 %1 %2
+  label %1
+  b7: int = raw_load64 b5 0
+  b8: int = subtract b5 b3
+  b9: int = whole_divide b8 b2
+  b10: int = get_static $blob2 24
+  b11: int = add b10 b9
+  b12: int = raw_load8 b11 0
+  b13: bool = equal b12 b1
+  branch b13 %3 %4
+  label %3
+  b14: int = add b5 b2
+  b15: int = add b5 b7
+  label %5
+  b16: bool = less_than b14 b15
+  branch b16 %6 %4
+  label %6
+  b17: int = raw_load64 b14 0
+  b18: int = call @8 b17
+  b6: int = add b6 b18
+  b14: int = add b14 b2
+  jump %5
+  label %4
+  b5: int = add b5 b7
+  jump %0
+  label %2
+  return b6
 fn @$free_block (p0: int, p1: int) -> void
   b0: int binding
   b1: int binding
@@ -1289,9 +2234,9 @@ fn @$free_block (p0: int, p1: int) -> void
   b9: int binding
   b10: int binding
   b2: int = const 0
-  b3: int = get_static $blob0 48
-  b4: int = get_static $blob0 56
-  b5: int = get_static $blob0 64
+  b3: int = get_static $blob1 48
+  b4: int = get_static $blob1 56
+  b5: int = get_static $blob1 64
   b6: bool = equal b5 b0
   branch b6 %0 %1
   label %0
@@ -1299,15 +2244,15 @@ fn @$free_block (p0: int, p1: int) -> void
   b8: int = add b7 b1
   raw_store64 b4 0 b8
   b9: int = add b0 b1
-  set_static $blob0 64 b9
+  set_static $blob1 64 b9
   call @5 b0
   return
   label %1
   b10: int = add b0 b1
   raw_store64 b0 8 b3
-  set_static $blob0 48 b0
-  set_static $blob0 56 b0
-  set_static $blob0 64 b10
+  set_static $blob1 48 b0
+  set_static $blob1 56 b0
+  set_static $blob1 64 b10
   call @5 b0
   return
 fn @$sweep_block (p0: int) -> int
@@ -1323,11 +2268,11 @@ fn @$sweep_block (p0: int) -> int
   b9: int binding
   b10: int binding
   b11: bool binding
-  b1: int = get_static $blob0 24
+  b1: int = get_static $blob1 24
   b2: int = subtract b0 b1
   b3: int = const 8
   b4: int = whole_divide b2 b3
-  b5: int = get_static $blob1 24
+  b5: int = get_static $blob2 24
   b6: int = add b5 b4
   b7: int = raw_load8 b6 0
   b8: int = raw_load64 b0 0
@@ -1342,7 +2287,7 @@ fn @$sweep_block (p0: int) -> int
   b11: bool = equal b7 b10
   branch b11 %2 %3
   label %2
-  call @10 b0 b8
+  call @12 b0 b8
   return b8
   label %3
   return b8
@@ -1353,24 +2298,33 @@ fn @$sweep () -> void
   b3: bool binding
   b4: int binding
   b5: int binding
-  b0: int = get_static $blob0 24
-  b1: int = get_static $blob0 32
+  b0: int = get_static $blob1 24
+  b1: int = get_static $blob1 32
   b2: int = copy b0
   label %0
   b3: bool = less_than b2 b1
   branch b3 %1 %2
   label %1
-  b4: int = call @11 b2
+  b4: int = call @13 b2
   b2: int = add b2 b4
   jump %0
   label %2
   b5: int = const 
-  set_static $blob0 56 b5
-  set_static $blob0 64 b5
+  set_static $blob1 56 b5
+  set_static $blob1 64 b5
   return
 fn @$collect () -> void
-  call @9
-  call @12
+  b0: int binding
+  b1: int binding
+  b2: bool binding
+  call @10
+  b0: int = const 0
+  label %0
+  b1: int = call @11
+  b2: bool = equal b1 b0
+  branch b2 %1 %0
+  label %1
+  call @14
   return
 fn @$alloc (p0: int) -> int
   b0: int binding
@@ -1383,7 +2337,7 @@ fn @$alloc (p0: int) -> int
   b7: int binding
   b8: bool binding
   b1: int = const 0
-  b2: int = get_static $blob0 32
+  b2: int = get_static $blob1 32
   b3: bool = less_than b2 b1
   branch b3 %0 %1
   label %0
@@ -1398,7 +2352,7 @@ fn @$alloc (p0: int) -> int
   b8: bool = equal b7 b1
   branch b8 %3 %6
   label %3
-  call @13
+  call @15
   b5: int = call @6 b4
   b6: bool = equal b5 b1
   branch b6 %4 %7
@@ -1415,8 +2369,19 @@ fn @$alloc (p0: int) -> int
 fn @$string_length (p0: ref) -> int
   b0: ref binding
   b1: int binding
-  b1: int = raw_load64 b0 8
-  return b1
+  b2: int binding
+  b3: int binding
+  b4: bool binding
+  b1: int = const 0
+  b2: int = copy b0
+  b3: int = copy b1
+  b4: bool = equal b2 b1
+  branch b4 %0 %1
+  label %0
+  return b3
+  label %1
+  b3: int = raw_load64 b0 8
+  return b3
 fn @$copy_bytes (p0: int, p1: int, p2: int) -> void
   b0: int binding
   b1: int binding
@@ -1446,45 +2411,69 @@ fn @$string_equal (p0: ref, p1: ref) -> bool
   b1: ref binding
   b2: int binding
   b3: int binding
-  b4: bool binding
-  b5: bool binding
+  b4: int binding
+  b5: int binding
   b6: int binding
   b7: int binding
-  b8: int binding
+  b8: bool binding
   b9: int binding
   b10: int binding
-  b11: int binding
-  b12: int binding
-  b13: int binding
-  b14: bool binding
-  b2: int = raw_load64 b0 8
-  b3: int = raw_load64 b1 8
-  b4: bool = equal b2 b3
-  branch b4 %0 %1
+  b11: bool binding
+  b12: bool binding
+  b13: bool binding
+  b14: int binding
+  b15: int binding
+  b16: int binding
+  b17: int binding
+  b18: int binding
+  b19: bool binding
+  b2: int = const 0
+  b3: int = const 1
+  b4: int = copy b0
+  b5: int = copy b1
+  b6: int = copy b2
+  b7: int = copy b2
+  b8: bool = equal b4 b2
+  branch b8 %0 %1
   label %1
-  b5: bool = const false
-  return b5
-  label %0
-  b6: int = raw_load64 b0 16
-  b7: int = raw_load64 b1 16
-  b8: int = const 0
-  b9: int = const 1
-  label %2
-  b4: bool = less_than b8 b2
-  branch b4 %3 %4
-  label %3
-  b10: int = add b6 b8
-  b11: int = raw_load8 b10 0
-  b12: int = add b7 b8
-  b13: int = raw_load8 b12 0
-  b14: bool = equal b11 b13
-  branch b14 %5 %1
-  label %5
-  b8: int = add b8 b9
+  b6: int = raw_load64 b0 8
+  b7: int = raw_load64 b0 16
   jump %2
+  label %0
+  label %2
+  b9: int = copy b2
+  b10: int = copy b2
+  b11: bool = equal b5 b2
+  branch b11 %3 %4
   label %4
-  b5: bool = const true
-  return b5
+  b9: int = raw_load64 b1 8
+  b10: int = raw_load64 b1 16
+  jump %5
+  label %3
+  label %5
+  b12: bool = equal b6 b9
+  branch b12 %6 %7
+  label %7
+  b13: bool = const false
+  return b13
+  label %6
+  b14: int = const 0
+  label %8
+  b12: bool = less_than b14 b6
+  branch b12 %9 %10
+  label %9
+  b15: int = add b7 b14
+  b16: int = raw_load8 b15 0
+  b17: int = add b10 b14
+  b18: int = raw_load8 b17 0
+  b19: bool = equal b16 b18
+  branch b19 %11 %7
+  label %11
+  b14: int = add b14 b3
+  jump %8
+  label %10
+  b13: bool = const true
+  return b13
 fn @$string_concat (p0: ref, p1: ref) -> ref
   b0: ref binding
   b1: ref binding
@@ -1492,31 +2481,694 @@ fn @$string_concat (p0: ref, p1: ref) -> ref
   b3: int binding
   b4: int binding
   b5: int binding
+  b6: bool binding
+  b7: int binding
+  b8: int binding
+  b9: int binding
+  b10: bool binding
+  b11: int binding
+  b12: int binding
+  b13: int binding
+  b14: int binding
+  b15: ref binding
+  b16: int binding
+  b17: int binding
+  b18: int binding
+  b2: int = const 0
+  b3: int = copy b0
+  b4: int = copy b2
+  b5: int = copy b2
+  b6: bool = equal b3 b2
+  branch b6 %0 %1
+  label %1
+  b4: int = raw_load64 b0 8
+  b5: int = raw_load64 b0 16
+  jump %2
+  label %0
+  label %2
+  b7: int = copy b1
+  b8: int = copy b2
+  b9: int = copy b2
+  b10: bool = equal b7 b2
+  branch b10 %3 %4
+  label %4
+  b8: int = raw_load64 b1 8
+  b9: int = raw_load64 b1 16
+  jump %5
+  label %3
+  label %5
+  b11: int = add b4 b8
+  b12: int = const 16
+  b13: int = add b11 b12
+  b14: int = call @16 b13
+  b15: ref = copy b14
+  b16: int = const 24
+  b17: int = add b15 b16
+  raw_store64 b15 8 b11
+  raw_store64 b15 16 b17
+  call @18 b17 b5 b4
+  b18: int = add b17 b4
+  call @18 b18 b9 b8
+  return b15
+fn @$write_byte_fd (p0: int, p1: int) -> void
+  b0: int binding
+  b1: int binding
+  b2: ref binding
+  b3: ref binding
+  b4: int binding
+  b5: int binding
+  set_static $blob24 24 b1
+  b2: ref = data $blob24
+  b3: ref = raw_load64 b2 16
+  b4: int = const 1
+  b5: int = raw_syscall syscall b4 b0 b3 b4
+  return
+fn @$write_blob_fd (p0: int, p1: ref) -> void
+  b0: int binding
+  b1: ref binding
+  b2: int binding
+  b3: ref binding
+  b4: int binding
+  b5: int binding
+  b2: int = raw_load64 b1 8
+  b3: ref = raw_load64 b1 16
+  b4: int = const 1
+  b5: int = raw_syscall syscall b4 b0 b3 b2
+  return
+fn @$write_digits_fd (p0: int, p1: int) -> void
+  b0: int binding
+  b1: int binding
+  b2: int binding
+  b3: int binding
+  b4: int binding
+  b5: int binding
+  b6: bool binding
+  b7: int binding
+  b8: int binding
+  b9: int binding
+  b2: int = const 10
+  b3: int = whole_divide b1 b2
+  b4: int = whole_remainder b1 b2
+  b5: int = const 0
+  b6: bool = equal b3 b5
+  branch b6 %0 %1
+  label %1
+  call @23 b0 b3
+  label %0
+  b7: int = negate b4
+  b8: int = const 48
+  b9: int = add b7 b8
+  call @21 b0 b9
+  return
+fn @$write_int_fd (p0: int, p1: int) -> void
+  b0: int binding
+  b1: int binding
+  b2: int binding
+  b3: bool binding
+  b4: int binding
+  b5: bool binding
   b6: int binding
   b7: int binding
+  b2: int = const 0
+  b3: bool = equal b1 b2
+  branch b3 %0 %1
+  label %0
+  b4: int = const 48
+  call @21 b0 b4
+  return
+  label %1
+  b5: bool = less_than b1 b2
+  branch b5 %2 %3
+  label %2
+  b6: int = const 45
+  call @21 b0 b6
+  call @23 b0 b1
+  return
+  label %3
+  b7: int = negate b1
+  call @23 b0 b7
+  return
+fn @$fail_blob (p0: ref) -> void
+  b0: ref binding
+  b1: int binding
+  b2: ref binding
+  b3: ref binding
+  b4: int binding
+  b5: int binding
+  b6: int binding
+  b1: int = const 2
+  b2: ref = data $blob3
+  call @22 b1 b2
+  call @22 b1 b0
+  b3: ref = data $blob4
+  call @22 b1 b3
+  b4: int = const 60
+  b5: int = const 1
+  b6: int = raw_syscall syscall b4 b5
+  return
+fn @$fail_bounds (p0: int, p1: int) -> void
+  b0: int binding
+  b1: int binding
+  b2: int binding
+  b3: ref binding
+  b4: ref binding
+  b5: ref binding
+  b6: int binding
+  b7: int binding
+  b8: int binding
+  b2: int = const 2
+  b3: ref = data $blob5
+  call @22 b2 b3
+  call @24 b2 b0
+  b4: ref = data $blob6
+  call @22 b2 b4
+  call @24 b2 b1
+  b5: ref = data $blob4
+  call @22 b2 b5
+  b6: int = const 60
+  b7: int = const 1
+  b8: int = raw_syscall syscall b6 b7
+  return
+fn @$fail_nul (p0: int) -> void
+  b0: int binding
+  b1: int binding
+  b2: ref binding
+  b3: ref binding
+  b4: int binding
+  b5: int binding
+  b6: int binding
+  b1: int = const 2
+  b2: ref = data $blob13
+  call @22 b1 b2
+  call @24 b1 b0
+  b3: ref = data $blob4
+  call @22 b1 b3
+  b4: int = const 60
+  b5: int = const 1
+  b6: int = raw_syscall syscall b4 b5
+  return
+fn @$fail_string_index (p0: int, p1: int) -> void
+  b0: int binding
+  b1: int binding
+  b2: int binding
+  b3: ref binding
+  b4: ref binding
+  b5: ref binding
+  b6: int binding
+  b7: int binding
+  b8: int binding
+  b2: int = const 2
+  b3: ref = data $blob16
+  call @22 b2 b3
+  call @24 b2 b0
+  b4: ref = data $blob6
+  call @22 b2 b4
+  call @24 b2 b1
+  b5: ref = data $blob4
+  call @22 b2 b5
+  b6: int = const 60
+  b7: int = const 1
+  b8: int = raw_syscall syscall b6 b7
+  return
+fn @$fail_substring (p0: int, p1: int, p2: int) -> void
+  b0: int binding
+  b1: int binding
+  b2: int binding
+  b3: int binding
+  b4: ref binding
+  b5: ref binding
+  b6: ref binding
+  b7: ref binding
+  b8: int binding
+  b9: int binding
+  b10: int binding
+  b3: int = const 2
+  b4: ref = data $blob17
+  call @22 b3 b4
+  call @24 b3 b0
+  b5: ref = data $blob20
+  call @22 b3 b5
+  call @24 b3 b1
+  b6: ref = data $blob6
+  call @22 b3 b6
+  call @24 b3 b2
+  b7: ref = data $blob4
+  call @22 b3 b7
+  b8: int = const 60
+  b9: int = const 1
+  b10: int = raw_syscall syscall b8 b9
+  return
+fn @$fail_shift (p0: int) -> void
+  b0: int binding
+  b1: int binding
+  b2: ref binding
+  b3: ref binding
+  b4: ref binding
+  b5: int binding
+  b6: int binding
+  b7: int binding
+  b1: int = const 2
+  b2: ref = data $blob18
+  call @22 b1 b2
+  call @24 b1 b0
+  b3: ref = data $blob19
+  call @22 b1 b3
+  b4: ref = data $blob4
+  call @22 b1 b4
+  b5: int = const 60
+  b6: int = const 1
+  b7: int = raw_syscall syscall b5 b6
+  return
+fn @$zero_bytes (p0: int, p1: int) -> void
+  b0: int binding
+  b1: int binding
+  b2: int binding
+  b3: int binding
+  b4: int binding
+  b5: bool binding
+  b6: int binding
+  b2: int = const 0
+  b3: int = const 1
+  b4: int = const 0
+  label %0
+  b5: bool = less_than b2 b1
+  branch b5 %1 %2
+  label %1
+  b6: int = add b0 b2
+  raw_store8 b6 0 b4
+  b2: int = add b2 b3
+  jump %0
+  label %2
+  return
+fn @$array_new (p0: int, p1: int) -> ref
+  b0: int binding
+  b1: int binding
+  b2: int binding
+  b3: int binding
+  b4: int binding
+  b5: int binding
+  b6: int binding
+  b7: ref binding
+  b8: bool binding
+  b9: ref binding
+  b10: bool binding
+  b11: ref binding
+  b12: int binding
+  b13: bool binding
+  b14: ref binding
+  b15: int binding
+  b16: int binding
+  b17: bool binding
+  b18: int binding
+  b19: int binding
+  b2: int = const 0
+  b3: int = const 1
+  b4: int = const 32
+  b5: int = const 8
+  b6: int = const 9223372036854775807
+  b7: ref = copy b2
+  b8: bool = less_than b0 b2
+  branch b8 %0 %1
+  label %0
+  b9: ref = data $blob7
+  call @25 b9
+  return b7
+  label %1
+  b10: bool = less_than b1 b3
+  branch b10 %2 %3
+  label %2
+  b11: ref = data $blob8
+  call @25 b11
+  return b7
+  label %3
+  b12: int = whole_divide b6 b1
+  b13: bool = less_than b12 b0
+  branch b13 %4 %5
+  label %4
+  b14: ref = data $blob9
+  call @25 b14
+  return b7
+  label %5
+  b15: int = call @16 b4
+  raw_store64 b15 8 b0
+  raw_store64 b15 16 b1
+  raw_store64 b15 24 b2
+  raw_store64 b15 32 b0
+  b7: ref = copy b15
+  b16: int = multiply b0 b1
+  b17: bool = equal b16 b2
+  branch b17 %6 %7
+  label %6
+  b16: int = const 1
+  label %7
+  b18: int = call @16 b16
+  raw_store64 b15 24 b18
+  b19: int = add b18 b5
+  call @31 b19 b16
+  return b7
+fn @$array_length (p0: ref) -> int
+  b0: ref binding
+  b1: int binding
+  b2: int binding
+  b3: bool binding
+  b4: ref binding
+  b5: int binding
+  b1: int = const 0
+  b2: int = copy b0
+  b3: bool = equal b2 b1
+  branch b3 %0 %1
+  label %0
+  b4: ref = data $blob11
+  call @25 b4
+  return b1
+  label %1
+  b5: int = raw_load64 b0 8
+  return b5
+fn @$array_push (p0: ref, p1: int) -> int
+  b0: ref binding
+  b1: int binding
+  b2: int binding
+  b3: int binding
+  b4: int binding
+  b5: int binding
+  b6: int binding
+  b7: bool binding
   b8: ref binding
   b9: int binding
   b10: int binding
   b11: int binding
+  b12: bool binding
+  b13: int binding
+  b14: bool binding
+  b15: int binding
+  b16: int binding
+  b17: bool binding
+  b18: ref binding
+  b19: int binding
+  b20: int binding
+  b21: int binding
+  b22: int binding
+  b23: int binding
+  b24: int binding
+  b25: int binding
+  b26: int binding
+  b27: int binding
+  b28: int binding
+  b29: bool binding
+  b30: int binding
+  b2: int = const 0
+  b3: int = const 1
+  b4: int = const 9223372036854775807
+  b5: int = const 8
+  b6: int = copy b0
+  b7: bool = equal b6 b2
+  branch b7 %0 %1
+  label %0
+  b8: ref = data $blob12
+  call @25 b8
+  return b2
+  label %1
+  b9: int = raw_load64 b0 8
+  b10: int = raw_load64 b0 16
+  b11: int = raw_load64 b0 32
+  b12: bool = equal b9 b11
+  branch b12 %2 %8
+  label %2
+  b13: int = copy b11
+  b14: bool = less_than b11 b3
+  branch b14 %3 %4
+  label %3
+  b13: int = copy b3
+  jump %5
+  label %4
+  b15: int = add b11 b11
+  b13: int = copy b15
+  label %5
+  b16: int = whole_divide b4 b10
+  b17: bool = less_than b16 b13
+  branch b17 %6 %7
+  label %6
+  b18: ref = data $blob9
+  call @25 b18
+  return b2
+  label %7
+  b19: int = multiply b13 b10
+  b20: int = call @16 b19
+  b21: int = multiply b9 b10
+  b22: int = raw_load64 b0 24
+  b23: int = add b20 b5
+  b24: int = add b22 b5
+  call @18 b23 b24 b21
+  raw_store64 b0 24 b20
+  raw_store64 b0 32 b13
+  label %8
+  b25: int = raw_load64 b0 24
+  b26: int = add b25 b5
+  b27: int = multiply b9 b10
+  b28: int = add b26 b27
+  b29: bool = equal b10 b3
+  branch b29 %9 %10
+  label %9
+  raw_store8 b28 0 b1
+  jump %11
+  label %10
+  raw_store64 b28 0 b1
+  label %11
+  b30: int = add b9 b3
+  raw_store64 b0 8 b30
+  return b30
+fn @$array_at (p0: ref, p1: int) -> int
+  b0: ref binding
+  b1: int binding
+  b2: int binding
+  b3: int binding
+  b4: int binding
+  b5: bool binding
+  b6: ref binding
+  b7: int binding
+  b8: bool binding
+  b9: bool binding
+  b10: int binding
+  b11: int binding
   b12: int binding
   b13: int binding
-  b2: int = raw_load64 b0 8
-  b3: int = raw_load64 b1 8
-  b4: int = add b2 b3
+  b14: int binding
+  b2: int = const 0
+  b3: int = const 8
+  b4: int = copy b0
+  b5: bool = equal b4 b2
+  branch b5 %0 %1
+  label %0
+  b6: ref = data $blob10
+  call @25 b6
+  return b2
+  label %1
+  b7: int = raw_load64 b0 8
+  b8: bool = less_than b1 b2
+  branch b8 %2 %3
+  label %3
+  b9: bool = less_than b1 b7
+  branch b9 %4 %2
+  label %2
+  call @26 b1 b7
+  return b2
+  label %4
+  b10: int = raw_load64 b0 16
+  b11: int = raw_load64 b0 24
+  b12: int = multiply b1 b10
+  b13: int = add b11 b3
+  b14: int = add b13 b12
+  return b14
+fn @$string_to_bytes (p0: ref) -> ref
+  b0: ref binding
+  b1: int binding
+  b2: int binding
+  b3: int binding
+  b4: ref binding
+  b5: int binding
+  b6: int binding
+  b7: int binding
+  b1: int = raw_load64 b0 8
+  b2: int = raw_load64 b0 16
+  b3: int = const 1
+  b4: ref = call @32 b1 b3
+  b5: int = raw_load64 b4 24
+  b6: int = const 8
+  b7: int = add b5 b6
+  call @18 b7 b2 b1
+  return b4
+fn @$bytes_to_string (p0: ref) -> ref
+  b0: ref binding
+  b1: int binding
+  b2: int binding
+  b3: int binding
+  b4: int binding
+  b5: int binding
+  b6: ref binding
+  b7: int binding
+  b8: bool binding
+  b9: ref binding
+  b10: int binding
+  b11: int binding
+  b12: bool binding
+  b13: ref binding
+  b14: int binding
+  b15: int binding
+  b16: int binding
+  b17: bool binding
+  b18: int binding
+  b19: int binding
+  b20: bool binding
+  b21: int binding
+  b22: int binding
+  b23: int binding
+  b2: int = const 24
+  b1: int = const 0
+  b3: int = const 1
+  b4: int = const 8
   b5: int = const 16
-  b6: int = add b4 b5
-  b7: int = call @14 b6
-  b8: ref = copy b7
-  b9: int = const 24
-  b10: int = add b8 b9
-  raw_store64 b8 8 b4
-  raw_store64 b8 16 b10
+  b6: ref = copy b1
+  b7: int = copy b0
+  b8: bool = equal b7 b1
+  branch b8 %0 %1
+  label %0
+  b9: ref = data $blob14
+  call @25 b9
+  return b6
+  label %1
+  b10: int = raw_load64 b0 8
   b11: int = raw_load64 b0 16
-  b12: int = raw_load64 b1 16
-  call @16 b10 b11 b2
-  b13: int = add b10 b2
-  call @16 b13 b12 b3
-  return b8
+  b12: bool = equal b11 b3
+  branch b12 %2 %3
+  label %3
+  b13: ref = data $blob15
+  call @25 b13
+  return b6
+  label %2
+  b14: int = raw_load64 b0 24
+  b15: int = add b14 b4
+  b16: int = const 0
+  label %4
+  b17: bool = less_than b16 b10
+  branch b17 %5 %6
+  label %5
+  b19: int = add b15 b16
+  b18: int = raw_load8 b19 0
+  b20: bool = equal b18 b1
+  branch b20 %7 %8
+  label %8
+  b16: int = add b16 b3
+  jump %4
+  label %7
+  call @27 b16
+  return b6
+  label %6
+  b21: int = add b10 b5
+  b22: int = call @16 b21
+  raw_store64 b22 8 b10
+  b23: int = add b22 b2
+  raw_store64 b22 16 b23
+  call @18 b23 b15 b10
+  b6: ref = copy b22
+  return b6
+fn @$string_at (p0: ref, p1: int) -> int
+  b0: ref binding
+  b1: int binding
+  b2: int binding
+  b3: int binding
+  b4: bool binding
+  b5: int binding
+  b6: bool binding
+  b7: bool binding
+  b8: int binding
+  b9: int binding
+  b10: int binding
+  b2: int = const 0
+  b3: int = copy b0
+  b4: bool = equal b3 b2
+  b5: int = const 0
+  branch b4 %1 %0
+  label %0
+  b5: int = raw_load64 b0 8
+  label %1
+  b6: bool = less_than b1 b2
+  branch b6 %2 %3
+  label %3
+  b7: bool = less_than b1 b5
+  branch b7 %4 %2
+  label %2
+  call @28 b1 b5
+  return b2
+  label %4
+  b8: int = raw_load64 b0 16
+  b9: int = add b8 b1
+  b10: int = raw_load8 b9 0
+  return b10
+fn @$substring (p0: ref, p1: int, p2: int) -> ref
+  b0: ref binding
+  b1: int binding
+  b2: int binding
+  b3: int binding
+  b4: int binding
+  b5: int binding
+  b6: ref binding
+  b7: int binding
+  b8: bool binding
+  b9: int binding
+  b10: bool binding
+  b11: bool binding
+  b12: bool binding
+  b13: int binding
+  b14: int binding
+  b15: int binding
+  b16: int binding
+  b17: int binding
+  b18: int binding
+  b4: int = const 24
+  b3: int = const 0
+  b5: int = const 16
+  b6: ref = copy b3
+  b7: int = copy b0
+  b8: bool = equal b7 b3
+  b9: int = const 0
+  branch b8 %1 %0
+  label %0
+  b9: int = raw_load64 b0 8
+  label %1
+  b10: bool = less_than b1 b3
+  branch b10 %2 %3
+  label %3
+  b11: bool = less_than b2 b1
+  branch b11 %2 %4
+  label %4
+  b12: bool = less_than b9 b2
+  branch b12 %2 %5
+  label %2
+  call @29 b1 b2 b9
+  return b6
+  label %5
+  b13: int = subtract b2 b1
+  b14: int = add b13 b5
+  b15: int = call @16 b14
+  raw_store64 b15 8 b13
+  b16: int = add b15 b4
+  raw_store64 b15 16 b16
+  b17: int = raw_load64 b0 16
+  b18: int = add b17 b1
+  call @18 b16 b18 b13
+  b6: ref = copy b15
+  return b6
+fn @$print_string_raw (p0: ref) -> void
+  b0: ref binding
+  b1: int binding
+  b2: ref binding
+  b3: int binding
+  b4: int binding
+  b1: int = raw_load64 b0 8
+  b2: ref = raw_load64 b0 16
+  b3: int = const 1
+  b4: int = raw_syscall syscall b3 b3 b2 b1
+  return
 fn @$print (p0: ref) -> void
   b0: ref binding
   b1: int binding
@@ -1531,10 +3183,20 @@ fn @$print (p0: ref) -> void
   b2: ref = raw_load64 b0 16
   b3: int = const 1
   b4: int = raw_syscall syscall b3 b3 b2 b1
-  b5: ref = data $blob2
+  b5: ref = data $blob25
   b6: ref = raw_load64 b5 16
   b7: int = const 1
   b8: int = raw_syscall syscall b7 b7 b6 b7
+  return
+fn @$print_newline () -> void
+  b0: ref binding
+  b1: ref binding
+  b2: int binding
+  b3: int binding
+  b0: ref = data $blob25
+  b1: ref = raw_load64 b0 16
+  b2: int = const 1
+  b3: int = raw_syscall syscall b2 b2 b1 b2
   return
 
 `
@@ -1543,12 +3205,36 @@ fn @$print (p0: ref) -> void
 // after the program’s own functions, the digit scratch stores one byte at a
 // raw offset, and each print call reaches `$print_int`.
 const wantPrintIntScene = `scene
-data $blob0: 48 bytes 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255
-data $blob1: 16 bytes 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255
-data $blob2: 1 bytes 10
-data $blob3: 1 bytes 45
-data $blob4: 1 bytes 48
-data $blob5: 1 bytes 48
+data $blob0: 8 bytes 32 32 32 32 32 32 32 32
+data $blob1: 48 bytes 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255
+data $blob2: 16 bytes 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255
+data $blob3: 6 bytes 112 117 114 114 58 32
+data $blob4: 1 bytes 10
+data $blob5: 18 bytes 112 117 114 114 58 32 97 114 114 97 121 32 105 110 100 101 120 32
+data $blob6: 28 bytes 32 105 115 32 111 117 116 32 111 102 32 114 97 110 103 101 32 102 111 114 32 108 101 110 103 116 104 32
+data $blob7: 31 bytes 97 114 114 97 121 32 108 101 110 103 116 104 32 99 97 110 110 111 116 32 98 101 32 110 101 103 97 116 105 118 101
+data $blob8: 35 bytes 97 114 114 97 121 32 101 108 101 109 101 110 116 32 115 105 122 101 32 109 117 115 116 32 98 101 32 112 111 115 105 116 105 118 101
+data $blob9: 29 bytes 97 114 114 97 121 32 97 108 108 111 99 97 116 105 111 110 32 105 115 32 116 111 111 32 108 97 114 103 101
+data $blob10: 38 bytes 97 114 114 97 121 32 97 99 99 101 115 115 32 111 110 32 97 32 110 117 108 108 32 97 114 114 97 121 32 114 101 102 101 114 101 110 99 101
+data $blob11: 32 bytes 108 101 110 103 116 104 32 111 102 32 97 32 110 117 108 108 32 97 114 114 97 121 32 114 101 102 101 114 101 110 99 101
+data $blob12: 32 bytes 97 112 112 101 110 100 32 116 111 32 97 32 110 117 108 108 32 97 114 114 97 121 32 114 101 102 101 114 101 110 99 101
+data $blob13: 46 bytes 112 117 114 114 58 32 98 121 116 101 32 97 114 114 97 121 32 99 111 110 116 97 105 110 115 32 97 32 78 85 76 32 98 121 116 101 32 97 116 32 105 110 100 101 120 32
+data $blob14: 18 bytes 98 121 116 101 32 97 114 114 97 121 32 105 115 32 110 117 108 108
+data $blob15: 32 bytes 98 121 116 101 32 97 114 114 97 121 32 101 108 101 109 101 110 116 32 115 105 122 101 32 105 115 32 110 111 116 32 49
+data $blob16: 19 bytes 112 117 114 114 58 32 115 116 114 105 110 103 32 105 110 100 101 120 32
+data $blob17: 22 bytes 112 117 114 114 58 32 115 117 98 115 116 114 105 110 103 32 114 97 110 103 101 32
+data $blob18: 18 bytes 112 117 114 114 58 32 115 104 105 102 116 32 99 111 117 110 116 32
+data $blob19: 17 bytes 32 105 115 32 111 117 116 115 105 100 101 32 48 46 46 54 51
+data $blob20: 2 bytes 46 46
+data $blob21: 1 bytes 32
+data $blob22: 4 bytes 116 114 117 101
+data $blob23: 5 bytes 102 97 108 115 101
+data $blob24: 1 bytes 48
+data $blob25: 1 bytes 10
+data $blob26: 1 bytes 32
+data $blob27: 1 bytes 45
+data $blob28: 1 bytes 48
+data $blob29: 1 bytes 48
 entry 0 @main
 fn @main () -> void
   b0: int binding
@@ -1561,19 +3247,19 @@ fn @main () -> void
   b7: int binding
   b8: int binding
   b0: int = const 5
-  call @22 b0
+  call @45 b0
   b1: int = const 0
-  call @22 b1
+  call @45 b1
   b2: int = const 7
   b3: int = negate b2
-  call @22 b3
+  call @45 b3
   b5: int = const 9223372036854775807
   b4: int = copy b5
   b6: int = const 1
   b7: int = add b4 b6
   b8: int = copy b4
   b4: int = copy b7
-  call @22 b4
+  call @45 b4
 fn @$mmap (p0: int) -> int
   b0: int binding
   b1: int binding
@@ -1601,21 +3287,21 @@ fn @$map () -> void
   b4: int binding
   b5: int binding
   b6: int binding
-  b0: int = const 268435456
-  b1: int = const 33554440
+  b0: int = const 536870912
+  b1: int = const 67108872
   b2: int = call @1 b0
   b3: int = call @1 b1
-  b4: int = stack_pointer
+  b4: int = get_static $blob0 24
   b5: int = const 
   b6: int = add b2 b0
-  set_static $blob0 24 b2
-  set_static $blob0 32 b2
-  set_static $blob0 40 b6
-  set_static $blob0 48 b5
-  set_static $blob0 56 b5
-  set_static $blob0 64 b5
-  set_static $blob1 24 b3
-  set_static $blob1 32 b4
+  set_static $blob1 24 b2
+  set_static $blob1 32 b2
+  set_static $blob1 40 b6
+  set_static $blob1 48 b5
+  set_static $blob1 56 b5
+  set_static $blob1 64 b5
+  set_static $blob2 24 b3
+  set_static $blob2 32 b4
   return
 fn @$pad8 (p0: int) -> int
   b0: int binding
@@ -1647,11 +3333,11 @@ fn @$byte_set1 (p0: int) -> void
   b5: int binding
   b6: int binding
   b7: int binding
-  b1: int = get_static $blob0 24
+  b1: int = get_static $blob1 24
   b2: int = subtract b0 b1
   b3: int = const 8
   b4: int = whole_divide b2 b3
-  b5: int = get_static $blob1 24
+  b5: int = get_static $blob2 24
   b6: int = add b5 b4
   b7: int = const 1
   raw_store8 b6 0 b7
@@ -1665,11 +3351,11 @@ fn @$byte_set0 (p0: int) -> void
   b5: int binding
   b6: int binding
   b7: int binding
-  b1: int = get_static $blob0 24
+  b1: int = get_static $blob1 24
   b2: int = subtract b0 b1
   b3: int = const 8
   b4: int = whole_divide b2 b3
-  b5: int = get_static $blob1 24
+  b5: int = get_static $blob2 24
   b6: int = add b5 b4
   b7: int = const 0
   raw_store8 b6 0 b7
@@ -1691,7 +3377,7 @@ fn @$search (p0: int) -> int
   b13: int binding
   b14: int binding
   b1: int = const 0
-  b2: int = get_static $blob0 48
+  b2: int = get_static $blob1 48
   b3: int = copy b1
   b4: int = copy b2
   b5: int = const 16
@@ -1711,7 +3397,7 @@ fn @$search (p0: int) -> int
   b10: bool = equal b3 b1
   branch b10 %4 %5
   label %4
-  set_static $blob0 48 b9
+  set_static $blob1 48 b9
   jump %6
   label %5
   raw_store64 b3 8 b9
@@ -1722,9 +3408,9 @@ fn @$search (p0: int) -> int
   label %7
   b13: int = add b4 b0
   raw_store64 b13 0 b11
-  b14: int = get_static $blob0 48
+  b14: int = get_static $blob1 48
   raw_store64 b13 8 b14
-  set_static $blob0 48 b13
+  set_static $blob1 48 b13
   jump %8
   label %8
   raw_store64 b4 0 b0
@@ -1740,55 +3426,87 @@ fn @$bump (p0: int) -> int
   b4: int binding
   b5: bool binding
   b1: int = const 0
-  b2: int = get_static $blob0 32
-  b3: int = get_static $blob0 40
+  b2: int = get_static $blob1 32
+  b3: int = get_static $blob1 40
   b4: int = add b2 b0
   b5: bool = less_than b3 b4
   branch b5 %0 %1
   label %1
-  set_static $blob0 32 b4
+  set_static $blob1 32 b4
   raw_store64 b2 0 b0
   call @4 b2
   return b2
   label %0
   return b1
-fn @$mark_at (p0: int) -> void
+fn @$mark_at (p0: int) -> int
   b0: int binding
   b1: int binding
-  b2: bool binding
-  b3: int binding
-  b4: bool binding
-  b5: int binding
+  b2: int binding
+  b3: bool binding
+  b4: int binding
+  b5: bool binding
   b6: int binding
   b7: int binding
   b8: int binding
   b9: int binding
   b10: int binding
   b11: int binding
-  b12: bool binding
-  b13: int binding
-  b1: int = get_static $blob0 24
-  b2: bool = less_than b0 b1
-  branch b2 %0 %1
+  b12: int binding
+  b13: bool binding
+  b14: int binding
+  b1: int = const 0
+  b2: int = get_static $blob1 24
+  b3: bool = less_than b0 b2
+  branch b3 %0 %1
   label %1
-  b3: int = get_static $blob0 40
-  b4: bool = less_than b3 b0
-  branch b4 %0 %2
+  b4: int = get_static $blob1 40
+  b5: bool = less_than b4 b0
+  branch b5 %0 %2
   label %2
-  b5: int = const 8
-  b6: int = subtract b0 b1
-  b7: int = whole_divide b6 b5
-  b8: int = get_static $blob1 24
-  b9: int = add b8 b7
-  b10: int = raw_load8 b9 0
-  b11: int = const 1
-  b12: bool = equal b10 b11
-  branch b12 %3 %0
+  b6: int = const 8
+  b7: int = subtract b0 b2
+  b8: int = whole_divide b7 b6
+  b9: int = get_static $blob2 24
+  b10: int = add b9 b8
+  b11: int = raw_load8 b10 0
+  b12: int = const 1
+  b13: bool = equal b11 b12
+  branch b13 %3 %0
   label %3
-  b13: int = const 2
-  raw_store8 b9 0 b13
+  b14: int = const 2
+  raw_store8 b10 0 b14
+  b1: int = const 1
   label %0
-  return
+  return b1
+fn @$ledger_at (p0: int) -> int
+  b0: int binding
+  b1: int binding
+  b2: int binding
+  b3: bool binding
+  b4: int binding
+  b5: bool binding
+  b6: int binding
+  b7: int binding
+  b8: int binding
+  b9: int binding
+  b10: int binding
+  b1: int = const 0
+  b2: int = get_static $blob1 24
+  b3: bool = less_than b0 b2
+  branch b3 %0 %1
+  label %1
+  b4: int = get_static $blob1 40
+  b5: bool = less_than b4 b0
+  branch b5 %0 %2
+  label %2
+  b6: int = const 8
+  b7: int = subtract b0 b2
+  b8: int = whole_divide b7 b6
+  b9: int = get_static $blob2 24
+  b10: int = add b9 b8
+  b1: int = raw_load8 b10 0
+  label %0
+  return b1
 fn @$scan_roots () -> void
   b0: int binding
   b1: int binding
@@ -1797,7 +3515,8 @@ fn @$scan_roots () -> void
   b4: int binding
   b5: bool binding
   b6: int binding
-  b0: int = get_static $blob1 32
+  b7: int binding
+  b0: int = get_static $blob2 32
   b1: int = stack_pointer
   b2: int = const 7
   b3: int = const 8
@@ -1809,11 +3528,68 @@ fn @$scan_roots () -> void
   branch b5 %1 %2
   label %1
   b6: int = raw_load64 b4 0
-  call @8 b6
+  b7: int = call @8 b6
   b4: int = add b4 b3
   jump %0
   label %2
   return
+fn @$scan_heap () -> int
+  b0: int binding
+  b1: int binding
+  b2: int binding
+  b3: int binding
+  b4: int binding
+  b5: int binding
+  b6: int binding
+  b7: int binding
+  b8: int binding
+  b9: int binding
+  b10: int binding
+  b11: int binding
+  b12: int binding
+  b13: bool binding
+  b14: int binding
+  b15: int binding
+  b16: bool binding
+  b17: int binding
+  b18: int binding
+  b19: bool binding
+  b0: int = const 0
+  b1: int = const 2
+  b2: int = const 8
+  b3: int = get_static $blob1 24
+  b4: int = get_static $blob1 32
+  b5: int = copy b3
+  b6: int = copy b0
+  label %0
+  b19: bool = less_than b5 b4
+  branch b19 %1 %2
+  label %1
+  b7: int = raw_load64 b5 0
+  b8: int = subtract b5 b3
+  b9: int = whole_divide b8 b2
+  b10: int = get_static $blob2 24
+  b11: int = add b10 b9
+  b12: int = raw_load8 b11 0
+  b13: bool = equal b12 b1
+  branch b13 %3 %4
+  label %3
+  b14: int = add b5 b2
+  b15: int = add b5 b7
+  label %5
+  b16: bool = less_than b14 b15
+  branch b16 %6 %4
+  label %6
+  b17: int = raw_load64 b14 0
+  b18: int = call @8 b17
+  b6: int = add b6 b18
+  b14: int = add b14 b2
+  jump %5
+  label %4
+  b5: int = add b5 b7
+  jump %0
+  label %2
+  return b6
 fn @$free_block (p0: int, p1: int) -> void
   b0: int binding
   b1: int binding
@@ -1827,9 +3603,9 @@ fn @$free_block (p0: int, p1: int) -> void
   b9: int binding
   b10: int binding
   b2: int = const 0
-  b3: int = get_static $blob0 48
-  b4: int = get_static $blob0 56
-  b5: int = get_static $blob0 64
+  b3: int = get_static $blob1 48
+  b4: int = get_static $blob1 56
+  b5: int = get_static $blob1 64
   b6: bool = equal b5 b0
   branch b6 %0 %1
   label %0
@@ -1837,15 +3613,15 @@ fn @$free_block (p0: int, p1: int) -> void
   b8: int = add b7 b1
   raw_store64 b4 0 b8
   b9: int = add b0 b1
-  set_static $blob0 64 b9
+  set_static $blob1 64 b9
   call @5 b0
   return
   label %1
   b10: int = add b0 b1
   raw_store64 b0 8 b3
-  set_static $blob0 48 b0
-  set_static $blob0 56 b0
-  set_static $blob0 64 b10
+  set_static $blob1 48 b0
+  set_static $blob1 56 b0
+  set_static $blob1 64 b10
   call @5 b0
   return
 fn @$sweep_block (p0: int) -> int
@@ -1861,11 +3637,11 @@ fn @$sweep_block (p0: int) -> int
   b9: int binding
   b10: int binding
   b11: bool binding
-  b1: int = get_static $blob0 24
+  b1: int = get_static $blob1 24
   b2: int = subtract b0 b1
   b3: int = const 8
   b4: int = whole_divide b2 b3
-  b5: int = get_static $blob1 24
+  b5: int = get_static $blob2 24
   b6: int = add b5 b4
   b7: int = raw_load8 b6 0
   b8: int = raw_load64 b0 0
@@ -1880,7 +3656,7 @@ fn @$sweep_block (p0: int) -> int
   b11: bool = equal b7 b10
   branch b11 %2 %3
   label %2
-  call @10 b0 b8
+  call @12 b0 b8
   return b8
   label %3
   return b8
@@ -1891,24 +3667,33 @@ fn @$sweep () -> void
   b3: bool binding
   b4: int binding
   b5: int binding
-  b0: int = get_static $blob0 24
-  b1: int = get_static $blob0 32
+  b0: int = get_static $blob1 24
+  b1: int = get_static $blob1 32
   b2: int = copy b0
   label %0
   b3: bool = less_than b2 b1
   branch b3 %1 %2
   label %1
-  b4: int = call @11 b2
+  b4: int = call @13 b2
   b2: int = add b2 b4
   jump %0
   label %2
   b5: int = const 
-  set_static $blob0 56 b5
-  set_static $blob0 64 b5
+  set_static $blob1 56 b5
+  set_static $blob1 64 b5
   return
 fn @$collect () -> void
-  call @9
-  call @12
+  b0: int binding
+  b1: int binding
+  b2: bool binding
+  call @10
+  b0: int = const 0
+  label %0
+  b1: int = call @11
+  b2: bool = equal b1 b0
+  branch b2 %1 %0
+  label %1
+  call @14
   return
 fn @$alloc (p0: int) -> int
   b0: int binding
@@ -1921,7 +3706,7 @@ fn @$alloc (p0: int) -> int
   b7: int binding
   b8: bool binding
   b1: int = const 0
-  b2: int = get_static $blob0 32
+  b2: int = get_static $blob1 32
   b3: bool = less_than b2 b1
   branch b3 %0 %1
   label %0
@@ -1936,7 +3721,7 @@ fn @$alloc (p0: int) -> int
   b8: bool = equal b7 b1
   branch b8 %3 %6
   label %3
-  call @13
+  call @15
   b5: int = call @6 b4
   b6: bool = equal b5 b1
   branch b6 %4 %7
@@ -1953,8 +3738,19 @@ fn @$alloc (p0: int) -> int
 fn @$string_length (p0: ref) -> int
   b0: ref binding
   b1: int binding
-  b1: int = raw_load64 b0 8
-  return b1
+  b2: int binding
+  b3: int binding
+  b4: bool binding
+  b1: int = const 0
+  b2: int = copy b0
+  b3: int = copy b1
+  b4: bool = equal b2 b1
+  branch b4 %0 %1
+  label %0
+  return b3
+  label %1
+  b3: int = raw_load64 b0 8
+  return b3
 fn @$copy_bytes (p0: int, p1: int, p2: int) -> void
   b0: int binding
   b1: int binding
@@ -1984,45 +3780,69 @@ fn @$string_equal (p0: ref, p1: ref) -> bool
   b1: ref binding
   b2: int binding
   b3: int binding
-  b4: bool binding
-  b5: bool binding
+  b4: int binding
+  b5: int binding
   b6: int binding
   b7: int binding
-  b8: int binding
+  b8: bool binding
   b9: int binding
   b10: int binding
-  b11: int binding
-  b12: int binding
-  b13: int binding
-  b14: bool binding
-  b2: int = raw_load64 b0 8
-  b3: int = raw_load64 b1 8
-  b4: bool = equal b2 b3
-  branch b4 %0 %1
+  b11: bool binding
+  b12: bool binding
+  b13: bool binding
+  b14: int binding
+  b15: int binding
+  b16: int binding
+  b17: int binding
+  b18: int binding
+  b19: bool binding
+  b2: int = const 0
+  b3: int = const 1
+  b4: int = copy b0
+  b5: int = copy b1
+  b6: int = copy b2
+  b7: int = copy b2
+  b8: bool = equal b4 b2
+  branch b8 %0 %1
   label %1
-  b5: bool = const false
-  return b5
-  label %0
-  b6: int = raw_load64 b0 16
-  b7: int = raw_load64 b1 16
-  b8: int = const 0
-  b9: int = const 1
-  label %2
-  b4: bool = less_than b8 b2
-  branch b4 %3 %4
-  label %3
-  b10: int = add b6 b8
-  b11: int = raw_load8 b10 0
-  b12: int = add b7 b8
-  b13: int = raw_load8 b12 0
-  b14: bool = equal b11 b13
-  branch b14 %5 %1
-  label %5
-  b8: int = add b8 b9
+  b6: int = raw_load64 b0 8
+  b7: int = raw_load64 b0 16
   jump %2
+  label %0
+  label %2
+  b9: int = copy b2
+  b10: int = copy b2
+  b11: bool = equal b5 b2
+  branch b11 %3 %4
   label %4
-  b5: bool = const true
-  return b5
+  b9: int = raw_load64 b1 8
+  b10: int = raw_load64 b1 16
+  jump %5
+  label %3
+  label %5
+  b12: bool = equal b6 b9
+  branch b12 %6 %7
+  label %7
+  b13: bool = const false
+  return b13
+  label %6
+  b14: int = const 0
+  label %8
+  b12: bool = less_than b14 b6
+  branch b12 %9 %10
+  label %9
+  b15: int = add b7 b14
+  b16: int = raw_load8 b15 0
+  b17: int = add b10 b14
+  b18: int = raw_load8 b17 0
+  b19: bool = equal b16 b18
+  branch b19 %11 %7
+  label %11
+  b14: int = add b14 b3
+  jump %8
+  label %10
+  b13: bool = const true
+  return b13
 fn @$string_concat (p0: ref, p1: ref) -> ref
   b0: ref binding
   b1: ref binding
@@ -2030,31 +3850,704 @@ fn @$string_concat (p0: ref, p1: ref) -> ref
   b3: int binding
   b4: int binding
   b5: int binding
+  b6: bool binding
+  b7: int binding
+  b8: int binding
+  b9: int binding
+  b10: bool binding
+  b11: int binding
+  b12: int binding
+  b13: int binding
+  b14: int binding
+  b15: ref binding
+  b16: int binding
+  b17: int binding
+  b18: int binding
+  b2: int = const 0
+  b3: int = copy b0
+  b4: int = copy b2
+  b5: int = copy b2
+  b6: bool = equal b3 b2
+  branch b6 %0 %1
+  label %1
+  b4: int = raw_load64 b0 8
+  b5: int = raw_load64 b0 16
+  jump %2
+  label %0
+  label %2
+  b7: int = copy b1
+  b8: int = copy b2
+  b9: int = copy b2
+  b10: bool = equal b7 b2
+  branch b10 %3 %4
+  label %4
+  b8: int = raw_load64 b1 8
+  b9: int = raw_load64 b1 16
+  jump %5
+  label %3
+  label %5
+  b11: int = add b4 b8
+  b12: int = const 16
+  b13: int = add b11 b12
+  b14: int = call @16 b13
+  b15: ref = copy b14
+  b16: int = const 24
+  b17: int = add b15 b16
+  raw_store64 b15 8 b11
+  raw_store64 b15 16 b17
+  call @18 b17 b5 b4
+  b18: int = add b17 b4
+  call @18 b18 b9 b8
+  return b15
+fn @$write_byte_fd (p0: int, p1: int) -> void
+  b0: int binding
+  b1: int binding
+  b2: ref binding
+  b3: ref binding
+  b4: int binding
+  b5: int binding
+  set_static $blob24 24 b1
+  b2: ref = data $blob24
+  b3: ref = raw_load64 b2 16
+  b4: int = const 1
+  b5: int = raw_syscall syscall b4 b0 b3 b4
+  return
+fn @$write_blob_fd (p0: int, p1: ref) -> void
+  b0: int binding
+  b1: ref binding
+  b2: int binding
+  b3: ref binding
+  b4: int binding
+  b5: int binding
+  b2: int = raw_load64 b1 8
+  b3: ref = raw_load64 b1 16
+  b4: int = const 1
+  b5: int = raw_syscall syscall b4 b0 b3 b2
+  return
+fn @$write_digits_fd (p0: int, p1: int) -> void
+  b0: int binding
+  b1: int binding
+  b2: int binding
+  b3: int binding
+  b4: int binding
+  b5: int binding
+  b6: bool binding
+  b7: int binding
+  b8: int binding
+  b9: int binding
+  b2: int = const 10
+  b3: int = whole_divide b1 b2
+  b4: int = whole_remainder b1 b2
+  b5: int = const 0
+  b6: bool = equal b3 b5
+  branch b6 %0 %1
+  label %1
+  call @23 b0 b3
+  label %0
+  b7: int = negate b4
+  b8: int = const 48
+  b9: int = add b7 b8
+  call @21 b0 b9
+  return
+fn @$write_int_fd (p0: int, p1: int) -> void
+  b0: int binding
+  b1: int binding
+  b2: int binding
+  b3: bool binding
+  b4: int binding
+  b5: bool binding
   b6: int binding
   b7: int binding
+  b2: int = const 0
+  b3: bool = equal b1 b2
+  branch b3 %0 %1
+  label %0
+  b4: int = const 48
+  call @21 b0 b4
+  return
+  label %1
+  b5: bool = less_than b1 b2
+  branch b5 %2 %3
+  label %2
+  b6: int = const 45
+  call @21 b0 b6
+  call @23 b0 b1
+  return
+  label %3
+  b7: int = negate b1
+  call @23 b0 b7
+  return
+fn @$fail_blob (p0: ref) -> void
+  b0: ref binding
+  b1: int binding
+  b2: ref binding
+  b3: ref binding
+  b4: int binding
+  b5: int binding
+  b6: int binding
+  b1: int = const 2
+  b2: ref = data $blob3
+  call @22 b1 b2
+  call @22 b1 b0
+  b3: ref = data $blob4
+  call @22 b1 b3
+  b4: int = const 60
+  b5: int = const 1
+  b6: int = raw_syscall syscall b4 b5
+  return
+fn @$fail_bounds (p0: int, p1: int) -> void
+  b0: int binding
+  b1: int binding
+  b2: int binding
+  b3: ref binding
+  b4: ref binding
+  b5: ref binding
+  b6: int binding
+  b7: int binding
+  b8: int binding
+  b2: int = const 2
+  b3: ref = data $blob5
+  call @22 b2 b3
+  call @24 b2 b0
+  b4: ref = data $blob6
+  call @22 b2 b4
+  call @24 b2 b1
+  b5: ref = data $blob4
+  call @22 b2 b5
+  b6: int = const 60
+  b7: int = const 1
+  b8: int = raw_syscall syscall b6 b7
+  return
+fn @$fail_nul (p0: int) -> void
+  b0: int binding
+  b1: int binding
+  b2: ref binding
+  b3: ref binding
+  b4: int binding
+  b5: int binding
+  b6: int binding
+  b1: int = const 2
+  b2: ref = data $blob13
+  call @22 b1 b2
+  call @24 b1 b0
+  b3: ref = data $blob4
+  call @22 b1 b3
+  b4: int = const 60
+  b5: int = const 1
+  b6: int = raw_syscall syscall b4 b5
+  return
+fn @$fail_string_index (p0: int, p1: int) -> void
+  b0: int binding
+  b1: int binding
+  b2: int binding
+  b3: ref binding
+  b4: ref binding
+  b5: ref binding
+  b6: int binding
+  b7: int binding
+  b8: int binding
+  b2: int = const 2
+  b3: ref = data $blob16
+  call @22 b2 b3
+  call @24 b2 b0
+  b4: ref = data $blob6
+  call @22 b2 b4
+  call @24 b2 b1
+  b5: ref = data $blob4
+  call @22 b2 b5
+  b6: int = const 60
+  b7: int = const 1
+  b8: int = raw_syscall syscall b6 b7
+  return
+fn @$fail_substring (p0: int, p1: int, p2: int) -> void
+  b0: int binding
+  b1: int binding
+  b2: int binding
+  b3: int binding
+  b4: ref binding
+  b5: ref binding
+  b6: ref binding
+  b7: ref binding
+  b8: int binding
+  b9: int binding
+  b10: int binding
+  b3: int = const 2
+  b4: ref = data $blob17
+  call @22 b3 b4
+  call @24 b3 b0
+  b5: ref = data $blob20
+  call @22 b3 b5
+  call @24 b3 b1
+  b6: ref = data $blob6
+  call @22 b3 b6
+  call @24 b3 b2
+  b7: ref = data $blob4
+  call @22 b3 b7
+  b8: int = const 60
+  b9: int = const 1
+  b10: int = raw_syscall syscall b8 b9
+  return
+fn @$fail_shift (p0: int) -> void
+  b0: int binding
+  b1: int binding
+  b2: ref binding
+  b3: ref binding
+  b4: ref binding
+  b5: int binding
+  b6: int binding
+  b7: int binding
+  b1: int = const 2
+  b2: ref = data $blob18
+  call @22 b1 b2
+  call @24 b1 b0
+  b3: ref = data $blob19
+  call @22 b1 b3
+  b4: ref = data $blob4
+  call @22 b1 b4
+  b5: int = const 60
+  b6: int = const 1
+  b7: int = raw_syscall syscall b5 b6
+  return
+fn @$zero_bytes (p0: int, p1: int) -> void
+  b0: int binding
+  b1: int binding
+  b2: int binding
+  b3: int binding
+  b4: int binding
+  b5: bool binding
+  b6: int binding
+  b2: int = const 0
+  b3: int = const 1
+  b4: int = const 0
+  label %0
+  b5: bool = less_than b2 b1
+  branch b5 %1 %2
+  label %1
+  b6: int = add b0 b2
+  raw_store8 b6 0 b4
+  b2: int = add b2 b3
+  jump %0
+  label %2
+  return
+fn @$array_new (p0: int, p1: int) -> ref
+  b0: int binding
+  b1: int binding
+  b2: int binding
+  b3: int binding
+  b4: int binding
+  b5: int binding
+  b6: int binding
+  b7: ref binding
+  b8: bool binding
+  b9: ref binding
+  b10: bool binding
+  b11: ref binding
+  b12: int binding
+  b13: bool binding
+  b14: ref binding
+  b15: int binding
+  b16: int binding
+  b17: bool binding
+  b18: int binding
+  b19: int binding
+  b2: int = const 0
+  b3: int = const 1
+  b4: int = const 32
+  b5: int = const 8
+  b6: int = const 9223372036854775807
+  b7: ref = copy b2
+  b8: bool = less_than b0 b2
+  branch b8 %0 %1
+  label %0
+  b9: ref = data $blob7
+  call @25 b9
+  return b7
+  label %1
+  b10: bool = less_than b1 b3
+  branch b10 %2 %3
+  label %2
+  b11: ref = data $blob8
+  call @25 b11
+  return b7
+  label %3
+  b12: int = whole_divide b6 b1
+  b13: bool = less_than b12 b0
+  branch b13 %4 %5
+  label %4
+  b14: ref = data $blob9
+  call @25 b14
+  return b7
+  label %5
+  b15: int = call @16 b4
+  raw_store64 b15 8 b0
+  raw_store64 b15 16 b1
+  raw_store64 b15 24 b2
+  raw_store64 b15 32 b0
+  b7: ref = copy b15
+  b16: int = multiply b0 b1
+  b17: bool = equal b16 b2
+  branch b17 %6 %7
+  label %6
+  b16: int = const 1
+  label %7
+  b18: int = call @16 b16
+  raw_store64 b15 24 b18
+  b19: int = add b18 b5
+  call @31 b19 b16
+  return b7
+fn @$array_length (p0: ref) -> int
+  b0: ref binding
+  b1: int binding
+  b2: int binding
+  b3: bool binding
+  b4: ref binding
+  b5: int binding
+  b1: int = const 0
+  b2: int = copy b0
+  b3: bool = equal b2 b1
+  branch b3 %0 %1
+  label %0
+  b4: ref = data $blob11
+  call @25 b4
+  return b1
+  label %1
+  b5: int = raw_load64 b0 8
+  return b5
+fn @$array_push (p0: ref, p1: int) -> int
+  b0: ref binding
+  b1: int binding
+  b2: int binding
+  b3: int binding
+  b4: int binding
+  b5: int binding
+  b6: int binding
+  b7: bool binding
   b8: ref binding
   b9: int binding
   b10: int binding
   b11: int binding
+  b12: bool binding
+  b13: int binding
+  b14: bool binding
+  b15: int binding
+  b16: int binding
+  b17: bool binding
+  b18: ref binding
+  b19: int binding
+  b20: int binding
+  b21: int binding
+  b22: int binding
+  b23: int binding
+  b24: int binding
+  b25: int binding
+  b26: int binding
+  b27: int binding
+  b28: int binding
+  b29: bool binding
+  b30: int binding
+  b2: int = const 0
+  b3: int = const 1
+  b4: int = const 9223372036854775807
+  b5: int = const 8
+  b6: int = copy b0
+  b7: bool = equal b6 b2
+  branch b7 %0 %1
+  label %0
+  b8: ref = data $blob12
+  call @25 b8
+  return b2
+  label %1
+  b9: int = raw_load64 b0 8
+  b10: int = raw_load64 b0 16
+  b11: int = raw_load64 b0 32
+  b12: bool = equal b9 b11
+  branch b12 %2 %8
+  label %2
+  b13: int = copy b11
+  b14: bool = less_than b11 b3
+  branch b14 %3 %4
+  label %3
+  b13: int = copy b3
+  jump %5
+  label %4
+  b15: int = add b11 b11
+  b13: int = copy b15
+  label %5
+  b16: int = whole_divide b4 b10
+  b17: bool = less_than b16 b13
+  branch b17 %6 %7
+  label %6
+  b18: ref = data $blob9
+  call @25 b18
+  return b2
+  label %7
+  b19: int = multiply b13 b10
+  b20: int = call @16 b19
+  b21: int = multiply b9 b10
+  b22: int = raw_load64 b0 24
+  b23: int = add b20 b5
+  b24: int = add b22 b5
+  call @18 b23 b24 b21
+  raw_store64 b0 24 b20
+  raw_store64 b0 32 b13
+  label %8
+  b25: int = raw_load64 b0 24
+  b26: int = add b25 b5
+  b27: int = multiply b9 b10
+  b28: int = add b26 b27
+  b29: bool = equal b10 b3
+  branch b29 %9 %10
+  label %9
+  raw_store8 b28 0 b1
+  jump %11
+  label %10
+  raw_store64 b28 0 b1
+  label %11
+  b30: int = add b9 b3
+  raw_store64 b0 8 b30
+  return b30
+fn @$array_at (p0: ref, p1: int) -> int
+  b0: ref binding
+  b1: int binding
+  b2: int binding
+  b3: int binding
+  b4: int binding
+  b5: bool binding
+  b6: ref binding
+  b7: int binding
+  b8: bool binding
+  b9: bool binding
+  b10: int binding
+  b11: int binding
   b12: int binding
   b13: int binding
-  b2: int = raw_load64 b0 8
-  b3: int = raw_load64 b1 8
-  b4: int = add b2 b3
+  b14: int binding
+  b2: int = const 0
+  b3: int = const 8
+  b4: int = copy b0
+  b5: bool = equal b4 b2
+  branch b5 %0 %1
+  label %0
+  b6: ref = data $blob10
+  call @25 b6
+  return b2
+  label %1
+  b7: int = raw_load64 b0 8
+  b8: bool = less_than b1 b2
+  branch b8 %2 %3
+  label %3
+  b9: bool = less_than b1 b7
+  branch b9 %4 %2
+  label %2
+  call @26 b1 b7
+  return b2
+  label %4
+  b10: int = raw_load64 b0 16
+  b11: int = raw_load64 b0 24
+  b12: int = multiply b1 b10
+  b13: int = add b11 b3
+  b14: int = add b13 b12
+  return b14
+fn @$string_to_bytes (p0: ref) -> ref
+  b0: ref binding
+  b1: int binding
+  b2: int binding
+  b3: int binding
+  b4: ref binding
+  b5: int binding
+  b6: int binding
+  b7: int binding
+  b1: int = raw_load64 b0 8
+  b2: int = raw_load64 b0 16
+  b3: int = const 1
+  b4: ref = call @32 b1 b3
+  b5: int = raw_load64 b4 24
+  b6: int = const 8
+  b7: int = add b5 b6
+  call @18 b7 b2 b1
+  return b4
+fn @$bytes_to_string (p0: ref) -> ref
+  b0: ref binding
+  b1: int binding
+  b2: int binding
+  b3: int binding
+  b4: int binding
+  b5: int binding
+  b6: ref binding
+  b7: int binding
+  b8: bool binding
+  b9: ref binding
+  b10: int binding
+  b11: int binding
+  b12: bool binding
+  b13: ref binding
+  b14: int binding
+  b15: int binding
+  b16: int binding
+  b17: bool binding
+  b18: int binding
+  b19: int binding
+  b20: bool binding
+  b21: int binding
+  b22: int binding
+  b23: int binding
+  b2: int = const 24
+  b1: int = const 0
+  b3: int = const 1
+  b4: int = const 8
   b5: int = const 16
-  b6: int = add b4 b5
-  b7: int = call @14 b6
-  b8: ref = copy b7
-  b9: int = const 24
-  b10: int = add b8 b9
-  raw_store64 b8 8 b4
-  raw_store64 b8 16 b10
+  b6: ref = copy b1
+  b7: int = copy b0
+  b8: bool = equal b7 b1
+  branch b8 %0 %1
+  label %0
+  b9: ref = data $blob14
+  call @25 b9
+  return b6
+  label %1
+  b10: int = raw_load64 b0 8
   b11: int = raw_load64 b0 16
-  b12: int = raw_load64 b1 16
-  call @16 b10 b11 b2
-  b13: int = add b10 b2
-  call @16 b13 b12 b3
-  return b8
+  b12: bool = equal b11 b3
+  branch b12 %2 %3
+  label %3
+  b13: ref = data $blob15
+  call @25 b13
+  return b6
+  label %2
+  b14: int = raw_load64 b0 24
+  b15: int = add b14 b4
+  b16: int = const 0
+  label %4
+  b17: bool = less_than b16 b10
+  branch b17 %5 %6
+  label %5
+  b19: int = add b15 b16
+  b18: int = raw_load8 b19 0
+  b20: bool = equal b18 b1
+  branch b20 %7 %8
+  label %8
+  b16: int = add b16 b3
+  jump %4
+  label %7
+  call @27 b16
+  return b6
+  label %6
+  b21: int = add b10 b5
+  b22: int = call @16 b21
+  raw_store64 b22 8 b10
+  b23: int = add b22 b2
+  raw_store64 b22 16 b23
+  call @18 b23 b15 b10
+  b6: ref = copy b22
+  return b6
+fn @$string_at (p0: ref, p1: int) -> int
+  b0: ref binding
+  b1: int binding
+  b2: int binding
+  b3: int binding
+  b4: bool binding
+  b5: int binding
+  b6: bool binding
+  b7: bool binding
+  b8: int binding
+  b9: int binding
+  b10: int binding
+  b2: int = const 0
+  b3: int = copy b0
+  b4: bool = equal b3 b2
+  b5: int = const 0
+  branch b4 %1 %0
+  label %0
+  b5: int = raw_load64 b0 8
+  label %1
+  b6: bool = less_than b1 b2
+  branch b6 %2 %3
+  label %3
+  b7: bool = less_than b1 b5
+  branch b7 %4 %2
+  label %2
+  call @28 b1 b5
+  return b2
+  label %4
+  b8: int = raw_load64 b0 16
+  b9: int = add b8 b1
+  b10: int = raw_load8 b9 0
+  return b10
+fn @$substring (p0: ref, p1: int, p2: int) -> ref
+  b0: ref binding
+  b1: int binding
+  b2: int binding
+  b3: int binding
+  b4: int binding
+  b5: int binding
+  b6: ref binding
+  b7: int binding
+  b8: bool binding
+  b9: int binding
+  b10: bool binding
+  b11: bool binding
+  b12: bool binding
+  b13: int binding
+  b14: int binding
+  b15: int binding
+  b16: int binding
+  b17: int binding
+  b18: int binding
+  b4: int = const 24
+  b3: int = const 0
+  b5: int = const 16
+  b6: ref = copy b3
+  b7: int = copy b0
+  b8: bool = equal b7 b3
+  b9: int = const 0
+  branch b8 %1 %0
+  label %0
+  b9: int = raw_load64 b0 8
+  label %1
+  b10: bool = less_than b1 b3
+  branch b10 %2 %3
+  label %3
+  b11: bool = less_than b2 b1
+  branch b11 %2 %4
+  label %4
+  b12: bool = less_than b9 b2
+  branch b12 %2 %5
+  label %2
+  call @29 b1 b2 b9
+  return b6
+  label %5
+  b13: int = subtract b2 b1
+  b14: int = add b13 b5
+  b15: int = call @16 b14
+  raw_store64 b15 8 b13
+  b16: int = add b15 b4
+  raw_store64 b15 16 b16
+  b17: int = raw_load64 b0 16
+  b18: int = add b17 b1
+  call @18 b16 b18 b13
+  b6: ref = copy b15
+  return b6
+fn @$print_string_raw (p0: ref) -> void
+  b0: ref binding
+  b1: int binding
+  b2: ref binding
+  b3: int binding
+  b4: int binding
+  b1: int = raw_load64 b0 8
+  b2: ref = raw_load64 b0 16
+  b3: int = const 1
+  b4: int = raw_syscall syscall b3 b3 b2 b1
+  return
+fn @$print_newline () -> void
+  b0: ref binding
+  b1: ref binding
+  b2: int binding
+  b3: int binding
+  b0: ref = data $blob25
+  b1: ref = raw_load64 b0 16
+  b2: int = const 1
+  b3: int = raw_syscall syscall b2 b2 b1 b2
+  return
 fn @$write1 (p0: ref) -> void
   b0: ref binding
   b1: int binding
@@ -2063,16 +4556,6 @@ fn @$write1 (p0: ref) -> void
   b1: int = const 1
   b2: ref = raw_load64 b0 16
   b3: int = raw_syscall syscall b1 b1 b2 b1
-  return
-fn @$print_newline () -> void
-  b0: ref binding
-  b1: ref binding
-  b2: int binding
-  b3: int binding
-  b0: ref = data $blob2
-  b1: ref = raw_load64 b0 16
-  b2: int = const 1
-  b3: int = raw_syscall syscall b2 b2 b1 b2
   return
 fn @$digits (p0: int) -> void
   b0: int binding
@@ -2092,16 +4575,16 @@ fn @$digits (p0: int) -> void
   b5: bool = equal b3 b4
   branch b5 %1 %0
   label %0
-  call @21 b3
+  call @43 b3
   label %1
   b6: int = negate b2
   b7: int = const 48
   b8: int = add b6 b7
-  set_static $blob5 24 b8
-  b9: ref = data $blob5
-  call @19 b9
+  set_static $blob29 24 b8
+  b9: ref = data $blob29
+  call @42 b9
   return
-fn @$print_int (p0: int) -> void
+fn @$print_int_raw (p0: int) -> void
   b0: int binding
   b1: int binding
   b2: bool binding
@@ -2115,19 +4598,23 @@ fn @$print_int (p0: int) -> void
   b3: bool = less_than b0 b1
   branch b3 %2 %3
   label %2
-  b4: ref = data $blob3
-  call @19 b4
+  b4: ref = data $blob27
+  call @42 b4
   jump %4
   label %3
   b0: int = negate b0
   label %4
-  call @21 b0
+  call @43 b0
   jump %5
   label %0
-  b5: ref = data $blob4
-  call @19 b5
+  b5: ref = data $blob28
+  call @42 b5
   label %5
-  call @20
+  return
+fn @$print_int (p0: int) -> void
+  b0: int binding
+  call @44 b0
+  call @41
   return
 
 `
@@ -2135,11 +4622,37 @@ fn @$print_int (p0: int) -> void
 // The Phase 10.6 bool-print render, pinned: the bool helper branches on the
 // one-byte condition and reaches the shared string "$print" routine.
 const wantPrintBoolScene = `scene
-data $blob0: 48 bytes 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255
-data $blob1: 16 bytes 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255
-data $blob2: 1 bytes 10
-data $blob3: 4 bytes 116 114 117 101
-data $blob4: 5 bytes 102 97 108 115 101
+data $blob0: 8 bytes 32 32 32 32 32 32 32 32
+data $blob1: 48 bytes 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255
+data $blob2: 16 bytes 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255
+data $blob3: 6 bytes 112 117 114 114 58 32
+data $blob4: 1 bytes 10
+data $blob5: 18 bytes 112 117 114 114 58 32 97 114 114 97 121 32 105 110 100 101 120 32
+data $blob6: 28 bytes 32 105 115 32 111 117 116 32 111 102 32 114 97 110 103 101 32 102 111 114 32 108 101 110 103 116 104 32
+data $blob7: 31 bytes 97 114 114 97 121 32 108 101 110 103 116 104 32 99 97 110 110 111 116 32 98 101 32 110 101 103 97 116 105 118 101
+data $blob8: 35 bytes 97 114 114 97 121 32 101 108 101 109 101 110 116 32 115 105 122 101 32 109 117 115 116 32 98 101 32 112 111 115 105 116 105 118 101
+data $blob9: 29 bytes 97 114 114 97 121 32 97 108 108 111 99 97 116 105 111 110 32 105 115 32 116 111 111 32 108 97 114 103 101
+data $blob10: 38 bytes 97 114 114 97 121 32 97 99 99 101 115 115 32 111 110 32 97 32 110 117 108 108 32 97 114 114 97 121 32 114 101 102 101 114 101 110 99 101
+data $blob11: 32 bytes 108 101 110 103 116 104 32 111 102 32 97 32 110 117 108 108 32 97 114 114 97 121 32 114 101 102 101 114 101 110 99 101
+data $blob12: 32 bytes 97 112 112 101 110 100 32 116 111 32 97 32 110 117 108 108 32 97 114 114 97 121 32 114 101 102 101 114 101 110 99 101
+data $blob13: 46 bytes 112 117 114 114 58 32 98 121 116 101 32 97 114 114 97 121 32 99 111 110 116 97 105 110 115 32 97 32 78 85 76 32 98 121 116 101 32 97 116 32 105 110 100 101 120 32
+data $blob14: 18 bytes 98 121 116 101 32 97 114 114 97 121 32 105 115 32 110 117 108 108
+data $blob15: 32 bytes 98 121 116 101 32 97 114 114 97 121 32 101 108 101 109 101 110 116 32 115 105 122 101 32 105 115 32 110 111 116 32 49
+data $blob16: 19 bytes 112 117 114 114 58 32 115 116 114 105 110 103 32 105 110 100 101 120 32
+data $blob17: 22 bytes 112 117 114 114 58 32 115 117 98 115 116 114 105 110 103 32 114 97 110 103 101 32
+data $blob18: 18 bytes 112 117 114 114 58 32 115 104 105 102 116 32 99 111 117 110 116 32
+data $blob19: 17 bytes 32 105 115 32 111 117 116 115 105 100 101 32 48 46 46 54 51
+data $blob20: 2 bytes 46 46
+data $blob21: 1 bytes 32
+data $blob22: 4 bytes 116 114 117 101
+data $blob23: 5 bytes 102 97 108 115 101
+data $blob24: 1 bytes 48
+data $blob25: 1 bytes 10
+data $blob26: 1 bytes 32
+data $blob27: 4 bytes 116 114 117 101
+data $blob28: 5 bytes 102 97 108 115 101
+data $blob29: 4 bytes 116 114 117 101
+data $blob30: 5 bytes 102 97 108 115 101
 entry 0 @main
 fn @main () -> void
   b0: bool binding
@@ -2157,13 +4670,13 @@ fn @main () -> void
   b12: int binding
   b13: bool binding
   b0: bool = const true
-  call @20 b0
+  call @43 b0
   b1: bool = const false
-  call @20 b1
+  call @43 b1
   b2: int = const 1
   b3: int = const 2
   b4: bool = less_than b2 b3
-  call @20 b4
+  call @43 b4
   b5: bool = const true
   branch b5 %0 %1
   label %1
@@ -2172,7 +4685,7 @@ fn @main () -> void
   label %0
   b6: bool = const false
   label %2
-  call @20 b6
+  call @43 b6
   b7: int = const 3
   b8: int = const 3
   b9: bool = equal b7 b8
@@ -2186,7 +4699,7 @@ fn @main () -> void
   b13: bool = less_than b11 b12
   b10: bool = copy b13
   label %5
-  call @20 b10
+  call @43 b10
 fn @$mmap (p0: int) -> int
   b0: int binding
   b1: int binding
@@ -2214,21 +4727,21 @@ fn @$map () -> void
   b4: int binding
   b5: int binding
   b6: int binding
-  b0: int = const 268435456
-  b1: int = const 33554440
+  b0: int = const 536870912
+  b1: int = const 67108872
   b2: int = call @1 b0
   b3: int = call @1 b1
-  b4: int = stack_pointer
+  b4: int = get_static $blob0 24
   b5: int = const 
   b6: int = add b2 b0
-  set_static $blob0 24 b2
-  set_static $blob0 32 b2
-  set_static $blob0 40 b6
-  set_static $blob0 48 b5
-  set_static $blob0 56 b5
-  set_static $blob0 64 b5
-  set_static $blob1 24 b3
-  set_static $blob1 32 b4
+  set_static $blob1 24 b2
+  set_static $blob1 32 b2
+  set_static $blob1 40 b6
+  set_static $blob1 48 b5
+  set_static $blob1 56 b5
+  set_static $blob1 64 b5
+  set_static $blob2 24 b3
+  set_static $blob2 32 b4
   return
 fn @$pad8 (p0: int) -> int
   b0: int binding
@@ -2260,11 +4773,11 @@ fn @$byte_set1 (p0: int) -> void
   b5: int binding
   b6: int binding
   b7: int binding
-  b1: int = get_static $blob0 24
+  b1: int = get_static $blob1 24
   b2: int = subtract b0 b1
   b3: int = const 8
   b4: int = whole_divide b2 b3
-  b5: int = get_static $blob1 24
+  b5: int = get_static $blob2 24
   b6: int = add b5 b4
   b7: int = const 1
   raw_store8 b6 0 b7
@@ -2278,11 +4791,11 @@ fn @$byte_set0 (p0: int) -> void
   b5: int binding
   b6: int binding
   b7: int binding
-  b1: int = get_static $blob0 24
+  b1: int = get_static $blob1 24
   b2: int = subtract b0 b1
   b3: int = const 8
   b4: int = whole_divide b2 b3
-  b5: int = get_static $blob1 24
+  b5: int = get_static $blob2 24
   b6: int = add b5 b4
   b7: int = const 0
   raw_store8 b6 0 b7
@@ -2304,7 +4817,7 @@ fn @$search (p0: int) -> int
   b13: int binding
   b14: int binding
   b1: int = const 0
-  b2: int = get_static $blob0 48
+  b2: int = get_static $blob1 48
   b3: int = copy b1
   b4: int = copy b2
   b5: int = const 16
@@ -2324,7 +4837,7 @@ fn @$search (p0: int) -> int
   b10: bool = equal b3 b1
   branch b10 %4 %5
   label %4
-  set_static $blob0 48 b9
+  set_static $blob1 48 b9
   jump %6
   label %5
   raw_store64 b3 8 b9
@@ -2335,9 +4848,9 @@ fn @$search (p0: int) -> int
   label %7
   b13: int = add b4 b0
   raw_store64 b13 0 b11
-  b14: int = get_static $blob0 48
+  b14: int = get_static $blob1 48
   raw_store64 b13 8 b14
-  set_static $blob0 48 b13
+  set_static $blob1 48 b13
   jump %8
   label %8
   raw_store64 b4 0 b0
@@ -2353,55 +4866,87 @@ fn @$bump (p0: int) -> int
   b4: int binding
   b5: bool binding
   b1: int = const 0
-  b2: int = get_static $blob0 32
-  b3: int = get_static $blob0 40
+  b2: int = get_static $blob1 32
+  b3: int = get_static $blob1 40
   b4: int = add b2 b0
   b5: bool = less_than b3 b4
   branch b5 %0 %1
   label %1
-  set_static $blob0 32 b4
+  set_static $blob1 32 b4
   raw_store64 b2 0 b0
   call @4 b2
   return b2
   label %0
   return b1
-fn @$mark_at (p0: int) -> void
+fn @$mark_at (p0: int) -> int
   b0: int binding
   b1: int binding
-  b2: bool binding
-  b3: int binding
-  b4: bool binding
-  b5: int binding
+  b2: int binding
+  b3: bool binding
+  b4: int binding
+  b5: bool binding
   b6: int binding
   b7: int binding
   b8: int binding
   b9: int binding
   b10: int binding
   b11: int binding
-  b12: bool binding
-  b13: int binding
-  b1: int = get_static $blob0 24
-  b2: bool = less_than b0 b1
-  branch b2 %0 %1
+  b12: int binding
+  b13: bool binding
+  b14: int binding
+  b1: int = const 0
+  b2: int = get_static $blob1 24
+  b3: bool = less_than b0 b2
+  branch b3 %0 %1
   label %1
-  b3: int = get_static $blob0 40
-  b4: bool = less_than b3 b0
-  branch b4 %0 %2
+  b4: int = get_static $blob1 40
+  b5: bool = less_than b4 b0
+  branch b5 %0 %2
   label %2
-  b5: int = const 8
-  b6: int = subtract b0 b1
-  b7: int = whole_divide b6 b5
-  b8: int = get_static $blob1 24
-  b9: int = add b8 b7
-  b10: int = raw_load8 b9 0
-  b11: int = const 1
-  b12: bool = equal b10 b11
-  branch b12 %3 %0
+  b6: int = const 8
+  b7: int = subtract b0 b2
+  b8: int = whole_divide b7 b6
+  b9: int = get_static $blob2 24
+  b10: int = add b9 b8
+  b11: int = raw_load8 b10 0
+  b12: int = const 1
+  b13: bool = equal b11 b12
+  branch b13 %3 %0
   label %3
-  b13: int = const 2
-  raw_store8 b9 0 b13
+  b14: int = const 2
+  raw_store8 b10 0 b14
+  b1: int = const 1
   label %0
-  return
+  return b1
+fn @$ledger_at (p0: int) -> int
+  b0: int binding
+  b1: int binding
+  b2: int binding
+  b3: bool binding
+  b4: int binding
+  b5: bool binding
+  b6: int binding
+  b7: int binding
+  b8: int binding
+  b9: int binding
+  b10: int binding
+  b1: int = const 0
+  b2: int = get_static $blob1 24
+  b3: bool = less_than b0 b2
+  branch b3 %0 %1
+  label %1
+  b4: int = get_static $blob1 40
+  b5: bool = less_than b4 b0
+  branch b5 %0 %2
+  label %2
+  b6: int = const 8
+  b7: int = subtract b0 b2
+  b8: int = whole_divide b7 b6
+  b9: int = get_static $blob2 24
+  b10: int = add b9 b8
+  b1: int = raw_load8 b10 0
+  label %0
+  return b1
 fn @$scan_roots () -> void
   b0: int binding
   b1: int binding
@@ -2410,7 +4955,8 @@ fn @$scan_roots () -> void
   b4: int binding
   b5: bool binding
   b6: int binding
-  b0: int = get_static $blob1 32
+  b7: int binding
+  b0: int = get_static $blob2 32
   b1: int = stack_pointer
   b2: int = const 7
   b3: int = const 8
@@ -2422,11 +4968,68 @@ fn @$scan_roots () -> void
   branch b5 %1 %2
   label %1
   b6: int = raw_load64 b4 0
-  call @8 b6
+  b7: int = call @8 b6
   b4: int = add b4 b3
   jump %0
   label %2
   return
+fn @$scan_heap () -> int
+  b0: int binding
+  b1: int binding
+  b2: int binding
+  b3: int binding
+  b4: int binding
+  b5: int binding
+  b6: int binding
+  b7: int binding
+  b8: int binding
+  b9: int binding
+  b10: int binding
+  b11: int binding
+  b12: int binding
+  b13: bool binding
+  b14: int binding
+  b15: int binding
+  b16: bool binding
+  b17: int binding
+  b18: int binding
+  b19: bool binding
+  b0: int = const 0
+  b1: int = const 2
+  b2: int = const 8
+  b3: int = get_static $blob1 24
+  b4: int = get_static $blob1 32
+  b5: int = copy b3
+  b6: int = copy b0
+  label %0
+  b19: bool = less_than b5 b4
+  branch b19 %1 %2
+  label %1
+  b7: int = raw_load64 b5 0
+  b8: int = subtract b5 b3
+  b9: int = whole_divide b8 b2
+  b10: int = get_static $blob2 24
+  b11: int = add b10 b9
+  b12: int = raw_load8 b11 0
+  b13: bool = equal b12 b1
+  branch b13 %3 %4
+  label %3
+  b14: int = add b5 b2
+  b15: int = add b5 b7
+  label %5
+  b16: bool = less_than b14 b15
+  branch b16 %6 %4
+  label %6
+  b17: int = raw_load64 b14 0
+  b18: int = call @8 b17
+  b6: int = add b6 b18
+  b14: int = add b14 b2
+  jump %5
+  label %4
+  b5: int = add b5 b7
+  jump %0
+  label %2
+  return b6
 fn @$free_block (p0: int, p1: int) -> void
   b0: int binding
   b1: int binding
@@ -2440,9 +5043,9 @@ fn @$free_block (p0: int, p1: int) -> void
   b9: int binding
   b10: int binding
   b2: int = const 0
-  b3: int = get_static $blob0 48
-  b4: int = get_static $blob0 56
-  b5: int = get_static $blob0 64
+  b3: int = get_static $blob1 48
+  b4: int = get_static $blob1 56
+  b5: int = get_static $blob1 64
   b6: bool = equal b5 b0
   branch b6 %0 %1
   label %0
@@ -2450,15 +5053,15 @@ fn @$free_block (p0: int, p1: int) -> void
   b8: int = add b7 b1
   raw_store64 b4 0 b8
   b9: int = add b0 b1
-  set_static $blob0 64 b9
+  set_static $blob1 64 b9
   call @5 b0
   return
   label %1
   b10: int = add b0 b1
   raw_store64 b0 8 b3
-  set_static $blob0 48 b0
-  set_static $blob0 56 b0
-  set_static $blob0 64 b10
+  set_static $blob1 48 b0
+  set_static $blob1 56 b0
+  set_static $blob1 64 b10
   call @5 b0
   return
 fn @$sweep_block (p0: int) -> int
@@ -2474,11 +5077,11 @@ fn @$sweep_block (p0: int) -> int
   b9: int binding
   b10: int binding
   b11: bool binding
-  b1: int = get_static $blob0 24
+  b1: int = get_static $blob1 24
   b2: int = subtract b0 b1
   b3: int = const 8
   b4: int = whole_divide b2 b3
-  b5: int = get_static $blob1 24
+  b5: int = get_static $blob2 24
   b6: int = add b5 b4
   b7: int = raw_load8 b6 0
   b8: int = raw_load64 b0 0
@@ -2493,7 +5096,7 @@ fn @$sweep_block (p0: int) -> int
   b11: bool = equal b7 b10
   branch b11 %2 %3
   label %2
-  call @10 b0 b8
+  call @12 b0 b8
   return b8
   label %3
   return b8
@@ -2504,24 +5107,33 @@ fn @$sweep () -> void
   b3: bool binding
   b4: int binding
   b5: int binding
-  b0: int = get_static $blob0 24
-  b1: int = get_static $blob0 32
+  b0: int = get_static $blob1 24
+  b1: int = get_static $blob1 32
   b2: int = copy b0
   label %0
   b3: bool = less_than b2 b1
   branch b3 %1 %2
   label %1
-  b4: int = call @11 b2
+  b4: int = call @13 b2
   b2: int = add b2 b4
   jump %0
   label %2
   b5: int = const 
-  set_static $blob0 56 b5
-  set_static $blob0 64 b5
+  set_static $blob1 56 b5
+  set_static $blob1 64 b5
   return
 fn @$collect () -> void
-  call @9
-  call @12
+  b0: int binding
+  b1: int binding
+  b2: bool binding
+  call @10
+  b0: int = const 0
+  label %0
+  b1: int = call @11
+  b2: bool = equal b1 b0
+  branch b2 %1 %0
+  label %1
+  call @14
   return
 fn @$alloc (p0: int) -> int
   b0: int binding
@@ -2534,7 +5146,7 @@ fn @$alloc (p0: int) -> int
   b7: int binding
   b8: bool binding
   b1: int = const 0
-  b2: int = get_static $blob0 32
+  b2: int = get_static $blob1 32
   b3: bool = less_than b2 b1
   branch b3 %0 %1
   label %0
@@ -2549,7 +5161,7 @@ fn @$alloc (p0: int) -> int
   b8: bool = equal b7 b1
   branch b8 %3 %6
   label %3
-  call @13
+  call @15
   b5: int = call @6 b4
   b6: bool = equal b5 b1
   branch b6 %4 %7
@@ -2566,8 +5178,19 @@ fn @$alloc (p0: int) -> int
 fn @$string_length (p0: ref) -> int
   b0: ref binding
   b1: int binding
-  b1: int = raw_load64 b0 8
-  return b1
+  b2: int binding
+  b3: int binding
+  b4: bool binding
+  b1: int = const 0
+  b2: int = copy b0
+  b3: int = copy b1
+  b4: bool = equal b2 b1
+  branch b4 %0 %1
+  label %0
+  return b3
+  label %1
+  b3: int = raw_load64 b0 8
+  return b3
 fn @$copy_bytes (p0: int, p1: int, p2: int) -> void
   b0: int binding
   b1: int binding
@@ -2597,45 +5220,69 @@ fn @$string_equal (p0: ref, p1: ref) -> bool
   b1: ref binding
   b2: int binding
   b3: int binding
-  b4: bool binding
-  b5: bool binding
+  b4: int binding
+  b5: int binding
   b6: int binding
   b7: int binding
-  b8: int binding
+  b8: bool binding
   b9: int binding
   b10: int binding
-  b11: int binding
-  b12: int binding
-  b13: int binding
-  b14: bool binding
-  b2: int = raw_load64 b0 8
-  b3: int = raw_load64 b1 8
-  b4: bool = equal b2 b3
-  branch b4 %0 %1
+  b11: bool binding
+  b12: bool binding
+  b13: bool binding
+  b14: int binding
+  b15: int binding
+  b16: int binding
+  b17: int binding
+  b18: int binding
+  b19: bool binding
+  b2: int = const 0
+  b3: int = const 1
+  b4: int = copy b0
+  b5: int = copy b1
+  b6: int = copy b2
+  b7: int = copy b2
+  b8: bool = equal b4 b2
+  branch b8 %0 %1
   label %1
-  b5: bool = const false
-  return b5
-  label %0
-  b6: int = raw_load64 b0 16
-  b7: int = raw_load64 b1 16
-  b8: int = const 0
-  b9: int = const 1
-  label %2
-  b4: bool = less_than b8 b2
-  branch b4 %3 %4
-  label %3
-  b10: int = add b6 b8
-  b11: int = raw_load8 b10 0
-  b12: int = add b7 b8
-  b13: int = raw_load8 b12 0
-  b14: bool = equal b11 b13
-  branch b14 %5 %1
-  label %5
-  b8: int = add b8 b9
+  b6: int = raw_load64 b0 8
+  b7: int = raw_load64 b0 16
   jump %2
+  label %0
+  label %2
+  b9: int = copy b2
+  b10: int = copy b2
+  b11: bool = equal b5 b2
+  branch b11 %3 %4
   label %4
-  b5: bool = const true
-  return b5
+  b9: int = raw_load64 b1 8
+  b10: int = raw_load64 b1 16
+  jump %5
+  label %3
+  label %5
+  b12: bool = equal b6 b9
+  branch b12 %6 %7
+  label %7
+  b13: bool = const false
+  return b13
+  label %6
+  b14: int = const 0
+  label %8
+  b12: bool = less_than b14 b6
+  branch b12 %9 %10
+  label %9
+  b15: int = add b7 b14
+  b16: int = raw_load8 b15 0
+  b17: int = add b10 b14
+  b18: int = raw_load8 b17 0
+  b19: bool = equal b16 b18
+  branch b19 %11 %7
+  label %11
+  b14: int = add b14 b3
+  jump %8
+  label %10
+  b13: bool = const true
+  return b13
 fn @$string_concat (p0: ref, p1: ref) -> ref
   b0: ref binding
   b1: ref binding
@@ -2643,31 +5290,694 @@ fn @$string_concat (p0: ref, p1: ref) -> ref
   b3: int binding
   b4: int binding
   b5: int binding
+  b6: bool binding
+  b7: int binding
+  b8: int binding
+  b9: int binding
+  b10: bool binding
+  b11: int binding
+  b12: int binding
+  b13: int binding
+  b14: int binding
+  b15: ref binding
+  b16: int binding
+  b17: int binding
+  b18: int binding
+  b2: int = const 0
+  b3: int = copy b0
+  b4: int = copy b2
+  b5: int = copy b2
+  b6: bool = equal b3 b2
+  branch b6 %0 %1
+  label %1
+  b4: int = raw_load64 b0 8
+  b5: int = raw_load64 b0 16
+  jump %2
+  label %0
+  label %2
+  b7: int = copy b1
+  b8: int = copy b2
+  b9: int = copy b2
+  b10: bool = equal b7 b2
+  branch b10 %3 %4
+  label %4
+  b8: int = raw_load64 b1 8
+  b9: int = raw_load64 b1 16
+  jump %5
+  label %3
+  label %5
+  b11: int = add b4 b8
+  b12: int = const 16
+  b13: int = add b11 b12
+  b14: int = call @16 b13
+  b15: ref = copy b14
+  b16: int = const 24
+  b17: int = add b15 b16
+  raw_store64 b15 8 b11
+  raw_store64 b15 16 b17
+  call @18 b17 b5 b4
+  b18: int = add b17 b4
+  call @18 b18 b9 b8
+  return b15
+fn @$write_byte_fd (p0: int, p1: int) -> void
+  b0: int binding
+  b1: int binding
+  b2: ref binding
+  b3: ref binding
+  b4: int binding
+  b5: int binding
+  set_static $blob24 24 b1
+  b2: ref = data $blob24
+  b3: ref = raw_load64 b2 16
+  b4: int = const 1
+  b5: int = raw_syscall syscall b4 b0 b3 b4
+  return
+fn @$write_blob_fd (p0: int, p1: ref) -> void
+  b0: int binding
+  b1: ref binding
+  b2: int binding
+  b3: ref binding
+  b4: int binding
+  b5: int binding
+  b2: int = raw_load64 b1 8
+  b3: ref = raw_load64 b1 16
+  b4: int = const 1
+  b5: int = raw_syscall syscall b4 b0 b3 b2
+  return
+fn @$write_digits_fd (p0: int, p1: int) -> void
+  b0: int binding
+  b1: int binding
+  b2: int binding
+  b3: int binding
+  b4: int binding
+  b5: int binding
+  b6: bool binding
+  b7: int binding
+  b8: int binding
+  b9: int binding
+  b2: int = const 10
+  b3: int = whole_divide b1 b2
+  b4: int = whole_remainder b1 b2
+  b5: int = const 0
+  b6: bool = equal b3 b5
+  branch b6 %0 %1
+  label %1
+  call @23 b0 b3
+  label %0
+  b7: int = negate b4
+  b8: int = const 48
+  b9: int = add b7 b8
+  call @21 b0 b9
+  return
+fn @$write_int_fd (p0: int, p1: int) -> void
+  b0: int binding
+  b1: int binding
+  b2: int binding
+  b3: bool binding
+  b4: int binding
+  b5: bool binding
   b6: int binding
   b7: int binding
+  b2: int = const 0
+  b3: bool = equal b1 b2
+  branch b3 %0 %1
+  label %0
+  b4: int = const 48
+  call @21 b0 b4
+  return
+  label %1
+  b5: bool = less_than b1 b2
+  branch b5 %2 %3
+  label %2
+  b6: int = const 45
+  call @21 b0 b6
+  call @23 b0 b1
+  return
+  label %3
+  b7: int = negate b1
+  call @23 b0 b7
+  return
+fn @$fail_blob (p0: ref) -> void
+  b0: ref binding
+  b1: int binding
+  b2: ref binding
+  b3: ref binding
+  b4: int binding
+  b5: int binding
+  b6: int binding
+  b1: int = const 2
+  b2: ref = data $blob3
+  call @22 b1 b2
+  call @22 b1 b0
+  b3: ref = data $blob4
+  call @22 b1 b3
+  b4: int = const 60
+  b5: int = const 1
+  b6: int = raw_syscall syscall b4 b5
+  return
+fn @$fail_bounds (p0: int, p1: int) -> void
+  b0: int binding
+  b1: int binding
+  b2: int binding
+  b3: ref binding
+  b4: ref binding
+  b5: ref binding
+  b6: int binding
+  b7: int binding
+  b8: int binding
+  b2: int = const 2
+  b3: ref = data $blob5
+  call @22 b2 b3
+  call @24 b2 b0
+  b4: ref = data $blob6
+  call @22 b2 b4
+  call @24 b2 b1
+  b5: ref = data $blob4
+  call @22 b2 b5
+  b6: int = const 60
+  b7: int = const 1
+  b8: int = raw_syscall syscall b6 b7
+  return
+fn @$fail_nul (p0: int) -> void
+  b0: int binding
+  b1: int binding
+  b2: ref binding
+  b3: ref binding
+  b4: int binding
+  b5: int binding
+  b6: int binding
+  b1: int = const 2
+  b2: ref = data $blob13
+  call @22 b1 b2
+  call @24 b1 b0
+  b3: ref = data $blob4
+  call @22 b1 b3
+  b4: int = const 60
+  b5: int = const 1
+  b6: int = raw_syscall syscall b4 b5
+  return
+fn @$fail_string_index (p0: int, p1: int) -> void
+  b0: int binding
+  b1: int binding
+  b2: int binding
+  b3: ref binding
+  b4: ref binding
+  b5: ref binding
+  b6: int binding
+  b7: int binding
+  b8: int binding
+  b2: int = const 2
+  b3: ref = data $blob16
+  call @22 b2 b3
+  call @24 b2 b0
+  b4: ref = data $blob6
+  call @22 b2 b4
+  call @24 b2 b1
+  b5: ref = data $blob4
+  call @22 b2 b5
+  b6: int = const 60
+  b7: int = const 1
+  b8: int = raw_syscall syscall b6 b7
+  return
+fn @$fail_substring (p0: int, p1: int, p2: int) -> void
+  b0: int binding
+  b1: int binding
+  b2: int binding
+  b3: int binding
+  b4: ref binding
+  b5: ref binding
+  b6: ref binding
+  b7: ref binding
+  b8: int binding
+  b9: int binding
+  b10: int binding
+  b3: int = const 2
+  b4: ref = data $blob17
+  call @22 b3 b4
+  call @24 b3 b0
+  b5: ref = data $blob20
+  call @22 b3 b5
+  call @24 b3 b1
+  b6: ref = data $blob6
+  call @22 b3 b6
+  call @24 b3 b2
+  b7: ref = data $blob4
+  call @22 b3 b7
+  b8: int = const 60
+  b9: int = const 1
+  b10: int = raw_syscall syscall b8 b9
+  return
+fn @$fail_shift (p0: int) -> void
+  b0: int binding
+  b1: int binding
+  b2: ref binding
+  b3: ref binding
+  b4: ref binding
+  b5: int binding
+  b6: int binding
+  b7: int binding
+  b1: int = const 2
+  b2: ref = data $blob18
+  call @22 b1 b2
+  call @24 b1 b0
+  b3: ref = data $blob19
+  call @22 b1 b3
+  b4: ref = data $blob4
+  call @22 b1 b4
+  b5: int = const 60
+  b6: int = const 1
+  b7: int = raw_syscall syscall b5 b6
+  return
+fn @$zero_bytes (p0: int, p1: int) -> void
+  b0: int binding
+  b1: int binding
+  b2: int binding
+  b3: int binding
+  b4: int binding
+  b5: bool binding
+  b6: int binding
+  b2: int = const 0
+  b3: int = const 1
+  b4: int = const 0
+  label %0
+  b5: bool = less_than b2 b1
+  branch b5 %1 %2
+  label %1
+  b6: int = add b0 b2
+  raw_store8 b6 0 b4
+  b2: int = add b2 b3
+  jump %0
+  label %2
+  return
+fn @$array_new (p0: int, p1: int) -> ref
+  b0: int binding
+  b1: int binding
+  b2: int binding
+  b3: int binding
+  b4: int binding
+  b5: int binding
+  b6: int binding
+  b7: ref binding
+  b8: bool binding
+  b9: ref binding
+  b10: bool binding
+  b11: ref binding
+  b12: int binding
+  b13: bool binding
+  b14: ref binding
+  b15: int binding
+  b16: int binding
+  b17: bool binding
+  b18: int binding
+  b19: int binding
+  b2: int = const 0
+  b3: int = const 1
+  b4: int = const 32
+  b5: int = const 8
+  b6: int = const 9223372036854775807
+  b7: ref = copy b2
+  b8: bool = less_than b0 b2
+  branch b8 %0 %1
+  label %0
+  b9: ref = data $blob7
+  call @25 b9
+  return b7
+  label %1
+  b10: bool = less_than b1 b3
+  branch b10 %2 %3
+  label %2
+  b11: ref = data $blob8
+  call @25 b11
+  return b7
+  label %3
+  b12: int = whole_divide b6 b1
+  b13: bool = less_than b12 b0
+  branch b13 %4 %5
+  label %4
+  b14: ref = data $blob9
+  call @25 b14
+  return b7
+  label %5
+  b15: int = call @16 b4
+  raw_store64 b15 8 b0
+  raw_store64 b15 16 b1
+  raw_store64 b15 24 b2
+  raw_store64 b15 32 b0
+  b7: ref = copy b15
+  b16: int = multiply b0 b1
+  b17: bool = equal b16 b2
+  branch b17 %6 %7
+  label %6
+  b16: int = const 1
+  label %7
+  b18: int = call @16 b16
+  raw_store64 b15 24 b18
+  b19: int = add b18 b5
+  call @31 b19 b16
+  return b7
+fn @$array_length (p0: ref) -> int
+  b0: ref binding
+  b1: int binding
+  b2: int binding
+  b3: bool binding
+  b4: ref binding
+  b5: int binding
+  b1: int = const 0
+  b2: int = copy b0
+  b3: bool = equal b2 b1
+  branch b3 %0 %1
+  label %0
+  b4: ref = data $blob11
+  call @25 b4
+  return b1
+  label %1
+  b5: int = raw_load64 b0 8
+  return b5
+fn @$array_push (p0: ref, p1: int) -> int
+  b0: ref binding
+  b1: int binding
+  b2: int binding
+  b3: int binding
+  b4: int binding
+  b5: int binding
+  b6: int binding
+  b7: bool binding
   b8: ref binding
   b9: int binding
   b10: int binding
   b11: int binding
+  b12: bool binding
+  b13: int binding
+  b14: bool binding
+  b15: int binding
+  b16: int binding
+  b17: bool binding
+  b18: ref binding
+  b19: int binding
+  b20: int binding
+  b21: int binding
+  b22: int binding
+  b23: int binding
+  b24: int binding
+  b25: int binding
+  b26: int binding
+  b27: int binding
+  b28: int binding
+  b29: bool binding
+  b30: int binding
+  b2: int = const 0
+  b3: int = const 1
+  b4: int = const 9223372036854775807
+  b5: int = const 8
+  b6: int = copy b0
+  b7: bool = equal b6 b2
+  branch b7 %0 %1
+  label %0
+  b8: ref = data $blob12
+  call @25 b8
+  return b2
+  label %1
+  b9: int = raw_load64 b0 8
+  b10: int = raw_load64 b0 16
+  b11: int = raw_load64 b0 32
+  b12: bool = equal b9 b11
+  branch b12 %2 %8
+  label %2
+  b13: int = copy b11
+  b14: bool = less_than b11 b3
+  branch b14 %3 %4
+  label %3
+  b13: int = copy b3
+  jump %5
+  label %4
+  b15: int = add b11 b11
+  b13: int = copy b15
+  label %5
+  b16: int = whole_divide b4 b10
+  b17: bool = less_than b16 b13
+  branch b17 %6 %7
+  label %6
+  b18: ref = data $blob9
+  call @25 b18
+  return b2
+  label %7
+  b19: int = multiply b13 b10
+  b20: int = call @16 b19
+  b21: int = multiply b9 b10
+  b22: int = raw_load64 b0 24
+  b23: int = add b20 b5
+  b24: int = add b22 b5
+  call @18 b23 b24 b21
+  raw_store64 b0 24 b20
+  raw_store64 b0 32 b13
+  label %8
+  b25: int = raw_load64 b0 24
+  b26: int = add b25 b5
+  b27: int = multiply b9 b10
+  b28: int = add b26 b27
+  b29: bool = equal b10 b3
+  branch b29 %9 %10
+  label %9
+  raw_store8 b28 0 b1
+  jump %11
+  label %10
+  raw_store64 b28 0 b1
+  label %11
+  b30: int = add b9 b3
+  raw_store64 b0 8 b30
+  return b30
+fn @$array_at (p0: ref, p1: int) -> int
+  b0: ref binding
+  b1: int binding
+  b2: int binding
+  b3: int binding
+  b4: int binding
+  b5: bool binding
+  b6: ref binding
+  b7: int binding
+  b8: bool binding
+  b9: bool binding
+  b10: int binding
+  b11: int binding
   b12: int binding
   b13: int binding
-  b2: int = raw_load64 b0 8
-  b3: int = raw_load64 b1 8
-  b4: int = add b2 b3
+  b14: int binding
+  b2: int = const 0
+  b3: int = const 8
+  b4: int = copy b0
+  b5: bool = equal b4 b2
+  branch b5 %0 %1
+  label %0
+  b6: ref = data $blob10
+  call @25 b6
+  return b2
+  label %1
+  b7: int = raw_load64 b0 8
+  b8: bool = less_than b1 b2
+  branch b8 %2 %3
+  label %3
+  b9: bool = less_than b1 b7
+  branch b9 %4 %2
+  label %2
+  call @26 b1 b7
+  return b2
+  label %4
+  b10: int = raw_load64 b0 16
+  b11: int = raw_load64 b0 24
+  b12: int = multiply b1 b10
+  b13: int = add b11 b3
+  b14: int = add b13 b12
+  return b14
+fn @$string_to_bytes (p0: ref) -> ref
+  b0: ref binding
+  b1: int binding
+  b2: int binding
+  b3: int binding
+  b4: ref binding
+  b5: int binding
+  b6: int binding
+  b7: int binding
+  b1: int = raw_load64 b0 8
+  b2: int = raw_load64 b0 16
+  b3: int = const 1
+  b4: ref = call @32 b1 b3
+  b5: int = raw_load64 b4 24
+  b6: int = const 8
+  b7: int = add b5 b6
+  call @18 b7 b2 b1
+  return b4
+fn @$bytes_to_string (p0: ref) -> ref
+  b0: ref binding
+  b1: int binding
+  b2: int binding
+  b3: int binding
+  b4: int binding
+  b5: int binding
+  b6: ref binding
+  b7: int binding
+  b8: bool binding
+  b9: ref binding
+  b10: int binding
+  b11: int binding
+  b12: bool binding
+  b13: ref binding
+  b14: int binding
+  b15: int binding
+  b16: int binding
+  b17: bool binding
+  b18: int binding
+  b19: int binding
+  b20: bool binding
+  b21: int binding
+  b22: int binding
+  b23: int binding
+  b2: int = const 24
+  b1: int = const 0
+  b3: int = const 1
+  b4: int = const 8
   b5: int = const 16
-  b6: int = add b4 b5
-  b7: int = call @14 b6
-  b8: ref = copy b7
-  b9: int = const 24
-  b10: int = add b8 b9
-  raw_store64 b8 8 b4
-  raw_store64 b8 16 b10
+  b6: ref = copy b1
+  b7: int = copy b0
+  b8: bool = equal b7 b1
+  branch b8 %0 %1
+  label %0
+  b9: ref = data $blob14
+  call @25 b9
+  return b6
+  label %1
+  b10: int = raw_load64 b0 8
   b11: int = raw_load64 b0 16
-  b12: int = raw_load64 b1 16
-  call @16 b10 b11 b2
-  b13: int = add b10 b2
-  call @16 b13 b12 b3
-  return b8
+  b12: bool = equal b11 b3
+  branch b12 %2 %3
+  label %3
+  b13: ref = data $blob15
+  call @25 b13
+  return b6
+  label %2
+  b14: int = raw_load64 b0 24
+  b15: int = add b14 b4
+  b16: int = const 0
+  label %4
+  b17: bool = less_than b16 b10
+  branch b17 %5 %6
+  label %5
+  b19: int = add b15 b16
+  b18: int = raw_load8 b19 0
+  b20: bool = equal b18 b1
+  branch b20 %7 %8
+  label %8
+  b16: int = add b16 b3
+  jump %4
+  label %7
+  call @27 b16
+  return b6
+  label %6
+  b21: int = add b10 b5
+  b22: int = call @16 b21
+  raw_store64 b22 8 b10
+  b23: int = add b22 b2
+  raw_store64 b22 16 b23
+  call @18 b23 b15 b10
+  b6: ref = copy b22
+  return b6
+fn @$string_at (p0: ref, p1: int) -> int
+  b0: ref binding
+  b1: int binding
+  b2: int binding
+  b3: int binding
+  b4: bool binding
+  b5: int binding
+  b6: bool binding
+  b7: bool binding
+  b8: int binding
+  b9: int binding
+  b10: int binding
+  b2: int = const 0
+  b3: int = copy b0
+  b4: bool = equal b3 b2
+  b5: int = const 0
+  branch b4 %1 %0
+  label %0
+  b5: int = raw_load64 b0 8
+  label %1
+  b6: bool = less_than b1 b2
+  branch b6 %2 %3
+  label %3
+  b7: bool = less_than b1 b5
+  branch b7 %4 %2
+  label %2
+  call @28 b1 b5
+  return b2
+  label %4
+  b8: int = raw_load64 b0 16
+  b9: int = add b8 b1
+  b10: int = raw_load8 b9 0
+  return b10
+fn @$substring (p0: ref, p1: int, p2: int) -> ref
+  b0: ref binding
+  b1: int binding
+  b2: int binding
+  b3: int binding
+  b4: int binding
+  b5: int binding
+  b6: ref binding
+  b7: int binding
+  b8: bool binding
+  b9: int binding
+  b10: bool binding
+  b11: bool binding
+  b12: bool binding
+  b13: int binding
+  b14: int binding
+  b15: int binding
+  b16: int binding
+  b17: int binding
+  b18: int binding
+  b4: int = const 24
+  b3: int = const 0
+  b5: int = const 16
+  b6: ref = copy b3
+  b7: int = copy b0
+  b8: bool = equal b7 b3
+  b9: int = const 0
+  branch b8 %1 %0
+  label %0
+  b9: int = raw_load64 b0 8
+  label %1
+  b10: bool = less_than b1 b3
+  branch b10 %2 %3
+  label %3
+  b11: bool = less_than b2 b1
+  branch b11 %2 %4
+  label %4
+  b12: bool = less_than b9 b2
+  branch b12 %2 %5
+  label %2
+  call @29 b1 b2 b9
+  return b6
+  label %5
+  b13: int = subtract b2 b1
+  b14: int = add b13 b5
+  b15: int = call @16 b14
+  raw_store64 b15 8 b13
+  b16: int = add b15 b4
+  raw_store64 b15 16 b16
+  b17: int = raw_load64 b0 16
+  b18: int = add b17 b1
+  call @18 b16 b18 b13
+  b6: ref = copy b15
+  return b6
+fn @$print_string_raw (p0: ref) -> void
+  b0: ref binding
+  b1: int binding
+  b2: ref binding
+  b3: int binding
+  b4: int binding
+  b1: int = raw_load64 b0 8
+  b2: ref = raw_load64 b0 16
+  b3: int = const 1
+  b4: int = raw_syscall syscall b3 b3 b2 b1
+  return
 fn @$print (p0: ref) -> void
   b0: ref binding
   b1: int binding
@@ -2682,22 +5992,44 @@ fn @$print (p0: ref) -> void
   b2: ref = raw_load64 b0 16
   b3: int = const 1
   b4: int = raw_syscall syscall b3 b3 b2 b1
-  b5: ref = data $blob2
+  b5: ref = data $blob25
   b6: ref = raw_load64 b5 16
   b7: int = const 1
   b8: int = raw_syscall syscall b7 b7 b6 b7
+  return
+fn @$print_bool_raw (p0: bool) -> void
+  b0: bool binding
+  b1: ref binding
+  branch b0 %0 %1
+  label %0
+  b1: ref = data $blob27
+  call @40 b1
+  return
+  label %1
+  b1: ref = data $blob28
+  call @40 b1
   return
 fn @$print_bool (p0: bool) -> void
   b0: bool binding
   b1: ref binding
   branch b0 %0 %1
   label %0
-  b1: ref = data $blob3
-  call @19 b1
+  b1: ref = data $blob29
+  call @41 b1
   return
   label %1
-  b1: ref = data $blob4
-  call @19 b1
+  b1: ref = data $blob30
+  call @41 b1
+  return
+fn @$print_newline () -> void
+  b0: ref binding
+  b1: ref binding
+  b2: int binding
+  b3: int binding
+  b0: ref = data $blob25
+  b1: ref = raw_load64 b0 16
+  b2: int = const 1
+  b3: int = raw_syscall syscall b2 b2 b1 b2
   return
 
 `
@@ -2705,7 +6037,7 @@ fn @$print_bool (p0: bool) -> void
 // lowerCorpusSources returns the scalar corpus programs the lowering runs.
 func lowerCorpusSources(t *testing.T) []string {
 	t.Helper()
-	sources, err := filepath.Glob(repoPath(t, "..", "..", "tests", "native", "*.ktn"))
+	sources, err := filepath.Glob(repoPath(t, "..", "..", "tests", "native", "*.pcy"))
 	if err != nil || len(sources) == 0 {
 		t.Fatalf("globbing the native corpus: %v (%d sources)", err, len(sources))
 	}
@@ -2715,7 +6047,7 @@ func lowerCorpusSources(t *testing.T) []string {
 // TestNativeProbeLowerCorpus lowers every corpus program into a static ELF
 // with no C compiler, runs it with an empty PATH, and demands the output,
 // standard error, and status of the C pipeline's build of the same source;
-// the Kitten pipeline's production is byte-compared in its own test. The
+// the Percy pipeline's production is byte-compared in its own test. The
 // sources stay deliberately small because the selector's slice frame carries
 // at most fourteen locals per function.
 func TestNativeProbeLowerCorpus(t *testing.T) {
@@ -2723,7 +6055,7 @@ func TestNativeProbeLowerCorpus(t *testing.T) {
 	executable := buildNativeProbe(t)
 	purr := goPurrReference(t)
 	for _, source := range lowerCorpusSources(t) {
-		name := strings.TrimSuffix(filepath.Base(source), ".ktn")
+		name := strings.TrimSuffix(filepath.Base(source), ".pcy")
 		t.Run(name, func(t *testing.T) {
 			directory := t.TempDir()
 			cRun := runExternal(t, purr, []string{"run", source}, directory, nil)
@@ -2763,11 +6095,259 @@ func TestNativeProbeLowerCorpus(t *testing.T) {
 	}
 }
 
+// TestNativeProbeLowerModules runs the real multi-file tests/modules tree
+// through the native backend: imported structs and public/private functions,
+// cross-module calls, and multi-argument print, compared with the C
+// pipeline's run and checked for deterministic production.
+func TestNativeProbeLowerModules(t *testing.T) {
+	requireToolchain(t)
+	executable := buildNativeProbe(t)
+	purr := goPurrReference(t)
+	source := repoPath(t, "..", "..", "tests", "modules", "main.pcy")
+	directory := t.TempDir()
+
+	cRun := runExternal(t, purr, []string{"run", source}, directory, nil)
+
+	native := filepath.Join(directory, "modules")
+	written := runExternal(t, executable, []string{"lower", source, native}, directory, nil)
+	if written.status != 0 || written.stderr != "" || written.stdout != "built "+native+"\n" {
+		t.Fatalf("lower modules: status %d, stdout %q, stderr %q", written.status, written.stdout, written.stderr)
+	}
+	if err := os.Chmod(native, 0o755); err != nil {
+		t.Fatalf("chmod native: %v", err)
+	}
+
+	run := runExternal(t, native, nil, directory, []string{"PATH=/nonexistent"})
+	if run.status != cRun.status || run.stdout != cRun.stdout || run.stderr != cRun.stderr {
+		t.Fatalf("native modules differ:\nC: %d %q %q\nnative: %d %q %q",
+			cRun.status, cRun.stdout, cRun.stderr, run.status, run.stdout, run.stderr)
+	}
+
+	again := filepath.Join(directory, "modules-again")
+	if written := runExternal(t, executable, []string{"lower", source, again}, directory, nil); written.status != 0 {
+		t.Fatalf("second modules write status %d", written.status)
+	}
+	first, err := os.ReadFile(native)
+	if err != nil {
+		t.Fatalf("reading the first ELF: %v", err)
+	}
+	secondFile, err := os.ReadFile(again)
+	if err != nil {
+		t.Fatalf("reading the second ELF: %v", err)
+	}
+	if string(first) != string(secondFile) {
+		t.Fatalf("two module productions differ in %d bytes", len(first))
+	}
+}
+
+// TestNativeProbeReadFile runs a path-taking try_read_file program through
+// both pipelines over an existing file, an empty file, a directory, and a
+// missing path. The program prints only the result, so the comparison covers
+// Ok text bytes and the exact open/read failure texts.
+func TestNativeProbeReadFile(t *testing.T) {
+	requireToolchain(t)
+	executable := buildNativeProbe(t)
+	purr := goPurrReference(t)
+	directory := t.TempDir()
+
+	source := filepath.Join(directory, "readarg.pcy")
+	program := `fn main() {
+    string[] args = argv();
+    match (try_read_file(args[1])) {
+        Ok(text) {
+            print("ok", length(text), text);
+        }
+        Failed(message) {
+            print("fail", message);
+        }
+    }
+}
+`
+	if err := os.WriteFile(source, []byte(program), 0o644); err != nil {
+		t.Fatalf("writing the read source: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(directory, "data.txt"), []byte("hello\n"), 0o644); err != nil {
+		t.Fatalf("writing data.txt: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(directory, "empty.txt"), nil, 0o644); err != nil {
+		t.Fatalf("writing empty.txt: %v", err)
+	}
+	if err := os.Mkdir(filepath.Join(directory, "dir"), 0o755); err != nil {
+		t.Fatalf("creating dir: %v", err)
+	}
+
+	cBinary := filepath.Join(directory, "read_c")
+	built := runExternal(t, purr, []string{"build", source, "-o", cBinary}, directory, nil)
+	if built.status != 0 {
+		t.Fatalf("C build: status %d, stderr %q", built.status, built.stderr)
+	}
+	native := filepath.Join(directory, "read_native")
+	written := runExternal(t, executable, []string{"lower", source, native}, directory, nil)
+	if written.status != 0 || written.stderr != "" {
+		t.Fatalf("native lower: status %d, stderr %q", written.status, written.stderr)
+	}
+	if err := os.Chmod(native, 0o755); err != nil {
+		t.Fatalf("chmod native: %v", err)
+	}
+
+	for _, path := range []string{"data.txt", "empty.txt", "dir", "missing.txt"} {
+		t.Run(path, func(t *testing.T) {
+			cRun := runExternal(t, cBinary, []string{path}, directory, nil)
+			nativeRun := runExternal(t, native, []string{path}, directory, []string{"PATH=/nonexistent"})
+			if nativeRun.status != cRun.status || nativeRun.stdout != cRun.stdout || nativeRun.stderr != cRun.stderr {
+				t.Fatalf("read %s differs:\nC: %d %q %q\nnative: %d %q %q",
+					path, cRun.status, cRun.stdout, cRun.stderr, nativeRun.status, nativeRun.stdout, nativeRun.stderr)
+			}
+		})
+	}
+}
+
+// TestNativeProbeReadFileFatal runs the fatal read_file builtin through both
+// pipelines over a regular file, an empty file, a directory, a missing path,
+// and a sparse file above the 256 MiB limit. stdout, stderr, and status must
+// agree, including the libc-cased strerror text in the fatal messages.
+func TestNativeProbeReadFileFatal(t *testing.T) {
+	requireToolchain(t)
+	executable := buildNativeProbe(t)
+	purr := goPurrReference(t)
+	directory := t.TempDir()
+
+	source := filepath.Join(directory, "readfatal.pcy")
+	program := `fn main() {
+    string[] arguments = argv();
+    string text = read_file(arguments[1]);
+    print(length(text));
+    if (length(text) > 0) {
+        print(text[0]);
+    }
+}
+`
+	if err := os.WriteFile(source, []byte(program), 0o644); err != nil {
+		t.Fatalf("writing the read source: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(directory, "data.txt"), []byte("hello"), 0o644); err != nil {
+		t.Fatalf("writing data.txt: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(directory, "empty.txt"), nil, 0o644); err != nil {
+		t.Fatalf("writing empty.txt: %v", err)
+	}
+	if err := os.Mkdir(filepath.Join(directory, "dir"), 0o755); err != nil {
+		t.Fatalf("creating dir: %v", err)
+	}
+	large := filepath.Join(directory, "large.bin")
+	largeFile, err := os.Create(large)
+	if err != nil {
+		t.Fatalf("creating the large file: %v", err)
+	}
+	if err := largeFile.Close(); err != nil {
+		t.Fatalf("closing the large file: %v", err)
+	}
+	if err := os.Truncate(large, 300*1024*1024); err != nil {
+		t.Fatalf("growing the sparse large file: %v", err)
+	}
+
+	cBinary := filepath.Join(directory, "readfatal-c")
+	built := runExternal(t, purr, []string{"build", source, "-o", cBinary}, directory, nil)
+	if built.status != 0 {
+		t.Fatalf("C build: status %d, stderr %q", built.status, built.stderr)
+	}
+	native := filepath.Join(directory, "readfatal-native")
+	written := runExternal(t, executable, []string{"lower", source, native}, directory, nil)
+	if written.status != 0 || written.stderr != "" {
+		t.Fatalf("native lower: status %d, stderr %q", written.status, written.stderr)
+	}
+	if err := os.Chmod(native, 0o755); err != nil {
+		t.Fatalf("chmod native: %v", err)
+	}
+
+	for _, path := range []string{"data.txt", "empty.txt", "dir", "missing.txt", "large.bin"} {
+		t.Run(path, func(t *testing.T) {
+			cRun := runExternal(t, cBinary, []string{path}, directory, nil)
+			nativeRun := runExternal(t, native, []string{path}, directory, []string{"PATH=/nonexistent"})
+			if nativeRun.status != cRun.status || nativeRun.stdout != cRun.stdout || nativeRun.stderr != cRun.stderr {
+				t.Fatalf("read_file %s differs:\nC: %d %q %q\nnative: %d %q %q",
+					path, cRun.status, cRun.stdout, cRun.stderr,
+					nativeRun.status, nativeRun.stdout, nativeRun.stderr)
+			}
+		})
+	}
+}
+
+// TestNativeProbeArgv builds the same source through the C and native
+// pipelines and runs both with the same non-empty argument vector, including
+// an empty argument and one containing spaces. argv[0] differs by executable
+// path, so the program prints only the length and arguments 1..n.
+func TestNativeProbeArgv(t *testing.T) {
+	requireToolchain(t)
+	executable := buildNativeProbe(t)
+	purr := goPurrReference(t)
+	source := repoPath(t, "..", "..", "tests", "native", "argv.pcy")
+	directory := t.TempDir()
+
+	cBinary := filepath.Join(directory, "argv-c")
+	built := runExternal(t, purr, []string{"build", source, "-o", cBinary}, directory, nil)
+	if built.status != 0 {
+		t.Fatalf("C build: status %d, stderr %q", built.status, built.stderr)
+	}
+	native := filepath.Join(directory, "argv-native")
+	written := runExternal(t, executable, []string{"lower", source, native}, directory, nil)
+	if written.status != 0 || written.stderr != "" {
+		t.Fatalf("native lower: status %d, stderr %q", written.status, written.stderr)
+	}
+	if err := os.Chmod(native, 0o755); err != nil {
+		t.Fatalf("chmod native: %v", err)
+	}
+
+	arguments := []string{"alpha", "beta", "two words", ""}
+	cRun := runExternal(t, cBinary, arguments, directory, nil)
+	nativeRun := runExternal(t, native, arguments, directory, []string{"PATH=/nonexistent"})
+	if nativeRun.status != cRun.status || nativeRun.stdout != cRun.stdout || nativeRun.stderr != cRun.stderr {
+		t.Fatalf("native argv differs:\nC: %d %q %q\nnative: %d %q %q",
+			cRun.status, cRun.stdout, cRun.stderr, nativeRun.status, nativeRun.stdout, nativeRun.stderr)
+	}
+}
+
+// TestNativeProbeGetenv builds the environment-reading corpus program through
+// both pipelines and runs each with the same controlled environment: a
+// present non-empty variable, a present empty variable, an absent variable,
+// the empty name, and a name containing `=`. The program prints only shapes
+// and lengths, so the comparison covers Set/Unset selection and the copied
+// bytes without depending on the host's PATH.
+func TestNativeProbeGetenv(t *testing.T) {
+	requireToolchain(t)
+	executable := buildNativeProbe(t)
+	purr := goPurrReference(t)
+	source := repoPath(t, "..", "..", "tests", "native", "getenv.pcy")
+	directory := t.TempDir()
+
+	cBinary := filepath.Join(directory, "getenv-c")
+	built := runExternal(t, purr, []string{"build", source, "-o", cBinary}, directory, nil)
+	if built.status != 0 {
+		t.Fatalf("C build: status %d, stderr %q", built.status, built.stderr)
+	}
+	native := filepath.Join(directory, "getenv-native")
+	written := runExternal(t, executable, []string{"lower", source, native}, directory, nil)
+	if written.status != 0 || written.stderr != "" {
+		t.Fatalf("native lower: status %d, stderr %q", written.status, written.stderr)
+	}
+	if err := os.Chmod(native, 0o755); err != nil {
+		t.Fatalf("chmod native: %v", err)
+	}
+
+	environment := []string{"PATH=/nonexistent", "PCY_GETENV_PROBE_UNSET="}
+	cRun := runExternal(t, cBinary, nil, directory, environment)
+	nativeRun := runExternal(t, native, nil, directory, environment)
+	if nativeRun.status != cRun.status || nativeRun.stdout != cRun.stdout || nativeRun.stderr != cRun.stderr {
+		t.Fatalf("native getenv differs:\nC: %d %q %q\nnative: %d %q %q",
+			cRun.status, cRun.stdout, cRun.stderr, nativeRun.status, nativeRun.stdout, nativeRun.stderr)
+	}
+}
+
 // TestNativeProbeLowerRender pins the pooled string-literal scene's
 // rendering, byte for byte.
 func TestNativeProbeLowerRender(t *testing.T) {
 	executable := buildNativeProbe(t)
-	source := repoPath(t, "..", "..", "tests", "native", "pool.ktn")
+	source := repoPath(t, "..", "..", "tests", "native", "pool.pcy")
 	result := runExternal(t, executable, []string{"lower", source}, t.TempDir(), nil)
 	if result.status != 0 || result.stderr != "" {
 		t.Fatalf("pool render: status %d, stderr %q", result.status, result.stderr)
@@ -2877,7 +6457,7 @@ func mustParseFloat(t *testing.T, text string) float64 {
 // for byte: bit patterns as constf constants and the SSE2 spellings.
 func TestNativeProbeLowerFloatRender(t *testing.T) {
 	executable := buildNativeProbe(t)
-	source := repoPath(t, "..", "..", "tests", "native", "quarters.ktn")
+	source := repoPath(t, "..", "..", "tests", "native", "quarters.pcy")
 	result := runExternal(t, executable, []string{"lower", source}, t.TempDir(), nil)
 	if result.status != 0 || result.stderr != "" {
 		t.Fatalf("quarters render: status %d, stderr %q", result.status, result.stderr)
@@ -2893,7 +6473,7 @@ func TestNativeProbeLowerFloatRender(t *testing.T) {
 // reaches "$print_int".
 func TestNativeProbeLowerIntRender(t *testing.T) {
 	executable := buildNativeProbe(t)
-	source := repoPath(t, "..", "..", "tests", "native", "printint.ktn")
+	source := repoPath(t, "..", "..", "tests", "native", "printint.pcy")
 	result := runExternal(t, executable, []string{"lower", source}, t.TempDir(), nil)
 	if result.status != 0 || result.stderr != "" {
 		t.Fatalf("printint render: status %d, stderr %q", result.status, result.stderr)
@@ -2908,7 +6488,7 @@ func TestNativeProbeLowerIntRender(t *testing.T) {
 // reaches the shared string "$print" routine.
 func TestNativeProbeLowerBoolRender(t *testing.T) {
 	executable := buildNativeProbe(t)
-	source := repoPath(t, "..", "..", "tests", "native", "printbool.ktn")
+	source := repoPath(t, "..", "..", "tests", "native", "printbool.pcy")
 	result := runExternal(t, executable, []string{"lower", source}, t.TempDir(), nil)
 	if result.status != 0 || result.stderr != "" {
 		t.Fatalf("printbool render: status %d, stderr %q", result.status, result.stderr)
@@ -2920,7 +6500,7 @@ func TestNativeProbeLowerBoolRender(t *testing.T) {
 
 // TestNativeProbeOOM writes the allocation-failure executable with no C
 // compiler, runs it with an empty PATH, and demands the C runtime's exact
-// ktn_rt_fail spelling for the out-of-memory text: standard error only,
+// pcy_rt_fail spelling for the out-of-memory text: standard error only,
 // status 1. A repeated production is byte-identical.
 func TestNativeProbeOOM(t *testing.T) {
 	requireToolchain(t)
@@ -2999,6 +6579,228 @@ func TestNativeProbeGC(t *testing.T) {
 	}
 }
 
+// TestNativeProbeGCGraph is the white-box transitive-mark proof. The scene
+// marks only an outer block, whose payload alone points at an inner block,
+// then calls "$scan_heap" directly and reads both ledger bytes. A correct
+// pass marks the inner block (2), leaves the unlinked block allocated but
+// unmarked (1), reports one newly marked header, and reports zero on the
+// second pass. Disabling the heap pass flips the output to
+// "missed/unlinked/nochange/settled", so the test is sensitive to the
+// transitive edge rather than to conservative stack retention.
+func TestNativeProbeGCGraph(t *testing.T) {
+	requireToolchain(t)
+	executable := buildNativeProbe(t)
+	directory := t.TempDir()
+
+	native := filepath.Join(directory, "gc-graph-native")
+	written := runExternal(t, executable, []string{"elf-gc-graph", native}, directory, nil)
+	if written.status != 0 || written.stderr != "" || written.stdout != "built "+native+"\n" {
+		t.Fatalf("gc-graph write: status %d, stdout %q, stderr %q", written.status, written.stdout, written.stderr)
+	}
+	if err := os.Chmod(native, 0o755); err != nil {
+		t.Fatalf("chmod native: %v", err)
+	}
+
+	run := runExternal(t, native, nil, directory, []string{"PATH=/nonexistent"})
+	if run.status != 0 || run.stderr != "" || run.stdout != "marked\nunlinked\nchanged\nsettled\n" {
+		t.Fatalf("native gc-graph run: status %d, stdout %q, stderr %q", run.status, run.stdout, run.stderr)
+	}
+
+	again := filepath.Join(directory, "gc-graph-native-again")
+	if written := runExternal(t, executable, []string{"elf-gc-graph", again}, directory, nil); written.status != 0 {
+		t.Fatalf("second gc-graph write status %d", written.status)
+	}
+	first, err := os.ReadFile(native)
+	if err != nil {
+		t.Fatalf("reading the first ELF: %v", err)
+	}
+	secondFile, err := os.ReadFile(again)
+	if err != nil {
+		t.Fatalf("reading the second ELF: %v", err)
+	}
+	if string(first) != string(secondFile) {
+		t.Fatalf("two gc-graph productions differ in %d bytes", len(first))
+	}
+}
+
+// TestNativeProbeAlign runs the white-box stack-alignment scene: three check
+// functions capture rsp inside their frames, and main exits with the sum of
+// their low nibbles. A correctly aligned selector exits 0; either a
+// misaligned frame or an unpadded odd-argument call makes it nonzero.
+func TestNativeProbeAlign(t *testing.T) {
+	executable := buildNativeProbe(t)
+	directory := t.TempDir()
+	native := filepath.Join(directory, "align-native")
+	written := runExternal(t, executable, []string{"elf-align", native}, directory, nil)
+	if written.status != 0 || written.stderr != "" || written.stdout != "built "+native+"\n" {
+		t.Fatalf("align write: status %d, stdout %q, stderr %q", written.status, written.stdout, written.stderr)
+	}
+	if err := os.Chmod(native, 0o755); err != nil {
+		t.Fatalf("chmod align: %v", err)
+	}
+	run := runExternal(t, native, nil, directory, []string{"PATH=/nonexistent"})
+	if run.status != 0 || run.stdout != "" || run.stderr != "" {
+		t.Fatalf("align run: status %d, stdout %q, stderr %q (rsp was not 16-byte aligned)", run.status, run.stdout, run.stderr)
+	}
+	again := filepath.Join(directory, "align-native-again")
+	if written := runExternal(t, executable, []string{"elf-align", again}, directory, nil); written.status != 0 {
+		t.Fatalf("second align write status %d", written.status)
+	}
+	first, err := os.ReadFile(native)
+	if err != nil {
+		t.Fatalf("reading the first align ELF: %v", err)
+	}
+	second, err := os.ReadFile(again)
+	if err != nil {
+		t.Fatalf("reading the second align ELF: %v", err)
+	}
+	if string(first) != string(second) {
+		t.Fatalf("two align productions differ in %d bytes", len(first))
+	}
+}
+
+// TestNativeProbeNativeFixpoint is the native stage-to-stage proof. The
+// C-pipeline probe lowers selfhost/native.pcy into a native stage 2; stage 2
+// lowers the same source into stage 3 under an empty PATH; the two ELFs are
+// byte-identical. Stage 2 also lowers tests/native/arith.pcy, and that ELF is
+// byte-identical to the C-pipeline probe's and runs with the expected output.
+func TestNativeProbeNativeFixpoint(t *testing.T) {
+	requireToolchain(t)
+	executable := buildNativeProbe(t)
+	directory := t.TempDir()
+	source := repoPath(t, "..", "..", "selfhost", "native.pcy")
+
+	stage2 := filepath.Join(directory, "native-stage2")
+	written := runExternal(t, executable, []string{"lower", source, stage2}, directory, nil)
+	if written.status != 0 || written.stderr != "" {
+		t.Fatalf("stage 2 lower: status %d, stderr %q", written.status, written.stderr)
+	}
+	if err := os.Chmod(stage2, 0o755); err != nil {
+		t.Fatalf("chmod stage 2: %v", err)
+	}
+
+	stage3 := filepath.Join(directory, "native-stage3")
+	again := runExternal(t, stage2, []string{"lower", source, stage3}, directory, []string{"PATH=/nonexistent"})
+	if again.status != 0 || again.stderr != "" {
+		t.Fatalf("stage 3 lower: status %d, stderr %q", again.status, again.stderr)
+	}
+	second, err := os.ReadFile(stage2)
+	if err != nil {
+		t.Fatalf("reading stage 2: %v", err)
+	}
+	third, err := os.ReadFile(stage3)
+	if err != nil {
+		t.Fatalf("reading stage 3: %v", err)
+	}
+	if string(second) != string(third) {
+		t.Fatalf("native stage 2 and stage 3 differ in %d bytes", len(second))
+	}
+
+	fixture := repoPath(t, "..", "..", "tests", "native", "arith.pcy")
+	cElf := filepath.Join(directory, "arith-c")
+	nElf := filepath.Join(directory, "arith-native")
+	if written := runExternal(t, executable, []string{"lower", fixture, cElf}, directory, nil); written.status != 0 {
+		t.Fatalf("C-pipeline arith lower: status %d, stderr %q", written.status, written.stderr)
+	}
+	if written := runExternal(t, stage2, []string{"lower", fixture, nElf}, directory, []string{"PATH=/nonexistent"}); written.status != 0 {
+		t.Fatalf("native-stage-2 arith lower: status %d, stderr %q", written.status, written.stderr)
+	}
+	cBytes, err := os.ReadFile(cElf)
+	if err != nil {
+		t.Fatalf("reading C-pipeline arith ELF: %v", err)
+	}
+	nBytes, err := os.ReadFile(nElf)
+	if err != nil {
+		t.Fatalf("reading native-stage-2 arith ELF: %v", err)
+	}
+	if string(cBytes) != string(nBytes) {
+		t.Fatalf("arith ELFs differ in %d bytes", len(cBytes))
+	}
+	if err := os.Chmod(nElf, 0o755); err != nil {
+		t.Fatalf("chmod arith ELF: %v", err)
+	}
+	run := runExternal(t, nElf, nil, directory, []string{"PATH=/nonexistent"})
+	if run.status != 0 || run.stdout != "large\nnegged\n" || run.stderr != "" {
+		t.Fatalf("native-stage-2 arith run: status %d, stdout %q, stderr %q", run.status, run.stdout, run.stderr)
+	}
+
+	driverSource := repoPath(t, "..", "..", "selfhost", "driver.pcy")
+	cDriver := filepath.Join(directory, "driver-c")
+	nDriver := filepath.Join(directory, "driver-native")
+	if written := runExternal(t, executable, []string{"lower", driverSource, cDriver}, directory, nil); written.status != 0 {
+		t.Fatalf("C-pipeline driver lower: status %d, stderr %q", written.status, written.stderr)
+	}
+	if written := runExternal(t, stage2, []string{"lower", driverSource, nDriver}, directory, []string{"PATH=/nonexistent"}); written.status != 0 {
+		t.Fatalf("native-stage-2 driver lower: status %d, stderr %q", written.status, written.stderr)
+	}
+	cDriverBytes, err := os.ReadFile(cDriver)
+	if err != nil {
+		t.Fatalf("reading C-pipeline driver: %v", err)
+	}
+	nDriverBytes, err := os.ReadFile(nDriver)
+	if err != nil {
+		t.Fatalf("reading native-stage-2 driver: %v", err)
+	}
+	if string(cDriverBytes) != string(nDriverBytes) {
+		t.Fatalf("driver ELFs differ in %d bytes", len(cDriverBytes))
+	}
+	if err := os.Chmod(nDriver, 0o755); err != nil {
+		t.Fatalf("chmod native driver: %v", err)
+	}
+	stage1 := buildStage1(t)
+	fixture = repoPath(t, "..", "..", "tests", "fizzbuzz.pcy")
+	reference := runExternal(t, stage1, []string{fixture}, directory, nil)
+	nativeStage := runExternal(t, nDriver, []string{fixture}, directory, []string{"PATH=/nonexistent"})
+	if nativeStage.status != reference.status || nativeStage.stdout != reference.stdout || nativeStage.stderr != reference.stderr {
+		t.Fatalf("native-stage driver C differs:\nreference: %d %q %q\nnative: %d %q %q",
+			reference.status, reference.stdout, reference.stderr, nativeStage.status, nativeStage.stdout, nativeStage.stderr)
+	}
+}
+
+// TestNativeProbeToolchain compiles the production purr toolchain with the
+// native backend and runs it: help, a direct run, and a project created by
+// new and run in project mode. It proves the native backend compiles the
+// whole compiler-facing program, not just the probe and fixtures.
+func TestNativeProbeToolchain(t *testing.T) {
+	requireToolchain(t)
+	executable := buildNativeProbe(t)
+	directory := t.TempDir()
+	source := repoPath(t, "..", "..", "purr.pcy")
+
+	native := filepath.Join(directory, "purr-native")
+	written := runExternal(t, executable, []string{"lower", source, native}, directory, nil)
+	if written.status != 0 || written.stderr != "" {
+		t.Fatalf("native purr lower: status %d, stderr %q", written.status, written.stderr)
+	}
+	if err := os.Chmod(native, 0o755); err != nil {
+		t.Fatalf("chmod native purr: %v", err)
+	}
+
+	help := runExternal(t, native, []string{"help"}, directory, nil)
+	if help.status != 0 || !strings.HasPrefix(help.stdout, "Percy compiler\n") {
+		t.Fatalf("native purr help: status %d, stdout %q, stderr %q", help.status, help.stdout, help.stderr)
+	}
+
+	hello := filepath.Join(directory, "hello.pcy")
+	if err := os.WriteFile(hello, []byte("fn main() {\n    print(\"hello from native purr\");\n}\n"), 0o644); err != nil {
+		t.Fatalf("writing hello: %v", err)
+	}
+	run := runExternal(t, native, []string{"run", hello}, directory, nil)
+	if run.status != 0 || run.stdout != "hello from native purr\n" || run.stderr != "" {
+		t.Fatalf("native purr run: status %d, stdout %q, stderr %q", run.status, run.stdout, run.stderr)
+	}
+
+	created := runExternal(t, native, []string{"new", "project"}, directory, nil)
+	if created.status != 0 {
+		t.Fatalf("native purr new: status %d, stderr %q", created.status, created.stderr)
+	}
+	project := filepath.Join(directory, "project")
+	projectRun := runExternal(t, native, []string{"run"}, project, nil)
+	if projectRun.status != 0 || projectRun.stdout != "Hello, world!\n" || projectRun.stderr != "" {
+		t.Fatalf("native purr project run: status %d, stdout %q, stderr %q", projectRun.status, projectRun.stdout, projectRun.stderr)
+	}
+}
+
 // lowerFailureCase is one unsupported-construct source with its expected
 // message tail. A positionless case omits the position; the loader's
 // read-failure spelling (path with no position) is the pathOnly kind.
@@ -3012,25 +6814,13 @@ type lowerFailureCase struct {
 
 func lowerFailureCases(badDirectory string) []lowerFailureCase {
 	return []lowerFailureCase{
-		{file: "array.ktn", line: "2", col: "5", message: "array values are not supported yet"},
-		{file: "bits.ktn", line: "2", col: "18", message: "bitwise operators are not supported yet"},
-		{file: "booleq.ktn", line: "2", col: "22", message: "comparing bool values is not supported yet"},
-		{file: "enum.ktn", line: "1", col: "1", message: "enum declarations are not supported yet"},
-		{file: "eprint.ktn", line: "2", col: "5", message: `built-in "eprint" is not supported yet`},
-		{file: "float.ktn", line: "2", col: "21", message: "float literals with more than 17 significant digits are not supported yet"},
+		{file: "float.pcy", line: "2", col: "21", message: "float literals with more than 17 significant digits are not supported yet"},
 
-		{file: "imported.ktn", kind: "pathless", message: "the program has no main function"},
-		{file: "import.ktn", kind: "pathless", message: "the native lowering supports a single-module program, but the program has 2 modules"},
-		{file: "index.ktn", line: "2", col: "10", message: "indexing is not supported yet"},
-		{file: "lex.ktn", line: "2", col: "29", message: "newline in string literal"},
-		{file: "map.ktn", line: "2", col: "5", message: "map values are not supported yet"},
-		{file: "missing.ktn", kind: "readerror", message: "cannot read source file: open " + filepath.Join(badDirectory, "not_here.ktn") + ": no such file or directory"},
-		{file: "parse.ktn", line: "2", col: "17", message: `expected an expression, found Semicolon ";"`},
-		{file: "printmany.ktn", line: "2", col: "10", message: "print is supported with exactly one argument, but the call passes 2"},
-		{file: "substring.ktn", line: "2", col: "11", message: `built-in "substring" is not supported yet`},
-		{file: "struct.ktn", line: "1", col: "1", message: "struct declarations are not supported yet"},
-		{file: "typeerror.ktn", line: "2", col: "17", message: `initializer for variable "value": expected int, found string`},
-		{file: "union.ktn", line: "1", col: "1", message: "union declarations are not supported yet"},
+		{file: "imported.pcy", line: "1", col: "1", message: "program has no entry point: define fn main() in the root module"},
+		{file: "lex.pcy", line: "2", col: "29", message: "newline in string literal"},
+		{file: "missing.pcy", kind: "readerror", message: "cannot read source file: open " + filepath.Join(badDirectory, "not_here.pcy") + ": no such file or directory"},
+		{file: "parse.pcy", line: "2", col: "17", message: `expected an expression, found Semicolon ";"`},
+		{file: "typeerror.pcy", line: "2", col: "17", message: `initializer for variable "value": expected int, found string`},
 	}
 }
 
@@ -3045,7 +6835,7 @@ func lowerFailureWant(badDirectory string, failure lowerFailureCase) string {
 	if failure.kind == "readerror" || failure.line == "0" {
 		if failure.kind == "readerror" {
 			// A read failure names the missing file, not the importer.
-			missing := filepath.Join(badDirectory, "not_here.ktn")
+			missing := filepath.Join(badDirectory, "not_here.pcy")
 			return "error " + missing + ": " + failure.message + "\n"
 		}
 		return lead + ": " + failure.message + "\n"
@@ -3086,13 +6876,27 @@ func TestNativeProbeLowerFrameLimit(t *testing.T) {
 	requireToolchain(t)
 	executable := buildNativeProbe(t)
 	directory := t.TempDir()
-	source := repoPath(t, "..", "..", "tests", "native", "bad", "bigfn.ktn")
+	source := filepath.Join(directory, "bigfn.pcy")
+
+	// Each declaration lowers to an initializer temporary plus the local
+	// itself, so 4097 declarations produce 8194 locals, just over the
+	// selector's 8192-slot frame budget.
+	var builder strings.Builder
+	builder.WriteString("fn main() {\n")
+	for index := 0; index < 4097; index++ {
+		fmt.Fprintf(&builder, "    int v%d = 1;\n", index)
+	}
+	builder.WriteString("    print(v0);\n}\n")
+	if err := os.WriteFile(source, []byte(builder.String()), 0o644); err != nil {
+		t.Fatalf("writing the oversized source: %v", err)
+	}
+
 	native := filepath.Join(directory, "big")
 	result := runExternal(t, executable, []string{"lower", source, native}, directory, nil)
 	if result.status != 1 {
 		t.Fatalf("status %d, want 1", result.status)
 	}
-	if result.stderr != "native: function @main: 30 locals do not fit the slice's frame layout\n" {
+	if result.stderr != "native: function @main: 8194 locals do not fit the slice's frame layout\n" {
 		t.Fatalf("stderr %q", result.stderr)
 	}
 	if result.stdout != "" {
@@ -3103,20 +6907,20 @@ func TestNativeProbeLowerFrameLimit(t *testing.T) {
 	}
 }
 
-// TestNativeProbeKittenPipeline builds the probe with the Kitten-written
-// purr-kt sidecar, so the typed-IR module also compiles and behaves through
-// the Kitten pipeline, and compares every probe output against the pinned
+// TestNativeProbePercyPipeline builds the probe with the Percy-written
+// purr-pcy sidecar, so the typed-IR module also compiles and behaves through
+// the Percy pipeline, and compares every probe output against the pinned
 // texts the Go pipeline produced.
-func TestNativeProbeKittenPipeline(t *testing.T) {
+func TestNativeProbePercyPipeline(t *testing.T) {
 	requireToolchain(t)
 	stage1 := buildStage1(t)
-	kittenPurr := buildPurrKTWithKitten(t, stage1)
+	percyPurr := buildPurrPcyWithPercy(t, stage1)
 	executable := filepath.Join(t.TempDir(), "native-probe-kt")
-	result := runPurrKT(t, kittenPurr, t.TempDir(), []string{
-		"build", repoPath(t, "..", "..", "selfhost", "native.ktn"), "-o", executable,
+	result := runPurrPcy(t, percyPurr, t.TempDir(), []string{
+		"build", repoPath(t, "..", "..", "selfhost", "native.pcy"), "-o", executable,
 	})
 	if result.status != 0 || result.stderr != "" || result.stdout != "built "+executable+"\n" {
-		t.Fatalf("Kitten build of the native probe: status %d, stdout %q, stderr %q",
+		t.Fatalf("Percy build of the native probe: status %d, stdout %q, stderr %q",
 			result.status, result.stdout, result.stderr)
 	}
 
@@ -3150,28 +6954,28 @@ func TestNativeProbeKittenPipeline(t *testing.T) {
 		if ktResult.status != goResult.status ||
 			ktResult.stdout != goResult.stdout ||
 			ktResult.stderr != goResult.stderr {
-			t.Errorf("mode %q: Kitten %d/%q/%q, Go %d/%q/%q",
+			t.Errorf("mode %q: Percy %d/%q/%q, Go %d/%q/%q",
 				testCase.mode, ktResult.status, ktResult.stdout, ktResult.stderr,
 				goResult.status, goResult.stdout, goResult.stderr)
 		}
 	}
 }
 
-// TestNativeProbeKittenPipelineSkeleton builds the probe with the
-// Kitten-written sidecar as well, and the ELFs both pipelines produce must
+// TestNativeProbePercyPipelineSkeleton builds the probe with the
+// Percy-written sidecar as well, and the ELFs both pipelines produce must
 // be byte-identical for every scene kind: the same selector and ELF writer
-// run through the Kitten backend. The hello executable's behavior is
+// run through the Percy backend. The hello executable's behavior is
 // asserted directly; arith and divzero already are in their own tests.
-func TestNativeProbeKittenPipelineSkeleton(t *testing.T) {
+func TestNativeProbePercyPipelineSkeleton(t *testing.T) {
 	requireToolchain(t)
 	stage1 := buildStage1(t)
-	kittenPurr := buildPurrKTWithKitten(t, stage1)
+	percyPurr := buildPurrPcyWithPercy(t, stage1)
 	ktExecutable := filepath.Join(t.TempDir(), "native-probe-kt")
-	result := runPurrKT(t, kittenPurr, t.TempDir(), []string{
-		"build", repoPath(t, "..", "..", "selfhost", "native.ktn"), "-o", ktExecutable,
+	result := runPurrPcy(t, percyPurr, t.TempDir(), []string{
+		"build", repoPath(t, "..", "..", "selfhost", "native.pcy"), "-o", ktExecutable,
 	})
 	if result.status != 0 || result.stderr != "" || result.stdout != "built "+ktExecutable+"\n" {
-		t.Fatalf("Kitten build of the native probe: status %d, stdout %q, stderr %q",
+		t.Fatalf("Percy build of the native probe: status %d, stdout %q, stderr %q",
 			result.status, result.stdout, result.stderr)
 	}
 
@@ -3197,7 +7001,7 @@ func TestNativeProbeKittenPipelineSkeleton(t *testing.T) {
 		}
 		ktNative := filepath.Join(directory, kind.name+"-kt")
 		if written := runExternal(t, ktExecutable, []string{kind.mode, ktNative}, directory, nil); written.status != 0 {
-			t.Fatalf("Kitten pipeline %s elf: status %d, stderr %q", kind.name, written.status, written.stderr)
+			t.Fatalf("Percy pipeline %s elf: status %d, stderr %q", kind.name, written.status, written.stderr)
 		}
 		goBytes, err := os.ReadFile(goNative)
 		if err != nil {
@@ -3205,7 +7009,7 @@ func TestNativeProbeKittenPipelineSkeleton(t *testing.T) {
 		}
 		ktBytes, err := os.ReadFile(ktNative)
 		if err != nil {
-			t.Fatalf("reading the Kitten-produced %s ELF: %v", kind.name, err)
+			t.Fatalf("reading the Percy-produced %s ELF: %v", kind.name, err)
 		}
 		if string(goBytes) != string(ktBytes) {
 			t.Fatalf("the two pipelines' %s ELFs differ in %d bytes", kind.name, len(goBytes))
@@ -3214,34 +7018,34 @@ func TestNativeProbeKittenPipelineSkeleton(t *testing.T) {
 		// divzero already are in their own tests.
 		if kind.name == "hello" {
 			if err := os.Chmod(ktNative, 0o755); err != nil {
-				t.Fatalf("chmod the Kitten-produced ELF: %v", err)
+				t.Fatalf("chmod the Percy-produced ELF: %v", err)
 			}
 			run := runExternal(t, ktNative, nil, directory, nil)
 			if run.status != 0 || run.stdout != "hello\n" || run.stderr != "" {
-				t.Fatalf("Kitten-produced native run: %d %q %q", run.status, run.stdout, run.stderr)
+				t.Fatalf("Percy-produced native run: %d %q %q", run.status, run.stdout, run.stderr)
 			}
 		}
 	}
 }
 
-// TestNativeProbeKittenPipelineLower builds the probe with the Kitten-written
-// purr-kt sidecar as well and opposes the two pipelines over the whole
+// TestNativeProbePercyPipelineLower builds the probe with the Percy-written
+// purr-pcy sidecar as well and opposes the two pipelines over the whole
 // lowering corpus: every scene rendering and every lowering failure message
 // must agree byte for byte, and each corpus program's ELF must be
-// byte-identical. The Kitten-produced arithmetic executable's behavior is
+// byte-identical. The Percy-produced arithmetic executable's behavior is
 // asserted directly against the C pipeline's build; the rest share the ELF
 // bytes exactly. The bad corpus lives in one directory used for every run,
 // so the canonical paths inside message texts agree too.
-func TestNativeProbeKittenPipelineLower(t *testing.T) {
+func TestNativeProbePercyPipelineLower(t *testing.T) {
 	requireToolchain(t)
 	stage1 := buildStage1(t)
-	kittenPurr := buildPurrKTWithKitten(t, stage1)
+	percyPurr := buildPurrPcyWithPercy(t, stage1)
 	ktExecutable := filepath.Join(t.TempDir(), "native-probe-kt")
-	built := runPurrKT(t, kittenPurr, t.TempDir(), []string{
-		"build", repoPath(t, "..", "..", "selfhost", "native.ktn"), "-o", ktExecutable,
+	built := runPurrPcy(t, percyPurr, t.TempDir(), []string{
+		"build", repoPath(t, "..", "..", "selfhost", "native.pcy"), "-o", ktExecutable,
 	})
 	if built.status != 0 || built.stderr != "" || built.stdout != "built "+ktExecutable+"\n" {
-		t.Fatalf("Kitten build of the native probe: status %d, stdout %q, stderr %q",
+		t.Fatalf("Percy build of the native probe: status %d, stdout %q, stderr %q",
 			built.status, built.stdout, built.stderr)
 	}
 	goExecutable := buildNativeProbe(t)
@@ -3249,6 +7053,7 @@ func TestNativeProbeKittenPipelineLower(t *testing.T) {
 	// One directory for every run, so message texts carrying paths agree.
 	directory := t.TempDir()
 	sources := lowerCorpusSources(t)
+	sources = append(sources, repoPath(t, "..", "..", "tests", "modules", "main.pcy"))
 
 	for _, source := range sources {
 		name := filepath.Base(source)
@@ -3256,7 +7061,7 @@ func TestNativeProbeKittenPipelineLower(t *testing.T) {
 			goRender := runExternal(t, goExecutable, []string{"lower", source}, directory, nil)
 			ktRender := runExternal(t, ktExecutable, []string{"lower", source}, directory, nil)
 			if ktRender.status != goRender.status || ktRender.stdout != goRender.stdout || ktRender.stderr != goRender.stderr {
-				t.Fatalf("renders differ:\nGo: %d %q %q\nKitten: %d %q %q",
+				t.Fatalf("renders differ:\nGo: %d %q %q\nPercy: %d %q %q",
 					goRender.status, goRender.stdout, goRender.stderr,
 					ktRender.status, ktRender.stdout, ktRender.stderr)
 			}
@@ -3267,7 +7072,7 @@ func TestNativeProbeKittenPipelineLower(t *testing.T) {
 				t.Fatalf("Go pipeline lower: status %d, stderr %q", written.status, written.stderr)
 			}
 			if written := runExternal(t, ktExecutable, []string{"lower", source, pthread}, directory, nil); written.status != 0 {
-				t.Fatalf("Kitten pipeline lower: status %d, stderr %q", written.status, written.stderr)
+				t.Fatalf("Percy pipeline lower: status %d, stderr %q", written.status, written.stderr)
 			}
 			goBytes, err := os.ReadFile(goNative)
 			if err != nil {
@@ -3275,19 +7080,19 @@ func TestNativeProbeKittenPipelineLower(t *testing.T) {
 			}
 			ktBytes, err := os.ReadFile(pthread)
 			if err != nil {
-				t.Fatalf("reading the Kitten-produced ELF: %v", err)
+				t.Fatalf("reading the Percy-produced ELF: %v", err)
 			}
 			if string(goBytes) != string(ktBytes) {
 				t.Fatalf("the two pipelines' %s ELFs differ in %d bytes", name, len(goBytes))
 			}
 
-			if name == "arith.ktn" {
+			if name == "arith.pcy" {
 				if err := os.Chmod(pthread, 0o755); err != nil {
-					t.Fatalf("chmod the Kitten-produced ELF: %v", err)
+					t.Fatalf("chmod the Percy-produced ELF: %v", err)
 				}
 				run := runExternal(t, pthread, nil, directory, []string{"PATH=/nonexistent"})
 				if run.status != 0 || run.stdout != "large\nnegged\n" || run.stderr != "" {
-					t.Fatalf("Kitten-produced arith run: %d %q %q", run.status, run.stdout, run.stderr)
+					t.Fatalf("Percy-produced arith run: %d %q %q", run.status, run.stdout, run.stderr)
 				}
 			}
 		})
@@ -3300,7 +7105,7 @@ func TestNativeProbeKittenPipelineLower(t *testing.T) {
 			goResult := runExternal(t, goExecutable, []string{"lower", source}, directory, nil)
 			ktResult := runExternal(t, ktExecutable, []string{"lower", source}, directory, nil)
 			if ktResult.status != goResult.status || ktResult.stdout != goResult.stdout || ktResult.stderr != goResult.stderr {
-				t.Fatalf("failures differ for %s:\nGo: %d %q %q\nKitten: %d %q %q",
+				t.Fatalf("failures differ for %s:\nGo: %d %q %q\nPercy: %d %q %q",
 					failure.file, goResult.status, goResult.stdout, goResult.stderr,
 					ktResult.status, ktResult.stdout, ktResult.stderr)
 			}

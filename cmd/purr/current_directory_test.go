@@ -39,7 +39,7 @@ fn main() {
 func buildCwdGoProgram(t *testing.T) string {
 	t.Helper()
 	directory := t.TempDir()
-	sourcePath := filepath.Join(directory, "cwd.ktn")
+	sourcePath := filepath.Join(directory, "cwd.pcy")
 	if err := os.WriteFile(sourcePath, []byte(currentDirectorySource), 0o644); err != nil {
 		t.Fatalf("writing cwd fixture: %v", err)
 	}
@@ -172,16 +172,16 @@ func TestCurrentDirectoryRuntime(t *testing.T) {
 	}
 
 	goExecutable := buildCwdGoProgram(t)
-	unitExecutable := buildKittenUnit(t)
-	kittenText, err := runKittenUnit(unitExecutable, t.TempDir(), currentDirectorySource, "")
+	unitExecutable := buildPercyUnit(t)
+	percyText, err := runPercyUnit(unitExecutable, t.TempDir(), currentDirectorySource, "")
 	if err != nil {
-		t.Fatalf("generating cwd C with the Kitten pipeline: %v", err)
+		t.Fatalf("generating cwd C with the Percy pipeline: %v", err)
 	}
 	_, _, referenceText, ok := checkProgram(t, "cwd runtime", currentDirectorySource, "")
 	if !ok {
 		return
 	}
-	if difference := unitDifference(kittenText, referenceText); difference != "" {
+	if difference := unitDifference(percyText, referenceText); difference != "" {
 		t.Fatalf("the cwd translation unit differs: %s", difference)
 	}
 	compiler, err := discoverCompiler()
@@ -189,7 +189,7 @@ func TestCurrentDirectoryRuntime(t *testing.T) {
 		t.Fatalf("discovering the C compiler: %v", err)
 	}
 	compileFlags, linkFlags := gcBuildFlags()
-	kittenExecutable, err := buildKittenRunProgram(t, compiler, compileFlags, linkFlags, kittenText)
+	percyExecutable, err := buildPercyRunProgram(t, compiler, compileFlags, linkFlags, percyText)
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -223,19 +223,19 @@ func TestCurrentDirectoryRuntime(t *testing.T) {
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			goResult := runCwdExternal(t, goExecutable, testCase.args, testCase.directory, testCase.pwd)
-			kittenResult := runCwdExternal(t, kittenExecutable, testCase.args, testCase.directory, testCase.pwd)
+			percyResult := runCwdExternal(t, percyExecutable, testCase.args, testCase.directory, testCase.pwd)
 			if goResult.status != 0 || goResult.stderr != "" || goResult.stdout != testCase.want {
 				t.Errorf("Go pipeline: stdout %q, stderr %q, status %d; want %q, %q, 0",
 					goResult.stdout, goResult.stderr, goResult.status, testCase.want, "")
 			}
-			if kittenResult.status != 0 || kittenResult.stderr != "" || kittenResult.stdout != testCase.want {
-				t.Errorf("Kitten pipeline: stdout %q, stderr %q, status %d; want %q, %q, 0",
-					kittenResult.stdout, kittenResult.stderr, kittenResult.status, testCase.want, "")
+			if percyResult.status != 0 || percyResult.stderr != "" || percyResult.stdout != testCase.want {
+				t.Errorf("Percy pipeline: stdout %q, stderr %q, status %d; want %q, %q, 0",
+					percyResult.stdout, percyResult.stderr, percyResult.status, testCase.want, "")
 			}
-			if goResult.stdout != kittenResult.stdout || goResult.stderr != kittenResult.stderr || goResult.status != kittenResult.status {
-				t.Errorf("pipelines disagree: Go %q/%q/%d; Kitten %q/%q/%d",
+			if goResult.stdout != percyResult.stdout || goResult.stderr != percyResult.stderr || goResult.status != percyResult.status {
+				t.Errorf("pipelines disagree: Go %q/%q/%d; Percy %q/%q/%d",
 					goResult.stdout, goResult.stderr, goResult.status,
-					kittenResult.stdout, kittenResult.stderr, kittenResult.status)
+					percyResult.stdout, percyResult.stderr, percyResult.status)
 			}
 		})
 	}
@@ -243,7 +243,7 @@ func TestCurrentDirectoryRuntime(t *testing.T) {
 	t.Run("relative paths still work", func(t *testing.T) {
 		directory := t.TempDir()
 		want := "write-ok\nrelative\n"
-		for _, executable := range []string{goExecutable, kittenExecutable} {
+		for _, executable := range []string{goExecutable, percyExecutable} {
 			result := runCwdExternal(t, executable, []string{"relative"}, directory, "/misleading-pwd")
 			if result.status != 0 || result.stderr != "" || result.stdout != want {
 				t.Errorf("%s: stdout %q, stderr %q, status %d; want %q, %q, 0",
@@ -293,7 +293,7 @@ func TestCurrentDirectoryRuntime(t *testing.T) {
 			t.Fatalf("deep cwd length = %d, want > 4096", len(deepPath))
 		}
 		want := "ok " + deepPath + "\n"
-		for _, executable := range []string{goExecutable, kittenExecutable} {
+		for _, executable := range []string{goExecutable, percyExecutable} {
 			result := runDeepCwd(t, deepHelper, root, components, executable)
 			if result.status != 0 || result.stderr != "" || result.stdout != want {
 				t.Errorf("%s: stdout %q, stderr %q, status %d; want %q, %q, 0",
@@ -324,7 +324,7 @@ func TestCurrentDirectoryRuntime(t *testing.T) {
 		}
 		want := "failed getwd: " + getwdErr.Error() + "\n"
 		script := "cd \"$1\" && rmdir \"$1\" && exec \"$2\" cwd"
-		for _, executable := range []string{goExecutable, kittenExecutable} {
+		for _, executable := range []string{goExecutable, percyExecutable} {
 			doomed := t.TempDir()
 			result := runCwdShell(t, script, doomed, executable)
 			if result.status != 0 || result.stderr != "" || result.stdout != want {
@@ -337,10 +337,10 @@ func TestCurrentDirectoryRuntime(t *testing.T) {
 
 func TestCurrentDirectorySanitizer(t *testing.T) {
 	requireToolchain(t)
-	unitExecutable := buildKittenUnit(t)
-	kittenText, err := runKittenUnit(unitExecutable, t.TempDir(), currentDirectorySource, "")
+	unitExecutable := buildPercyUnit(t)
+	percyText, err := runPercyUnit(unitExecutable, t.TempDir(), currentDirectorySource, "")
 	if err != nil {
-		t.Fatalf("generating C with the Kitten pipeline: %v", err)
+		t.Fatalf("generating C with the Percy pipeline: %v", err)
 	}
 	compiler, err := discoverCompiler()
 	if err != nil {
@@ -348,7 +348,7 @@ func TestCurrentDirectorySanitizer(t *testing.T) {
 	}
 	compileFlags, linkFlags := gcBuildFlags()
 	compileFlags = append(compileFlags, "-fsanitize=undefined")
-	executable, err := buildKittenRunProgram(t, compiler, compileFlags, linkFlags, kittenText)
+	executable, err := buildPercyRunProgram(t, compiler, compileFlags, linkFlags, percyText)
 	if err != nil {
 		t.Skipf("undefined behavior sanitizer is unavailable with %s: %v", filepath.Base(compiler[0]), err)
 	}

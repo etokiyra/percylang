@@ -1,0 +1,30 @@
+fn main() {
+    map[string]int ages = new map[string]int;
+    ages["alice"] = 30;
+    ages["bob"] = 25;
+    ages["alice"] = 31;
+    ages["carol"] = 40;
+    ages["dave"] = 50;
+    ages["eve"] = 60;
+    ages["frank"] = 70;
+    ages["grace"] = 80;
+    ages["heidi"] = 90;
+    ages["ivan"] = 100;
+    print(ages["alice"], ages["bob"], length(ages));
+    print(has(ages, "alice"), has(ages, "zoe"));
+
+    map[string]string names = new map[string]string;
+    names["x"] = "hello";
+    names["y"] = "world";
+    print(names["x"], names["y"], length(names));
+
+    map[string]bool flags = new map[string]bool;
+    flags["ok"] = true;
+    flags["no"] = false;
+    print(flags["ok"], flags["no"], length(flags));
+
+    map[string]float scores = new map[string]float;
+    scores["a"] = 1.5;
+    scores["a"] += 0.5;
+    print(scores["a"], length(scores));
+}

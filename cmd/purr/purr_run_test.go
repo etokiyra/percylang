@@ -1,6 +1,6 @@
 package main
 
-// Tests for purr-kt run.
+// Tests for purr-pcy run.
 
 import (
 	"os"
@@ -29,36 +29,36 @@ func normalizeRunTempPaths(text string) string {
 	return runDirectoryPattern.ReplaceAllString(text, "purr-run.X")
 }
 
-func TestKittenPurrRun(t *testing.T) {
+func TestPercyPurrRun(t *testing.T) {
 	requireToolchain(t)
 	goPurr := buildGoPurr(t)
 	stage1 := buildStage1(t)
 	purrs := map[string]string{
-		"Go-built":     buildPurrKTWithGo(t),
-		"Kitten-built": buildPurrKTWithKitten(t, stage1),
+		"Go-built":    buildPurrPcyWithGo(t),
+		"Percy-built": buildPurrPcyWithPercy(t, stage1),
 	}
 
 	directory := t.TempDir()
-	hello := writeRunFixture(t, directory, "hello.ktn",
+	hello := writeRunFixture(t, directory, "hello.pcy",
 		"fn main() {\n    print(\"run-out\");\n    eprint(\"run-err\");\n}\n")
-	statusOne := writeRunFixture(t, directory, "status1.ktn",
+	statusOne := writeRunFixture(t, directory, "status1.pcy",
 		"fn main() {\n    print(\"one\");\n    exit(1);\n}\n")
-	statusSeven := writeRunFixture(t, directory, "status7.ktn",
+	statusSeven := writeRunFixture(t, directory, "status7.pcy",
 		"fn main() {\n    print(\"seven\");\n    exit(7);\n}\n")
-	statusHigh := writeRunFixture(t, directory, "status200.ktn",
+	statusHigh := writeRunFixture(t, directory, "status200.pcy",
 		"fn main() {\n    print(\"two hundred\");\n    exit(200);\n}\n")
-	statusMax := writeRunFixture(t, directory, "status255.ktn",
+	statusMax := writeRunFixture(t, directory, "status255.pcy",
 		"fn main() {\n    print(\"two hundred fifty five\");\n    exit(255);\n}\n")
-	bad := writeRunFixture(t, directory, "bad.ktn",
+	bad := writeRunFixture(t, directory, "bad.pcy",
 		"fn main() {\n    int value = \"not an int\";\n}\n")
-	syntax := writeRunFixture(t, directory, "syntax.ktn",
+	syntax := writeRunFixture(t, directory, "syntax.pcy",
 		"fn main() {\n    print(\"missing semicolon\")\n}\n")
-	missing := filepath.Join(directory, "missing.ktn")
-	directorySource := filepath.Join(directory, "directory.ktn")
+	missing := filepath.Join(directory, "missing.pcy")
+	directorySource := filepath.Join(directory, "directory.pcy")
 	if err := os.Mkdir(directorySource, 0o755); err != nil {
 		t.Fatalf("creating directory fixture: %v", err)
 	}
-	unreadable := writeRunFixture(t, directory, "unreadable.ktn",
+	unreadable := writeRunFixture(t, directory, "unreadable.pcy",
 		"fn main() {\n    print(\"unreadable\");\n}\n")
 	if os.Geteuid() != 0 {
 		if err := os.Chmod(unreadable, 0o000); err != nil {
@@ -144,19 +144,19 @@ func TestKittenPurrRun(t *testing.T) {
 			name:        "extension",
 			arguments:   []string{"run", filepath.Join(directory, "hello")},
 			status:      2,
-			exactStderr: "purr run: \"" + filepath.Join(directory, "hello") + "\" is not a Kitten source file (expected a .ktn file)\n",
+			exactStderr: "purr run: \"" + filepath.Join(directory, "hello") + "\" is not a Percy source file (expected a .pcy file)\n",
 		},
 		{
 			name:        "uppercase extension",
-			arguments:   []string{"run", filepath.Join(directory, "hello.KTN")},
+			arguments:   []string{"run", filepath.Join(directory, "hello.PCY")},
 			status:      2,
-			exactStderr: "purr run: \"" + filepath.Join(directory, "hello.KTN") + "\" is not a Kitten source file (expected a .ktn file)\n",
+			exactStderr: "purr run: \"" + filepath.Join(directory, "hello.PCY") + "\" is not a Percy source file (expected a .pcy file)\n",
 		},
 		{
 			name:        "terminator keeps flag as source",
 			arguments:   []string{"run", "--", "-o"},
 			status:      2,
-			exactStderr: "purr run: \"-o\" is not a Kitten source file (expected a .ktn file)\n",
+			exactStderr: "purr run: \"-o\" is not a Percy source file (expected a .pcy file)\n",
 		},
 		{"missing source argument", []string{"run"}, 2, "", "", "", true},
 		{"missing source after terminator", []string{"run", "--"}, 2, "", "", "", true},
@@ -216,11 +216,19 @@ func TestKittenPurrRun(t *testing.T) {
 		if _, err := os.Stat("/dev/stdin"); err != nil {
 			t.Skip("/dev/stdin is unavailable")
 		}
-		// read_file requires a seekable regular file, so stdin is a regular
-		// temp file here. This still verifies that purr-kt leaves fd 0
-		// connected to the caller's stdin.
-		stdinSource := writeRunFixture(t, directory, "stdin.ktn",
-			"fn main() {\n    print(read_file(\"/dev/stdin\"));\n}\n")
+		// The native runtime has no fatal read_file yet, so the fixture
+		// executes a shell that copies stdin to stdout. This still verifies
+		// that purr leaves fd 0 connected to the caller's stdin.
+		stdinSource := writeRunFixture(t, directory, "stdin.pcy",
+			"fn main() {\n"+
+				"    string[] arguments = new string[2];\n"+
+				"    arguments[0] = \"-c\";\n"+
+				"    arguments[1] = \"cat; echo\";\n"+
+				"    match (try_run(\"/bin/sh\", arguments)) {\n"+
+				"        Ok(status) { }\n"+
+				"        Failed(message) { eprint(message); }\n"+
+				"    }\n"+
+				"}\n")
 		inputPath := filepath.Join(directory, "stdin-input.txt")
 		if err := os.WriteFile(inputPath, []byte("stdin-data"), 0o644); err != nil {
 			t.Fatalf("writing stdin input: %v", err)
@@ -254,11 +262,11 @@ func TestKittenPurrRun(t *testing.T) {
 		// The compiled program asks /bin/sh to SIGKILL its parent, so the run
 		// command's direct child is terminated by SIGKILL. Go's
 		// exec.ExitError.ExitCode() returns -1 for a signaled child, and
-		// os.Exit(-1) is observed as 255 on POSIX. purr-kt uses try_run's
+		// os.Exit(-1) is observed as 255 on POSIX. purr-pcy uses try_run's
 		// specified 128+signal mapping, so SIGKILL is 137. The difference is
 		// intentional and unavoidable while that semantics remains the
 		// language contract.
-		signalSource := writeRunFixture(t, directory, "signal.ktn",
+		signalSource := writeRunFixture(t, directory, "signal.pcy",
 			"fn main() {\n"+
 				"    string[] arguments = new string[2];\n"+
 				"    arguments[0] = \"-c\";\n"+
@@ -299,9 +307,9 @@ func TestKittenPurrRun(t *testing.T) {
 	t.Run("cleanup note", func(t *testing.T) {
 		// The child writes a file into its own temporary directory. Go removes
 		// the whole directory recursively, so the file disappears without a
-		// note. purr-kt removes the executable and then the directory
+		// note. purr-pcy removes the executable and then the directory
 		// non-recursively, leaving the directory and reporting a note.
-		cleanupSource := writeRunFixture(t, directory, "cleanup.ktn",
+		cleanupSource := writeRunFixture(t, directory, "cleanup.pcy",
 			"fn directory_of(string path) -> string {\n"+
 				"    int index = length(path);\n"+
 				"    while (index > 0 && path[index - 1] != 47) {\n"+
@@ -386,62 +394,13 @@ func TestKittenPurrRun(t *testing.T) {
 			}
 		}
 	})
-
-	t.Run("compiler diagnostic", func(t *testing.T) {
-		fake := writeFakeCompiler(t)
-		// One shared TMPDIR keeps the stable parent path identical across the
-		// comparison; only the random purr-build/purr-run components differ.
-		tmp := t.TempDir()
-		runCompilerFailure := func(executable, label string) programResult {
-			log := filepath.Join(directory, "compiler-"+label)
-			result := runExternal(t, executable, []string{"run", hello}, directory,
-				fakeBuildEnvironment(t, fake, log, "args-fail", "", tmp))
-			entries, err := os.ReadDir(tmp)
-			if err != nil {
-				t.Fatal(err)
-			}
-			for _, entry := range entries {
-				if strings.HasPrefix(entry.Name(), "purr-run") || strings.HasPrefix(entry.Name(), "purr-build") {
-					t.Errorf("%s: left temp entry %q", label, entry.Name())
-				}
-			}
-			return result
-		}
-		goResult := runCompilerFailure(goPurr, "Go")
-		if goResult.status != 1 || goResult.stdout != "" {
-			t.Fatalf("Go compiler failure: status %d, stdout %q", goResult.status, goResult.stdout)
-		}
-		if !strings.Contains(goResult.stderr, "C compilation failed: exit status 1") ||
-			!strings.Contains(goResult.stderr, "fake compiler diagnostic") {
-			t.Fatalf("Go compiler failure stderr %q", goResult.stderr)
-		}
-		if !strings.Contains(goResult.stderr, "purr-build") || !strings.Contains(goResult.stderr, "purr-run") {
-			t.Fatalf("Go compiler failure stderr does not contain temporary paths: %q", goResult.stderr)
-		}
-		want := normalizeRunTempPaths(goResult.stderr)
-		for pipeline, purr := range purrs {
-			result := runCompilerFailure(purr, pipeline)
-			if result.status != 1 || result.stdout != "" {
-				t.Errorf("%s compiler failure: status %d, stdout %q", pipeline, result.status, result.stdout)
-			}
-			if normalizeRunTempPaths(result.stderr) != want {
-				t.Errorf("%s compiler failure stderr %q; want %q (normalized)",
-					pipeline, normalizeRunTempPaths(result.stderr), want)
-			}
-			if !strings.Contains(result.stderr, "fake compiler diagnostic") ||
-				!strings.Contains(result.stderr, "purr-build") ||
-				!strings.Contains(result.stderr, "purr-run") {
-				t.Errorf("%s compiler failure stderr %q", pipeline, result.stderr)
-			}
-		}
-	})
 }
 
-func TestKittenPurrRunTempCleanup(t *testing.T) {
+func TestPercyPurrRunTempCleanup(t *testing.T) {
 	requireToolchain(t)
-	kt := buildPurrKTWithGo(t)
+	kt := buildPurrPcyWithGo(t)
 	directory := t.TempDir()
-	source := writeRunFixture(t, directory, "hello.ktn",
+	source := writeRunFixture(t, directory, "hello.pcy",
 		"fn main() {\n    print(\"Hello, world!\");\n}\n")
 	tmp := t.TempDir()
 	environment := []string{"TMPDIR=" + tmp}
@@ -451,7 +410,7 @@ func TestKittenPurrRunTempCleanup(t *testing.T) {
 		status    int
 	}{
 		{"success", []string{"run", source}, 0},
-		{"failure", []string{"run", filepath.Join(directory, "missing.ktn")}, 1},
+		{"failure", []string{"run", filepath.Join(directory, "missing.pcy")}, 1},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			result := runExternal(t, kt, testCase.arguments, directory, environment)

@@ -1,0 +1,68 @@
+fn show(int status, string out, string err) {
+    print(status, length(out), length(err));
+}
+
+fn main() {
+    string[] echo_args = new string[2];
+    echo_args[0] = "hello";
+    echo_args[1] = "two words";
+    match (try_run_capture("/bin/echo", echo_args)) {
+        Ok(status, out, err) {
+            show(status, out, err);
+            print(out);
+        }
+        Failed(message) {
+            print("echo fail", message);
+        }
+    }
+    string[] sh_args = new string[2];
+    sh_args[0] = "-c";
+    sh_args[1] = "printf hi; printf err >&2; exit 3";
+    match (try_run_capture("/bin/sh", sh_args)) {
+        Ok(status, out, err) {
+            show(status, out, err);
+            print(out, err);
+        }
+        Failed(message) {
+            print("sh fail", message);
+        }
+    }
+    match (try_run_capture("/bin/cat", new string[0])) {
+        Ok(status, out, err) {
+            print("cat", status, length(out), length(err));
+        }
+        Failed(message) {
+            print("cat fail", message);
+        }
+    }
+    match (try_run_capture("/definitely/missing", new string[0])) {
+        Ok(status, out, err) {
+            print("missing ran", status);
+        }
+        Failed(message) {
+            print("missing", message);
+        }
+    }
+    string[] signal_args = new string[2];
+    signal_args[0] = "-c";
+    signal_args[1] = "kill -9 $$";
+    match (try_run_capture("/bin/sh", signal_args)) {
+        Ok(status, out, err) {
+            print("signal", status, length(out), length(err));
+        }
+        Failed(message) {
+            print("signal fail", message);
+        }
+    }
+    string[] nul_args = new string[2];
+    nul_args[0] = "-c";
+    nul_args[1] = "printf 'a\\0b'";
+    match (try_run_capture("/bin/sh", nul_args)) {
+        Ok(status, out, err) {
+            print("nul ran", status);
+        }
+        Failed(message) {
+            print("nul", message);
+        }
+    }
+}

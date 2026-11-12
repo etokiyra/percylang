@@ -1,7 +1,7 @@
-# A module loader for Kitten, written in Kitten
+# A module loader for Percy, written in Percy
 
 `selfhost/loader` loads a root source file together with the modules it imports
-and returns the ordered module set the Kitten-written checker and C generator
+and returns the ordered module set the Percy-written checker and C generator
 consume. It mirrors `loader/loader.go`: the same canonical paths, depth-first
 pre-order, ids equal to positions in that order, one module per canonical path,
 cycles allowed, duplicate and diamond imports deduplicated, and the same
@@ -13,20 +13,20 @@ and `purr run` still use the Go loader, which remains authoritative.
 
 ## Files
 
-- `selfhost/loader/paths.ktn` — lexical path cleaning, parent directories, joins,
+- `selfhost/loader/paths.pcy` — lexical path cleaning, parent directories, joins,
   and the within-root test, matching Go's `path/filepath` on Linux.
-- `selfhost/loader/loader.ktn` — `load_program`, the loader state, parsing each
-  module with the Kitten-written lexer and parser, and import recursion.
-- `selfhost/load.ktn` — the loader driver. It reads a root path (absolute or
+- `selfhost/loader/loader.pcy` — `load_program`, the loader state, parsing each
+  module with the Percy-written lexer and parser, and import recursion.
+- `selfhost/load.pcy` — the loader driver. It reads a root path (absolute or
   relative) from `input.txt` and prints the ordered module set or the loader's
   failure.
-- `selfhost/loadunit.ktn` — the whole-path driver. It loads, checks, and emits a
-  complete C translation unit with the Kitten-written stages.
+- `selfhost/loadunit.pcy` — the whole-path driver. It loads, checks, and emits a
+  complete C translation unit with the Percy-written stages.
 - `cmd/purr/loader_differential_test.go` — the differential harness.
 
 ## API
 
-```kitten
+```percy
 public fn load_program(string root_path) -> LoadResult
 ```
 
@@ -91,7 +91,7 @@ file's directory, exactly as `filepath.Join` does. `within_directory` is the
 lexical equivalent of the reference's `filepath.Rel` check, including the
 separator boundary (`/rooted` is not inside `/root`).
 
-A filename such as `..hidden.ktn` is an ordinary component; only the exact
+A filename such as `..hidden.pcy` is an ordinary component; only the exact
 component `..` is a parent.
 
 ## Relative roots and matched read failures
@@ -112,10 +112,10 @@ unreadable, or directory path becomes the reference's no-position
 The loaders read the root path from `input.txt`; the working directory selects it.
 
 ```sh
-purr build selfhost/load.ktn -o /tmp/load-probe
-purr build selfhost/loadunit.ktn -o /tmp/loadunit-probe
+purr build selfhost/load.pcy -o /tmp/load-probe
+purr build selfhost/loadunit.pcy -o /tmp/loadunit-probe
 mkdir -p /tmp/example && cd /tmp/example
-printf '%s' /absolute/path/to/main.ktn > input.txt   # or a path relative to here
+printf '%s' /absolute/path/to/main.pcy > input.txt   # or a path relative to here
 /tmp/load-probe
 ```
 
@@ -153,11 +153,11 @@ single diagnostic line otherwise.
   component, and a trailing separator, with the probe's working directory at
   the tree and the reference result taken from the equivalent absolute root;
 - **`tests/modules/`**, the real nested fixture, in both root forms: absolute
-  and `tests/modules/main.ktn` relative to the repository root;
+  and `tests/modules/main.pcy` relative to the repository root;
 - **23 multi-file checker corpus programs**, materialized as `input.txt` and
   `input2.txt`, including malformed modules;
 - **the full path** over `tests/modules/` in both root forms: load, check, and
-  emit with the Kitten-written stages, compare the unit with the Go reference,
+  emit with the Percy-written stages, compare the unit with the Go reference,
   then compile, link, run, and compare the expected output under the compiler
   `CC` selects.
 

@@ -3,7 +3,7 @@ package parser
 import (
 	"fmt"
 
-	"kitten/lexer"
+	"percy/lexer"
 )
 
 // Error describes a syntax error and the position at which it was detected.
@@ -634,6 +634,10 @@ func (p *parser) parseStatement() (Stmt, error) {
 		return p.parseWhile()
 	case lexer.For:
 		return p.parseFor()
+	case lexer.Break:
+		return p.parseBreak()
+	case lexer.Continue:
+		return p.parseContinue()
 	case lexer.Return:
 		return p.parseReturn()
 	case lexer.Match:
@@ -867,6 +871,24 @@ func (p *parser) parseForInit() (Stmt, error) {
 		return nil, err
 	}
 	return &ExprStmt{At: expression.Pos(), Expression: expression}, nil
+}
+
+// parseBreak parses a break statement.
+func (p *parser) parseBreak() (Stmt, error) {
+	keyword := p.advance() // 'break'
+	if _, err := p.expect(lexer.Semicolon, "';'", "after 'break'"); err != nil {
+		return nil, err
+	}
+	return &BreakStmt{At: positionOf(keyword)}, nil
+}
+
+// parseContinue parses a continue statement.
+func (p *parser) parseContinue() (Stmt, error) {
+	keyword := p.advance() // 'continue'
+	if _, err := p.expect(lexer.Semicolon, "';'", "after 'continue'"); err != nil {
+		return nil, err
+	}
+	return &ContinueStmt{At: positionOf(keyword)}, nil
 }
 
 // parseReturn parses a return statement, with or without a value.

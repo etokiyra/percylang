@@ -34,7 +34,7 @@ func canonical(t *testing.T, path string) string {
 
 func TestLoadSingleModule(t *testing.T) {
 	directory := t.TempDir()
-	root := writeModule(t, directory, "main.ktn", "fn main() {\n}\n")
+	root := writeModule(t, directory, "main.pcy", "fn main() {\n}\n")
 
 	modules, err := Load(root)
 	if err != nil {
@@ -53,10 +53,10 @@ func TestLoadSingleModule(t *testing.T) {
 
 func TestLoadImportsInDepthFirstOrder(t *testing.T) {
 	directory := t.TempDir()
-	writeModule(t, directory, "b.ktn", "public fn b() -> int {\n    return 1;\n}\n")
-	writeModule(t, directory, "c.ktn", "public fn c() -> int {\n    return 2;\n}\n")
-	root := writeModule(t, directory, "main.ktn", "import \"b.ktn\";\nimport \"sub/child.ktn\";\nfn main() {\n}\n")
-	writeModule(t, directory, "sub/child.ktn", "import \"../c.ktn\";\npublic fn child() -> int {\n    return c();\n}\n")
+	writeModule(t, directory, "b.pcy", "public fn b() -> int {\n    return 1;\n}\n")
+	writeModule(t, directory, "c.pcy", "public fn c() -> int {\n    return 2;\n}\n")
+	root := writeModule(t, directory, "main.pcy", "import \"b.pcy\";\nimport \"sub/child.pcy\";\nfn main() {\n}\n")
+	writeModule(t, directory, "sub/child.pcy", "import \"../c.pcy\";\npublic fn child() -> int {\n    return c();\n}\n")
 
 	modules, err := Load(root)
 	if err != nil {
@@ -66,7 +66,7 @@ func TestLoadImportsInDepthFirstOrder(t *testing.T) {
 		t.Fatalf("loaded %d modules, want 4", len(modules))
 	}
 
-	wantOrder := []string{"main.ktn", "b.ktn", "sub/child.ktn", "c.ktn"}
+	wantOrder := []string{"main.pcy", "b.pcy", "sub/child.pcy", "c.pcy"}
 	for index, name := range wantOrder {
 		if modules[index].ID != index {
 			t.Errorf("module %d has ID %d, want %d", index, modules[index].ID, index)
@@ -79,10 +79,10 @@ func TestLoadImportsInDepthFirstOrder(t *testing.T) {
 
 func TestLoadDiamondLoadsSharedModuleOnce(t *testing.T) {
 	directory := t.TempDir()
-	writeModule(t, directory, "shared.ktn", "public fn shared() -> int {\n    return 1;\n}\n")
-	writeModule(t, directory, "left.ktn", "import \"shared.ktn\";\npublic fn left() -> int {\n    return shared();\n}\n")
-	writeModule(t, directory, "right.ktn", "import \"shared.ktn\";\npublic fn right() -> int {\n    return shared();\n}\n")
-	root := writeModule(t, directory, "main.ktn", "import \"left.ktn\";\nimport \"right.ktn\";\nfn main() {\n}\n")
+	writeModule(t, directory, "shared.pcy", "public fn shared() -> int {\n    return 1;\n}\n")
+	writeModule(t, directory, "left.pcy", "import \"shared.pcy\";\npublic fn left() -> int {\n    return shared();\n}\n")
+	writeModule(t, directory, "right.pcy", "import \"shared.pcy\";\npublic fn right() -> int {\n    return shared();\n}\n")
+	root := writeModule(t, directory, "main.pcy", "import \"left.pcy\";\nimport \"right.pcy\";\nfn main() {\n}\n")
 
 	modules, err := Load(root)
 	if err != nil {
@@ -95,9 +95,9 @@ func TestLoadDiamondLoadsSharedModuleOnce(t *testing.T) {
 
 func TestLoadAllowsImportCycles(t *testing.T) {
 	directory := t.TempDir()
-	writeModule(t, directory, "a.ktn", "import \"b.ktn\";\npublic fn a() -> int {\n    return b();\n}\n")
-	writeModule(t, directory, "b.ktn", "import \"a.ktn\";\npublic fn b() -> int {\n    return 1;\n}\n")
-	root := writeModule(t, directory, "main.ktn", "import \"a.ktn\";\nfn main() {\n}\n")
+	writeModule(t, directory, "a.pcy", "import \"b.pcy\";\npublic fn a() -> int {\n    return b();\n}\n")
+	writeModule(t, directory, "b.pcy", "import \"a.pcy\";\npublic fn b() -> int {\n    return 1;\n}\n")
+	root := writeModule(t, directory, "main.pcy", "import \"a.pcy\";\nfn main() {\n}\n")
 
 	modules, err := Load(root)
 	if err != nil {
@@ -110,8 +110,8 @@ func TestLoadAllowsImportCycles(t *testing.T) {
 
 func TestLoadCanonicalizesDifferentSpellings(t *testing.T) {
 	directory := t.TempDir()
-	writeModule(t, directory, "shared.ktn", "public fn shared() -> int {\n    return 1;\n}\n")
-	root := writeModule(t, directory, "main.ktn", "import \"shared.ktn\";\nimport \"./shared.ktn\";\nfn main() {\n}\n")
+	writeModule(t, directory, "shared.pcy", "public fn shared() -> int {\n    return 1;\n}\n")
+	root := writeModule(t, directory, "main.pcy", "import \"shared.pcy\";\nimport \"./shared.pcy\";\nfn main() {\n}\n")
 
 	modules, err := Load(root)
 	if err != nil {
@@ -124,8 +124,8 @@ func TestLoadCanonicalizesDifferentSpellings(t *testing.T) {
 
 func TestLoadIsIndependentOfWorkingDirectory(t *testing.T) {
 	directory := t.TempDir()
-	writeModule(t, directory, "lib.ktn", "public fn lib() -> int {\n    return 1;\n}\n")
-	root := writeModule(t, directory, "main.ktn", "import \"lib.ktn\";\nfn main() {\n}\n")
+	writeModule(t, directory, "lib.pcy", "public fn lib() -> int {\n    return 1;\n}\n")
+	root := writeModule(t, directory, "main.pcy", "import \"lib.pcy\";\nfn main() {\n}\n")
 
 	t.Chdir(t.TempDir())
 
@@ -140,7 +140,7 @@ func TestLoadIsIndependentOfWorkingDirectory(t *testing.T) {
 
 func TestLoadMissingImport(t *testing.T) {
 	directory := t.TempDir()
-	root := writeModule(t, directory, "main.ktn", "import \"nope.ktn\";\nfn main() {\n}\n")
+	root := writeModule(t, directory, "main.pcy", "import \"nope.pcy\";\nfn main() {\n}\n")
 
 	_, err := Load(root)
 	if err == nil {
@@ -150,7 +150,7 @@ func TestLoadMissingImport(t *testing.T) {
 	if !asLoaderError(err, &loadError) {
 		t.Fatalf("error is %T (%v), want *loader.Error", err, err)
 	}
-	if !strings.Contains(loadError.Error(), "nope.ktn") {
+	if !strings.Contains(loadError.Error(), "nope.pcy") {
 		t.Errorf("error %q does not name the missing module", loadError.Error())
 	}
 }
@@ -158,8 +158,8 @@ func TestLoadMissingImport(t *testing.T) {
 func TestLoadRejectsPathEscapingRoot(t *testing.T) {
 	base := t.TempDir()
 	projectDirectory := filepath.Join(base, "project")
-	root := writeModule(t, projectDirectory, "main.ktn", "import \"../outside.ktn\";\nfn main() {\n}\n")
-	writeModule(t, base, "outside.ktn", "public fn outside() -> int {\n    return 1;\n}\n")
+	root := writeModule(t, projectDirectory, "main.pcy", "import \"../outside.pcy\";\nfn main() {\n}\n")
+	writeModule(t, base, "outside.pcy", "public fn outside() -> int {\n    return 1;\n}\n")
 
 	_, err := Load(root)
 	if err == nil {
@@ -184,8 +184,8 @@ func TestLoadReportsErrorsInImportedModules(t *testing.T) {
 		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			directory := t.TempDir()
-			writeModule(t, directory, "bad.ktn", testCase.source)
-			root := writeModule(t, directory, "main.ktn", "import \"bad.ktn\";\nfn main() {\n}\n")
+			writeModule(t, directory, "bad.pcy", testCase.source)
+			root := writeModule(t, directory, "main.pcy", "import \"bad.pcy\";\nfn main() {\n}\n")
 
 			_, err := Load(root)
 			if err == nil {
@@ -195,8 +195,8 @@ func TestLoadReportsErrorsInImportedModules(t *testing.T) {
 			if !asLoaderError(err, &loadError) {
 				t.Fatalf("error is %T (%v), want *loader.Error", err, err)
 			}
-			if !strings.HasSuffix(loadError.Path, "bad.ktn") {
-				t.Errorf("error path = %q, want it to name bad.ktn", loadError.Path)
+			if !strings.HasSuffix(loadError.Path, "bad.pcy") {
+				t.Errorf("error path = %q, want it to name bad.pcy", loadError.Path)
 			}
 			if loadError.Line == 0 || loadError.Column == 0 {
 				t.Errorf("error position = %d:%d, want a position", loadError.Line, loadError.Column)
@@ -210,7 +210,7 @@ func TestLoadReportsErrorsInImportedModules(t *testing.T) {
 
 func TestLoadMissingRoot(t *testing.T) {
 	directory := t.TempDir()
-	_, err := Load(filepath.Join(directory, "missing.ktn"))
+	_, err := Load(filepath.Join(directory, "missing.pcy"))
 	if err == nil {
 		t.Fatalf("Load succeeded, want an error")
 	}

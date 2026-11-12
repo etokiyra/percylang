@@ -1,0 +1,7 @@
+fn main() {
+    string[] args = argv();
+    print(length(args));
+    for (int i = 1; i < length(args); i++) {
+        print(i, args[i]);
+    }
+}

@@ -1,0 +1,14 @@
+fn main() {
+    match (try_getenv("PCY_GETENV_PROBE_UNSET")) {
+        Set(value) { print("set", length(value)); }
+        Unset { print("unset"); }
+    }
+    match (try_getenv("")) {
+        Set(value) { print("set", length(value)); }
+        Unset { print("emptyname unset", length("")); }
+    }
+    match (try_getenv("PCY=GETENV")) {
+        Set(value) { print("set", length(value)); }
+        Unset { print("equals unset"); }
+    }
+}

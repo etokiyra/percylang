@@ -1,7 +1,7 @@
 package main
 
 // Runtime tests for the argv() built-in. The generated C is compared between the
-// Go and Kitten pipelines, then each pipeline's executable is run with the same
+// Go and Percy pipelines, then each pipeline's executable is run with the same
 // argument vectors and must print its own program name followed by every
 // argument. An empty argument and an argument containing spaces are included.
 
@@ -77,9 +77,9 @@ func TestArgvRuntime(t *testing.T) {
 	requireToolchain(t)
 
 	sourceDirectory := t.TempDir()
-	sourcePath := filepath.Join(sourceDirectory, "main.ktn")
+	sourcePath := filepath.Join(sourceDirectory, "main.pcy")
 	if err := os.WriteFile(sourcePath, []byte(argvSource), 0o644); err != nil {
-		t.Fatalf("writing main.ktn: %v", err)
+		t.Fatalf("writing main.pcy: %v", err)
 	}
 
 	goExecutable := filepath.Join(sourceDirectory, "go-program")
@@ -88,9 +88,9 @@ func TestArgvRuntime(t *testing.T) {
 		t.Fatalf("building the Go-pipeline program: %v\n%s", err, diagnostics.String())
 	}
 
-	kittenExecutable := buildKittenUnit(t)
-	kittenProbeDirectory := t.TempDir()
-	kittenText, err := runKittenUnit(kittenExecutable, kittenProbeDirectory, argvSource, "")
+	percyExecutable := buildPercyUnit(t)
+	percyProbeDirectory := t.TempDir()
+	percyText, err := runPercyUnit(percyExecutable, percyProbeDirectory, argvSource, "")
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -98,7 +98,7 @@ func TestArgvRuntime(t *testing.T) {
 	if !ok {
 		t.Fatalf("the reference rejected the argv program")
 	}
-	if difference := unitDifference(kittenText, generated); difference != "" {
+	if difference := unitDifference(percyText, generated); difference != "" {
 		t.Fatalf("the argv translation units differ: %s", difference)
 	}
 
@@ -121,15 +121,15 @@ func TestArgvRuntime(t *testing.T) {
 				arguments, goResult.stdout, goWant, goResult.stderr, goResult.status)
 		}
 
-		kittenDirectory := t.TempDir()
-		kittenResult, err := buildAndRunProgramWithArgs(t, compiler, compileFlags, linkFlags, kittenDirectory, kittenText, 0, arguments)
+		percyDirectory := t.TempDir()
+		percyResult, err := buildAndRunProgramWithArgs(t, compiler, compileFlags, linkFlags, percyDirectory, percyText, 0, arguments)
 		if err != nil {
-			t.Fatalf("Kitten pipeline with %q: %v", arguments, err)
+			t.Fatalf("Percy pipeline with %q: %v", arguments, err)
 		}
-		kittenWant := expectedArgvOutput(filepath.Join(kittenDirectory, "program"), arguments)
-		if kittenResult.stdout != kittenWant || kittenResult.stderr != "" || kittenResult.status != 0 {
-			t.Errorf("Kitten pipeline with %q printed %q (want %q), wrote %q to stderr, exited %d",
-				arguments, kittenResult.stdout, kittenWant, kittenResult.stderr, kittenResult.status)
+		percyWant := expectedArgvOutput(filepath.Join(percyDirectory, "program"), arguments)
+		if percyResult.stdout != percyWant || percyResult.stderr != "" || percyResult.status != 0 {
+			t.Errorf("Percy pipeline with %q printed %q (want %q), wrote %q to stderr, exited %d",
+				arguments, percyResult.stdout, percyWant, percyResult.stderr, percyResult.status)
 		}
 	}
 	t.Logf("argv: %d argument vectors matched under %s", len(cases), filepath.Base(compiler[0]))

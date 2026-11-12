@@ -3,7 +3,7 @@
 > **ADOPTED; implemented.**
 >
 > Phase 5.4b implemented the runtime and Go pipeline, Phase 5.4c the
-> Kitten-written checker/generator, and Phase 5.5 loader read-error parity.
+> Percy-written checker/generator, and Phase 5.5 loader read-error parity.
 > Both pipelines and the loader now use `try_read_file`; the documented
 > missing/unreadable-file exclusion is closed.
 >
@@ -17,7 +17,7 @@
 > 2. `try_read_file` remains shadowable like `print`/`argv`; the non-static helper
 >    prevents unused-function warnings.
 > 3. No new size limit: `try_read_file` uses exactly the existing `read_file` limit
->    of 256 MiB (`KTN_RT_MAX_FILE_SIZE`).
+>    of 256 MiB (`PCY_RT_MAX_FILE_SIZE`).
 > 4. Users may construct `ReadFileResult.Ok { ... }` and
 >    `ReadFileResult.Failed { ... }` directly; it is a normal union.
 > 5. The syntactic `try_read_file(` trigger is accepted.
@@ -67,23 +67,23 @@ not reopened here:
 - Type identity is the `*Type` pointer. A named type carries `Module` as the
   declaring module ID; `checker.Type` is in `checker/types.go:46-88`.
 
-### 2.2 User unions in the Kitten checker
+### 2.2 User unions in the Percy checker
 
 - `collect_declarations` walks `checker.modules` and calls `collect_declaration`
-  (`selfhost/checker/checker.ktn:147-169`).
+  (`selfhost/checker/checker.pcy:147-169`).
 - A `Union(at, visibility, name, variants, variant_count)` declaration creates a
   `Type` through `named_type` with `TypeKind.Union`, the module ID, and a fresh
-  type ID (`selfhost/checker/checker.ktn:216-248`). Variants are stored in
+  type ID (`selfhost/checker/checker.pcy:216-248`). Variants are stored in
   `variants` and `variant_index` with their indices.
 - `register_type` adds the type to the module info and, when public, to
-  `public_types`, checking duplicate names (`selfhost/checker/checker.ktn:290-316`).
+  `public_types`, checking duplicate names (`selfhost/checker/checker.pcy:290-316`).
 - `lookup_type` checks the current module first and then `public_types`
-  (`selfhost/checker/state.ktn:624-637`). Named types compare by their numeric
-  `id`, not structurally (`selfhost/checker/model.ktn:316-330`), so a prelude
+  (`selfhost/checker/state.pcy:624-637`). Named types compare by their numeric
+  `id`, not structurally (`selfhost/checker/model.pcy:316-330`), so a prelude
   type registered once is the same type everywhere it is seen.
 - The model's `ModuleModel.types` is the module's own type map, and
-  `visible_types` is the public-plus-root view (`selfhost/checker/model.ktn:404-435`,
-  `selfhost/checker/checker.ktn:36-101`).
+  `visible_types` is the public-plus-root view (`selfhost/checker/model.pcy:404-435`,
+  `selfhost/checker/checker.pcy:36-101`).
 
 ### 2.3 How unions are named and emitted
 
@@ -98,23 +98,23 @@ Go:
   - flat struct definitions (`emitUnionDefinitions`, `codegen/codegen.go:470-498`);
   - variant constructors (`emitUnionConstructors`, `codegen/codegen.go:503-547`).
 - The names come from `codegen/names.go:41-100`:
-  - `structName(name, module)` → `ktn_s_<modulePrefix><Name>`;
-  - `unionTagName(type, variant)` → `ktn_uc_<modulePrefix><Union>_<Variant>`;
-  - `variantConstructorName(type, variant)` → `ktn_new_<modulePrefix><Union>_<Variant>`;
-  - `variantFieldName(variant, field)` → `ktn_v_<Variant>_<Field>`.
-- `cType` maps a union to `ktn_s_<modulePrefix><Name> *`
+  - `structName(name, module)` → `pcy_s_<modulePrefix><Name>`;
+  - `unionTagName(type, variant)` → `pcy_uc_<modulePrefix><Union>_<Variant>`;
+  - `variantConstructorName(type, variant)` → `pcy_new_<modulePrefix><Union>_<Variant>`;
+  - `variantFieldName(variant, field)` → `pcy_v_<Variant>_<Field>`.
+- `cType` maps a union to `pcy_s_<modulePrefix><Name> *`
   (`codegen/names.go:119-143`).
 - `match` emission reads `expressionType(scrutinee).VariantIndex`, then emits
   `case unionTagName(...)`, binds fields through `variantFieldName(...)`, and
   validates exhaustiveness in the checker (`codegen/emit.go:715-790`).
 
-Kitten:
+Percy:
 
-- `selfhost/codegen/declarations.ktn:365-390` walks every module and every
+- `selfhost/codegen/declarations.pcy:365-390` walks every module and every
   declaration with `for_each_union`; union sections call
-  `emit_union_declaration` (`declarations.ktn:586-733`).
-- It uses the same name helpers in `selfhost/codegen/names.ktn`.
-- `selfhost/codegen/statements.ktn:572-665` emits `switch` cases from
+  `emit_union_declaration` (`declarations.pcy:586-733`).
+- It uses the same name helpers in `selfhost/codegen/names.pcy`.
+- `selfhost/codegen/statements.pcy:572-665` emits `switch` cases from
   `union_tag_name`, reads fields through `variant_field_name`, and uses
   `c_type` for bindings.
 
@@ -125,15 +125,15 @@ Kitten:
 - Go's declaration emitter looks up the resolved type by the AST declaration
   (`g.checked.TypeDecls[entry.declaration]`) rather than by name
   (`codegen/codegen.go:370-380`, `475-485`, `510-520`).
-- Kitten `for_each_union` is driven exclusively by `Union` declarations in each
-  `ModuleModel.program` (`selfhost/codegen/declarations.ktn:365-390`).
+- Percy `for_each_union` is driven exclusively by `Union` declarations in each
+  `ModuleModel.program` (`selfhost/codegen/declarations.pcy:365-390`).
 - Both `match` emitters assume `VariantIndex`/`variant_index` is already built by
   the checker and that the union type has a real module ID for mangling.
 - The checker's own declaration collectors only create named types from parsed
   declarations. There is no predeclared named type table in either checker.
 - Go `codegen.Generate(modules, checked)` iterates its `modules` argument
-  (`codegen/codegen.go:51-69`), while the Kitten unit emitter iterates
-  `SemanticModel.modules` (`selfhost/codegen/unit.ktn:52-75`). If a checker adds
+  (`codegen/codegen.go:51-69`), while the Percy unit emitter iterates
+  `SemanticModel.modules` (`selfhost/codegen/unit.pcy:52-75`). If a checker adds
   a synthetic module internally, Go codegen will not see it unless the caller
   passes the extended slice or `Generate` uses `checked.Modules`.
 
@@ -142,14 +142,14 @@ Kitten:
 - The Go loader canonicalizes the root first, appends each module when first
   encountered, and assigns `ID` as the current slice length
   (`loader/loader.go:44-48`, `loader/loader.go:72-123`). The root is ID 0; imports
-  follow in depth-first order. The Kitten loader mirrors this (4E.1).
+  follow in depth-first order. The Percy loader mirrors this (4E.1).
 - C name mangling uses that ID (`codegen/names.go:41-46`,
-  `selfhost/codegen/names.ktn` `module_prefix`).
+  `selfhost/codegen/names.pcy` `module_prefix`).
 - Therefore an **appended** synthetic module with ID `n` does not renumber any
   existing module or change any existing mangled name. It can only add new names
   at ID `n`.
 - The root remains module 0 for the entry-point rule
-  (`codegen/codegen.go:214-241`, `selfhost/codegen/unit.ktn:88-139`).
+  (`codegen/codegen.go:214-241`, `selfhost/codegen/unit.pcy:88-139`).
 - The checker summary includes `module_count`; appending a module changes that
   count for programs that receive it. On-use injection keeps programs that do
   not use `try_read_file` unchanged.
@@ -158,7 +158,7 @@ Kitten:
 
 ### Option A — implicit prelude module (recommended)
 
-A fixed Kitten source text declares `ReadFileResult` as a public union. When a
+A fixed Percy source text declares `ReadFileResult` as a public union. When a
 program needs `try_read_file`, the checker appends a parsed prelude module after
 all loaded modules. The normal union, constructor, and `match` machinery then
 applies unchanged. The generated C helper for `try_read_file` is emitted by the
@@ -171,13 +171,13 @@ the union layout.
   builtin signature.
 - Go codegen: use `checked.Modules`, prelude helper emission, builtin call
   emission.
-- Kitten checker: same prelude source, detection, append/copy, reserved name,
+- Percy checker: same prelude source, detection, append/copy, reserved name,
   builtin signature.
-- Kitten codegen: helper emission, builtin call emission.
+- Percy codegen: helper emission, builtin call emission.
 - Runtime: nonfatal read primitive and error formatting.
 - Harnesses/tests and docs.
 
-**Go/Kitten divergence risk:** moderate, but the union declaration, tags,
+**Go/Percy divergence risk:** moderate, but the union declaration, tags,
 constructors, and `match` are already differential-tested. The new duplicated
 surface is the prelude source text and one small helper emission in each code
 generator. Both can be compared byte for byte.
@@ -201,8 +201,8 @@ forbidden from constructing the type.
 **Files touched:** all four compiler stages plus the runtime, with layout
 duplication in the runtime header and the two checkers.
 
-**Divergence risk:** high. The runtime, Go checker, Kitten checker, Go codegen,
-and Kitten codegen all have to agree on tag numbers, field names, and C type
+**Divergence risk:** high. The runtime, Go checker, Percy checker, Go codegen,
+and Percy codegen all have to agree on tag numbers, field names, and C type
 names. The existing declaration/constructor emitters cannot be reused. A future
 built-in type repeats the same special cases.
 
@@ -214,7 +214,7 @@ invented, which is a larger language change.
 
 ### Option C — synthetic AST declaration without a parsed module
 
-The checker hand-builds a `parser.UnionDecl`/Kitten `Decl.Union` and injects it
+The checker hand-builds a `parser.UnionDecl`/Percy `Decl.Union` and injects it
 without parsing a prelude source. The normal emitters then apply.
 
 **Files touched:** similar to A, minus the prelude source string, plus hand-built
@@ -242,15 +242,15 @@ existing expectations churn. It is rejected in favor of on-use injection.
 
 The canonical prelude text is:
 
-```kitten
+```percy
 public union ReadFileResult {
     Ok { string text; }
     Failed { string message; }
 }
 ```
 
-It is embedded identically in the Go and Kitten checkers. The Go side can use
-`//go:embed` or a string constant; the Kitten side needs a string constant because
+It is embedded identically in the Go and Percy checkers. The Go side can use
+`//go:embed` or a string constant; the Percy side needs a string constant because
 the self-hosted toolchain has no source-embedding facility. A differential test
 must compare the generated C for a program using `try_read_file` so drift in
 either copy is caught.
@@ -313,31 +313,31 @@ prototypes appear between the tag enum and the struct section, because that is
 the existing section order.
 
 ```c
-typedef struct ktn_s_P_ReadFileResult ktn_s_P_ReadFileResult;
+typedef struct pcy_s_P_ReadFileResult pcy_s_P_ReadFileResult;
 
 enum {
-    ktn_uc_P_ReadFileResult_Ok = 0,
-    ktn_uc_P_ReadFileResult_Failed = 1,
+    pcy_uc_P_ReadFileResult_Ok = 0,
+    pcy_uc_P_ReadFileResult_Failed = 1,
 };
 
-struct ktn_s_P_ReadFileResult {
-    int64_t ktn_tag;
-    const ktn_string * ktn_v_Ok_text;
-    const ktn_string * ktn_v_Failed_message;
+struct pcy_s_P_ReadFileResult {
+    int64_t pcy_tag;
+    const pcy_string * pcy_v_Ok_text;
+    const pcy_string * pcy_v_Failed_message;
 };
 
-ktn_s_P_ReadFileResult *ktn_new_P_ReadFileResult_Ok(const ktn_string * ktn_arg_text) {
-    ktn_s_P_ReadFileResult *ktn_object = (ktn_s_P_ReadFileResult *)ktn_rt_alloc(sizeof(ktn_s_P_ReadFileResult));
-    ktn_object->ktn_tag = ktn_uc_P_ReadFileResult_Ok;
-    ktn_object->ktn_v_Ok_text = ktn_arg_text;
-    return ktn_object;
+pcy_s_P_ReadFileResult *pcy_new_P_ReadFileResult_Ok(const pcy_string * pcy_arg_text) {
+    pcy_s_P_ReadFileResult *pcy_object = (pcy_s_P_ReadFileResult *)pcy_rt_alloc(sizeof(pcy_s_P_ReadFileResult));
+    pcy_object->pcy_tag = pcy_uc_P_ReadFileResult_Ok;
+    pcy_object->pcy_v_Ok_text = pcy_arg_text;
+    return pcy_object;
 }
 
-ktn_s_P_ReadFileResult *ktn_new_P_ReadFileResult_Failed(const ktn_string * ktn_arg_message) {
-    ktn_s_P_ReadFileResult *ktn_object = (ktn_s_P_ReadFileResult *)ktn_rt_alloc(sizeof(ktn_s_P_ReadFileResult));
-    ktn_object->ktn_tag = ktn_uc_P_ReadFileResult_Failed;
-    ktn_object->ktn_v_Failed_message = ktn_arg_message;
-    return ktn_object;
+pcy_s_P_ReadFileResult *pcy_new_P_ReadFileResult_Failed(const pcy_string * pcy_arg_message) {
+    pcy_s_P_ReadFileResult *pcy_object = (pcy_s_P_ReadFileResult *)pcy_rt_alloc(sizeof(pcy_s_P_ReadFileResult));
+    pcy_object->pcy_tag = pcy_uc_P_ReadFileResult_Failed;
+    pcy_object->pcy_v_Failed_message = pcy_arg_message;
+    return pcy_object;
 }
 ```
 
@@ -345,13 +345,13 @@ The generator additionally emits one non-`static` helper after the union
 constructors and before the literal pool:
 
 ```c
-ktn_s_P_ReadFileResult *ktn_prelude_P_try_read_file(const ktn_string *ktn_path) {
-    const ktn_string *ktn_text = NULL;
-    const ktn_string *ktn_message = NULL;
-    if (ktn_rt_try_read_file(ktn_path, &ktn_text, &ktn_message)) {
-        return ktn_new_P_ReadFileResult_Ok(ktn_text);
+pcy_s_P_ReadFileResult *pcy_prelude_P_try_read_file(const pcy_string *pcy_path) {
+    const pcy_string *pcy_text = NULL;
+    const pcy_string *pcy_message = NULL;
+    if (pcy_rt_try_read_file(pcy_path, &pcy_text, &pcy_message)) {
+        return pcy_new_P_ReadFileResult_Ok(pcy_text);
     }
-    return ktn_new_P_ReadFileResult_Failed(ktn_message);
+    return pcy_new_P_ReadFileResult_Failed(pcy_message);
 }
 ```
 
@@ -362,7 +362,7 @@ name and the helper is never called.
 `try_read_file(p)` lowers to exactly:
 
 ```c
-ktn_prelude_P_try_read_file(p)
+pcy_prelude_P_try_read_file(p)
 ```
 
 The builtin call does not know the tag layout; the helper does, through the
@@ -401,23 +401,23 @@ a syntactic `try_read_file(` call. Consequences:
 ### 5.1 Signatures
 
 ```c
-bool ktn_rt_try_read_file(const ktn_string *path,
-                          const ktn_string **text,
-                          const ktn_string **message);
+bool pcy_rt_try_read_file(const pcy_string *path,
+                          const pcy_string **text,
+                          const pcy_string **message);
 ```
 
 - Returns `true` on success and `false` on failure.
-- On success, `*text` is a new GC-managed, immutable Kitten string containing the
+- On success, `*text` is a new GC-managed, immutable Percy string containing the
   complete file, and `*message` is set to `NULL`. An empty file yields a
   zero-length `text` (never a failure).
 - On failure, `*message` is a new GC-managed string containing the Go-style OS
   error text, and `*text` is set to `NULL`.
 - Both output pointers must be non-null; the generated helper always passes
   addresses. The runtime may treat null output pointers as a fatal internal error.
-- The runtime allocates both strings with `ktn_rt_string_allocate`, so they obey
+- The runtime allocates both strings with `pcy_rt_string_allocate`, so they obey
   the existing GC and NUL-termination rules. The union constructor stores the
   pointer; the collector keeps it alive through the union object.
-- Existing `ktn_rt_read_file` remains fatal and unchanged.
+- Existing `pcy_rt_read_file` remains fatal and unchanged.
 
 ### 5.2 Operation and error text
 
@@ -431,7 +431,7 @@ The runtime mirrors Go's `os.ReadFile` error shape:
 | generic open/stat failure | open | `open <path>: <strerror(errno)>` |
 | generic read failure | read | `read <path>: <strerror(errno)>` |
 
-`<path>` is the exact byte content of the Kitten `path` string, inserted without
+`<path>` is the exact byte content of the Percy `path` string, inserted without
 quotes. The loader passes a canonical absolute path, so loader diagnostics match
 Go's `cannot read source file: open <canonical>: ...`.
 
@@ -448,13 +448,13 @@ form. The runtime must close the file on every path.
 
 ### 5.3 Limits and existing string constraints
 
-The runtime keeps the existing `KTN_RT_MAX_FILE_SIZE` guard (256 MiB) for
+The runtime keeps the existing `PCY_RT_MAX_FILE_SIZE` guard (256 MiB) for
 `try_read_file` as well. A larger file returns `Failed` with a clear message
 rather than allocating arbitrarily. This is a deliberate runtime safety limit,
 not a Go-loader parity guarantee; a source file larger than 256 MiB is out of
 scope for the loader parity work.
 
-Because Kitten strings are NUL-terminated and cannot contain embedded NUL bytes,
+Because Percy strings are NUL-terminated and cannot contain embedded NUL bytes,
 `try_read_file` has the same NUL limitation as `read_file`; content after the
 first NUL is not represented. This is an existing language limitation and is
 documented, not introduced by this design.
@@ -484,25 +484,25 @@ documented, not introduced by this design.
   the appended prelude reaches the Go declaration emitter. The `modules` argument
   can remain in the signature for compatibility, but its module set must equal
   `checked.Modules`; alternatively the signature can be reduced in a later
-  cleanup. The Kitten generator already uses the model's modules.
+  cleanup. The Percy generator already uses the model's modules.
 
-### 6.2 Kitten
+### 6.2 Percy
 
-- Add the same prelude source as a Kitten string constant. `check_modules` scans
+- Add the same prelude source as a Percy string constant. `check_modules` scans
   `checker.modules` for a syntactic call; if found, parses the prelude with the
-  Kitten lexer/parser, builds a `Module` with ID `module_count`, and copies the
+  Percy lexer/parser, builds a `Module` with ID `module_count`, and copies the
   modules into an array of capacity `module_count + 1` before constructing
   `Checker`/`models`. `CheckSummary.module_count` and `SemanticModel.module_count`
   grow by one.
 - Add `BuiltinKind.TryReadFile`, a `Function` signature, and patch its
   `return_type` after collection from `checker.public_types["ReadFileResult"]`.
-  The Kitten checker already records public types and visible types in
+  The Percy checker already records public types and visible types in
   `register_type`; no new model field is needed.
 - Add the reserved-name check in `collect_declaration`/`register_type`.
-- The Kitten `match`/union codegen needs no change: the prelude type is a normal
+- The Percy `match`/union codegen needs no change: the prelude type is a normal
   union with `variant_index` and variant field metadata.
 - The prelude module's `Program` has one `Union` declaration; its expression and
-  type-reference counts come from the Kitten parser and are used for annotation
+  type-reference counts come from the Percy parser and are used for annotation
   tables.
 
 ### 6.3 Diagnostics
@@ -521,12 +521,12 @@ documented, not introduced by this design.
 ## 7. Codegen impact
 
 - Go: add a builtin call case that emits
-  `ktn_prelude_<P>_try_read_file(<argument>)`; add an `emitPreludeHelper`
+  `pcy_prelude_<P>_try_read_file(<argument>)`; add an `emitPreludeHelper`
   section after union constructors when a prelude module is present. The helper
   text is the exact block in Section 4.4. `cType` already maps the union to
-  `ktn_s_<P>_ReadFileResult *`; no cType special case is needed.
-- Kitten: the same builtin call case and helper emission after union
-  constructors in `declarations.ktn`. The union sections already walk the model's
+  `pcy_s_<P>_ReadFileResult *`; no cType special case is needed.
+- Percy: the same builtin call case and helper emission after union
+  constructors in `declarations.pcy`. The union sections already walk the model's
   modules, so the prelude's declarations are emitted through the normal path.
 - Both generators must place the helper at the same point relative to the
   literal pool and function bodies. It is a fragment emitted once after the
@@ -540,11 +540,11 @@ documented, not introduced by this design.
 ### 5.4b — Go pipeline and runtime
 
 1. Add the runtime primitive and error mapping, with Go-level runtime tests
-   (`ktn_rt_try_read_file` success, empty file, ENOENT, EACCES, EISDIR, fallback).
+   (`pcy_rt_try_read_file` success, empty file, ENOENT, EACCES, EISDIR, fallback).
 2. Add the Go prelude source/scanning/module append, reserved name, builtin, and
    `checked.Modules` codegen change.
 3. Add Go-only checker/codegen tests and a Go-pipeline runtime test. Do not add
-   `try_read_file` to the shared differential corpus yet; the Kitten side must
+   `try_read_file` to the shared differential corpus yet; the Percy side must
    not fail on a feature it does not implement.
 4. Acceptance:
    - `go test -count=1 ./checker ./codegen ./runtime`
@@ -552,17 +552,17 @@ documented, not introduced by this design.
    - a Go-built program exercising Ok/Failed, checked against stdout/stderr/status;
    - `gofmt -l .`, `git diff --check`, `go vet ./...`, `go build -o /tmp/purr ./cmd/purr`.
 
-### 5.4c — Kitten pipeline and differential parity
+### 5.4c — Percy pipeline and differential parity
 
 1. Add the same prelude source, scanning, module append, reserved name, builtin
-   patch, and helper emission in the Kitten checker/generator.
+   patch, and helper emission in the Percy checker/generator.
 2. Add valid/invalid checker cases and expression/call/unit differential cases.
    The expected whole units now include the prelude at ID `n`.
 3. Add a runtime fixture that runs both pipelines with Ok, missing, permission,
    and directory cases, comparing stdout, stderr, exit status, and the exact
    `Failed.message`.
 4. Acceptance:
-   - `go test -count=1 -run 'TestKitten(Checker|Expressions|Calls|Unit|Semantics)' ./cmd/purr`
+   - `go test -count=1 -run 'TestPercy(Checker|Expressions|Calls|Unit|Semantics)' ./cmd/purr`
    - `go test -count=1 ./...`, `CC=gcc go test -count=1 ./...`,
      `CC=clang go test -count=1 ./...` (the full suite may be run once at the end
      of this split)
@@ -570,7 +570,7 @@ documented, not introduced by this design.
 
 ### 5.5 — Loader read-error parity
 
-1. Replace `read_file` in `selfhost/loader/loader.ktn` with
+1. Replace `read_file` in `selfhost/loader/loader.pcy` with
    `try_read_file`, returning `LoadError{path,0,0,"cannot read source file: " +
    message}` on `Failed`.
 2. Add missing-import, missing-root, unreadable-file, and directory cases to the
@@ -586,7 +586,7 @@ documented, not introduced by this design.
 The loader calls `try_read_file(path)` for every module. On `Ok(text)` it
 lexes/parses exactly as before. On `Failed(message)` it returns:
 
-```kitten
+```percy
 LoadError {
     path = path,
     line = 0,
@@ -606,9 +606,9 @@ position. Lex/parse failures keep their existing path/line/column.
 
 - **Go codegen module source.** `Generate` currently uses its `modules` argument,
   not `checked.Modules`. The design requires making `checked.Modules`
-  authoritative. If that is missed, Go emits no prelude while Kitten does. This
+  authoritative. If that is missed, Go emits no prelude while Percy does. This
   is the highest integration risk.
-- **Prelude source duplication.** Go and Kitten each carry the prelude text. A
+- **Prelude source duplication.** Go and Percy each carry the prelude text. A
   differential whole-unit test is mandatory; otherwise the two copies can drift.
 - **Module count changes only for users.** Programs using `try_read_file` see
   one extra internal module and one extra type in checker summaries. This is

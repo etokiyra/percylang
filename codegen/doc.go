@@ -1,4 +1,4 @@
-// Package codegen translates a parsed, type-checked Kitten program into C
+// Package codegen translates a parsed, type-checked Percy program into C
 // source.
 //
 // The public entry point is Generate, which consumes the program's modules
@@ -10,9 +10,9 @@
 // given program and is written for the runtime in the sibling runtime package.
 //
 // Type mapping: int is int64_t, float is double, bool is bool, string is
-// const ktn_string *, a struct or union is a pointer to a GC-managed generated C
+// const pcy_string *, a struct or union is a pointer to a GC-managed generated C
 // struct, an enum is an int64_t typedef with one constant per case, an array is
-// a ktn_array pointer, and a map is a ktn_map pointer. Struct and union literals
+// a pcy_array pointer, and a map is a pcy_map pointer. Struct and union literals
 // and map creation allocate through the runtime, so struct, union, array, and map
 // values have reference semantics, while enums are values.
 // Union payloads are read only through a bounds-safe switch generated for match,

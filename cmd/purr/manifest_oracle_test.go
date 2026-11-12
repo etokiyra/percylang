@@ -1,7 +1,7 @@
 package main
 
 // Independent Go oracle for the purr.toml subset. It is deliberately written
-// from the grammar in the phase instructions, not by translating the Kitten
+// from the grammar in the phase instructions, not by translating the Percy
 // parser, and is used to check pinned and randomized cases.
 
 import (

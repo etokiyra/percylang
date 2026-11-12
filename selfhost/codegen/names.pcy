@@ -1,0 +1,409 @@
+// names.pcy - the C names and types the code generator emits.
+//
+// It is the Percy counterpart of codegen/names.go and codegen/cstring.go: the
+// same prefixes, the same module mangling, the same C type mapping, and the same
+// string escaping, derived from those files rather than from the language
+// specification, because the reference generator's output is the compatibility
+// reference.
+//
+// Nothing here inspects a program. Every helper maps a name, a module, a resolved
+// type, or a string literal token to the C text the reference generator would
+// produce for it, so the helpers can be tested against the reference in isolation
+// and reused unchanged by the emitter.
+
+import "../checker/model.pcy";
+import "../checker/state.pcy";
+import "../parser/parser.pcy";
+
+// Generated C identifiers use reserved prefixes so that arbitrary Percy
+// identifiers can never collide with C keywords, with runtime and entry-point
+// names, or with each other. Percy identifiers are ASCII letters, digits, and
+// underscores, so prefixing always yields a valid C identifier.
+public fn function_prefix() -> string { return "pcy_fn_"; }
+public fn variable_prefix() -> string { return "pcy_var_"; }
+public fn struct_prefix() -> string { return "pcy_s_"; }
+public fn field_prefix() -> string { return "pcy_f_"; }
+public fn constructor_prefix() -> string { return "pcy_new_"; }
+public fn argument_prefix() -> string { return "pcy_arg_"; }
+public fn enum_prefix() -> string { return "pcy_e_"; }
+public fn enum_case_prefix() -> string { return "pcy_ec_"; }
+public fn union_tag_prefix() -> string { return "pcy_uc_"; }
+public fn variant_field_prefix() -> string { return "pcy_v_"; }
+public fn match_prefix() -> string { return "pcy_match_"; }
+public fn literal_prefix() -> string { return "pcy_literal_"; }
+
+// object_name is the local used inside generated struct and variant
+// constructors, and tag_field_name is the C member holding a union value's
+// active variant tag.
+public fn object_name() -> string { return "pcy_object"; }
+public fn tag_field_name() -> string { return "pcy_tag"; }
+
+// header_file_name is the runtime header the generated translation unit
+// includes, and alloc_function is the runtime allocation the generated
+// constructors call for a garbage-collected object. Both are the names the
+// runtime package exports, so the generator and the runtime cannot disagree
+// about the interface between them.
+public fn header_file_name() -> string { return "percy_runtime.h"; }
+public fn alloc_function() -> string { return "pcy_rt_alloc"; }
+
+// init_function is the runtime initialization the C entry point calls before the
+// program's own main runs, which starts the garbage collector.
+public fn init_function() -> string { return "pcy_rt_init"; }
+
+// set_args_function stores the process argument vector before user main runs, and
+// argv_function returns it as an array of strings.
+public fn set_args_function() -> string { return "pcy_rt_set_args"; }
+public fn argv_function() -> string { return "pcy_rt_argv"; }
+
+// exit_function terminates the process after the runtime flushes both streams.
+public fn exit_function() -> string { return "pcy_rt_exit"; }
+
+// string_concat_function and string_equal_function are the runtime helpers a
+// string "+", "==", or "!=" becomes. A Percy string is a length-carrying
+// pointer, so "+" is a concatenation and "==" compares content rather than
+// pointers; both need the runtime. string_append_function appends to the string
+// stored at the address a string "+=" target names, so the target is evaluated
+// once.
+public fn string_concat_function() -> string { return "pcy_rt_string_concat"; }
+public fn string_equal_function() -> string { return "pcy_rt_string_equal"; }
+public fn string_append_function() -> string { return "pcy_rt_string_append"; }
+
+// fail_function is the runtime helper that reports a fatal runtime error and
+// terminates. Generated match statements call it for a tag no arm covers, which
+// the checker's exhaustiveness rule makes unreachable, and for a null union
+// reference.
+public fn fail_function() -> string { return "pcy_rt_fail"; }
+
+// The i64 helpers implement defined two's-complement integer arithmetic. The
+// assignment and increment helpers take the address of the target once.
+public fn i64_add_function() -> string { return "pcy_rt_i64_add"; }
+public fn i64_sub_function() -> string { return "pcy_rt_i64_sub"; }
+public fn i64_mul_function() -> string { return "pcy_rt_i64_mul"; }
+public fn i64_neg_function() -> string { return "pcy_rt_i64_neg"; }
+public fn i64_div_function() -> string { return "pcy_rt_i64_div"; }
+public fn i64_mod_function() -> string { return "pcy_rt_i64_mod"; }
+public fn i64_shl_function() -> string { return "pcy_rt_i64_shl"; }
+public fn i64_shr_function() -> string { return "pcy_rt_i64_shr"; }
+public fn i64_add_assign_function() -> string { return "pcy_rt_i64_add_assign"; }
+public fn i64_sub_assign_function() -> string { return "pcy_rt_i64_sub_assign"; }
+public fn i64_pre_inc_function() -> string { return "pcy_rt_i64_pre_inc"; }
+public fn i64_post_inc_function() -> string { return "pcy_rt_i64_post_inc"; }
+public fn i64_pre_dec_function() -> string { return "pcy_rt_i64_pre_dec"; }
+public fn i64_post_dec_function() -> string { return "pcy_rt_i64_post_dec"; }
+
+// The print helpers write one value of a primitive type. A generated print call
+// becomes a comma expression of these, separated by the space helper and
+// terminated by the newline helper, which is why print has no single runtime
+// function.
+public fn print_int_function() -> string { return "pcy_rt_print_int"; }
+public fn print_float_function() -> string { return "pcy_rt_print_float"; }
+public fn print_bool_function() -> string { return "pcy_rt_print_bool"; }
+public fn print_string_function() -> string { return "pcy_rt_print_string"; }
+public fn print_space_function() -> string { return "pcy_rt_print_space"; }
+public fn print_newline_function() -> string { return "pcy_rt_print_newline"; }
+
+// The eprint helpers write to standard error with the same formatting as print.
+// The newline helper flushes stdout first, so earlier print output stays ahead of
+// the diagnostic, and then flushes stderr.
+public fn eprint_int_function() -> string { return "pcy_rt_eprint_int"; }
+public fn eprint_float_function() -> string { return "pcy_rt_eprint_float"; }
+public fn eprint_bool_function() -> string { return "pcy_rt_eprint_bool"; }
+public fn eprint_string_function() -> string { return "pcy_rt_eprint_string"; }
+public fn eprint_space_function() -> string { return "pcy_rt_eprint_space"; }
+public fn eprint_newline_function() -> string { return "pcy_rt_eprint_newline"; }
+
+// The length helpers read the length a container or a string stores in its own
+// header, so the type of the argument decides which one is called. A string
+// carries its byte length alongside its bytes.
+public fn array_length_function() -> string { return "pcy_rt_array_length"; }
+public fn array_push_function() -> string { return "pcy_rt_array_push"; }
+public fn map_length_function() -> string { return "pcy_rt_map_length"; }
+public fn string_length_function() -> string { return "pcy_rt_string_length"; }
+
+// substring_function, map_has_function, and read_file_function are the remaining
+// built-in operations, each of which is one runtime call.
+public fn substring_function() -> string { return "pcy_rt_substring"; }
+public fn map_has_function() -> string { return "pcy_rt_map_has"; }
+public fn read_file_function() -> string { return "pcy_rt_read_file"; }
+public fn try_read_file_function() -> string { return "pcy_rt_try_read_file"; }
+public fn try_write_file_function() -> string { return "pcy_rt_try_write_file"; }
+public fn try_write_bytes_function() -> string { return "pcy_rt_try_write_bytes"; }
+public fn try_create_directory_function() -> string { return "pcy_rt_try_create_directory"; }
+public fn try_remove_function() -> string { return "pcy_rt_try_remove"; }
+public fn try_list_directory_function() -> string { return "pcy_rt_try_list_directory"; }
+public fn try_run_function() -> string { return "pcy_rt_try_run"; }
+public fn try_current_directory_function() -> string { return "pcy_rt_try_current_directory"; }
+public fn try_getenv_function() -> string { return "pcy_rt_try_getenv"; }
+public fn try_run_capture_function() -> string { return "pcy_rt_try_run_capture"; }
+public fn try_file_info_function() -> string { return "pcy_rt_try_file_info"; }
+public fn try_create_temp_directory_function() -> string { return "pcy_rt_try_create_temp_directory"; }
+public fn raw_load8_function() -> string { return "pcy_rt_raw_load8"; }
+public fn raw_store8_function() -> string { return "pcy_rt_raw_store8"; }
+public fn raw_load64_function() -> string { return "pcy_rt_raw_load64"; }
+public fn raw_store64_function() -> string { return "pcy_rt_raw_store64"; }
+public fn raw_copy_function() -> string { return "pcy_rt_raw_copy"; }
+public fn raw_zero_function() -> string { return "pcy_rt_raw_zero"; }
+public fn syscall_function() -> string { return "pcy_rt_syscall"; }
+public fn string_to_bytes_function() -> string { return "pcy_rt_string_to_bytes"; }
+public fn bytes_to_string_function() -> string { return "pcy_rt_bytes_to_string"; }
+
+// prelude_try_read_file_helper_name is the generated helper that builds the
+// predeclared ReadFileResult from the runtime's non-fatal read primitive.
+public fn prelude_try_read_file_helper_name(int module) -> string {
+    return "pcy_prelude_" + decimal(module) + "_try_read_file";
+}
+
+// prelude_helper_name names a generated helper for a used file or directory
+// built-in in the prelude module. The read helper keeps its original function
+// name for byte-identical output.
+public fn prelude_helper_name(int module, string builtin) -> string {
+    return "pcy_prelude_" + decimal(module) + "_" + builtin;
+}
+
+// string_at_function reads one byte of a string, array_new_function and
+// array_at_function create an array and access one bounds-checked element, and
+// map_new_function, map_set_function, and map_at_function create a map, insert or
+// update an entry, and access one value. They are the runtime helpers the indexing,
+// creation, and assignment expressions become; each name is the one the runtime
+// package exports.
+public fn string_at_function() -> string { return "pcy_rt_string_at"; }
+public fn array_new_function() -> string { return "pcy_rt_array_new"; }
+public fn array_at_function() -> string { return "pcy_rt_array_at"; }
+public fn map_new_function() -> string { return "pcy_rt_map_new"; }
+public fn map_set_function() -> string { return "pcy_rt_map_set"; }
+public fn map_at_function() -> string { return "pcy_rt_map_at"; }
+
+// module_prefix returns the C name prefix for a module. The root module (id 0)
+// has no prefix, so single-module programs generate the same names as before.
+// Imported modules use "<id>_"; because a Percy identifier cannot begin with a
+// digit, a mangled imported name can never collide with a root-module name, and
+// distinct ids keep imported modules distinct.
+public fn module_prefix(int module) -> string {
+    if (module <= 0) {
+        return "";
+    }
+    return decimal(module) + "_";
+}
+
+// function_name maps a Percy function name in a module to its C identifier.
+public fn function_name(string name, int module) -> string {
+    return function_prefix() + module_prefix(module) + name;
+}
+
+// variable_name maps a Percy variable or parameter name to its C identifier.
+// Local names are not module-scoped, so they are not mangled.
+public fn variable_name(string name) -> string {
+    return variable_prefix() + name;
+}
+
+// struct_name maps a Percy struct or union name in a module to its C type name.
+public fn struct_name(string name, int module) -> string {
+    return struct_prefix() + module_prefix(module) + name;
+}
+
+// field_name maps a Percy struct field name to its C member name.
+public fn field_name(string name) -> string {
+    return field_prefix() + name;
+}
+
+// constructor_name maps a Percy struct name in a module to the name of the
+// function that allocates and initializes one instance.
+public fn constructor_name(string name, int module) -> string {
+    return constructor_prefix() + module_prefix(module) + name;
+}
+
+// argument_name maps a struct or variant field name to the parameter name used
+// in the generated constructor.
+public fn argument_name(string name) -> string {
+    return argument_prefix() + name;
+}
+
+// enum_name maps a Percy enum type to its C typedef name.
+public fn enum_name(string name, int module) -> string {
+    return enum_prefix() + module_prefix(module) + name;
+}
+
+// enum_case_name maps an enum case to its C constant name. The enum's own module
+// qualifies the constant, because two modules may declare the same enum name.
+public fn enum_case_name(Type enum_type, string case_name) -> string {
+    return enum_case_prefix() + module_prefix(enum_type.module) + enum_type.name + "_" + case_name;
+}
+
+// union_tag_name maps a union variant to its C tag constant name.
+public fn union_tag_name(Type union_type, string variant_name) -> string {
+    return union_tag_prefix() + module_prefix(union_type.module) + union_type.name + "_" + variant_name;
+}
+
+// variant_field_name maps a union variant's field to its C member name in the
+// flat union layout. The variant name is part of the member so that variants may
+// reuse field names.
+public fn variant_field_name(string variant_name, string field_name_text) -> string {
+    return variant_field_prefix() + variant_name + "_" + field_name_text;
+}
+
+// variant_constructor_name maps a union variant to the function that allocates
+// and initializes one instance carrying that variant.
+public fn variant_constructor_name(Type union_type, string variant_name) -> string {
+    return constructor_prefix() + module_prefix(union_type.module) + union_type.name + "_" + variant_name;
+}
+
+// match_temporary_name maps a match statement's temporary index to its local
+// name. The index is the number of match statements the generator has emitted
+// before this one, which makes the names unique and deterministic.
+public fn match_temporary_name(int index) -> string {
+    return match_prefix() + decimal(index);
+}
+
+// literal_name maps a pooled string literal's index to the name of its static C
+// object. Pool indices are one-based, in first-use order.
+public fn literal_name(int index) -> string {
+    return literal_prefix() + decimal(index);
+}
+
+// --- C types -----------------------------------------------------------------
+
+// CTypeResult is a type's C representation, or the reason it has none.
+//
+// None (the absent type) has no C representation, which is the reference's
+// "unsupported type" case. The message has no position: it is the caller that
+// knows where the type was written and reports the failure there.
+public union CTypeResult {
+    Ok { string text; }
+    Failed { string message; }
+}
+
+// c_type_ok reports whether a type could be mapped.
+public fn c_type_ok(CTypeResult result) -> bool {
+    match (result) {
+        Ok(text) { return true; }
+        Failed(message) { return false; }
+    }
+}
+
+// c_type_text returns the C text of a successful mapping. Its failure branch
+// returns the empty string; no caller can observe it, because the result is
+// tested first.
+public fn c_type_text(CTypeResult result) -> string {
+    match (result) {
+        Ok(text) { return text; }
+        Failed(message) { return ""; }
+    }
+}
+
+// c_type_message returns why a mapping failed, or the empty string when it did
+// not.
+public fn c_type_message(CTypeResult result) -> string {
+    match (result) {
+        Ok(text) { return ""; }
+        Failed(message) { return message; }
+    }
+}
+
+// c_type maps a resolved Percy type to its C representation:
+//
+//	int    -> int64_t             (signed 64-bit)
+//	float  -> double              (IEEE 754 binary64)
+//	bool   -> bool                (stdbool.h)
+//	string -> const pcy_string *  (immutable, length-carrying byte string)
+//	void   -> void                (function return position only)
+//	struct -> struct pointer      (GC-managed reference)
+//	union  -> struct pointer      (GC-managed reference, tagged)
+//	enum   -> int64_t typedef     (a named constant per case)
+//	array  -> pcy_array *         (GC-managed dynamic array)
+//	map    -> pcy_map *           (GC-managed hash table)
+//
+// A Percy string is a pointer to the runtime's pcy_string, which stores the byte
+// length next to the bytes, so length and indexing are constant-time and the
+// bytes are still NUL-terminated. The pointer is const-qualified because strings
+// are immutable; a static literal is a `static const pcy_string` and a
+// constructed string is a GC-managed pcy_string that the runtime fills before
+// returning it.
+public fn c_type(Type value) -> CTypeResult {
+    match (value.kind) {
+        Int { return CTypeResult.Ok { text = "int64_t" }; }
+        Float { return CTypeResult.Ok { text = "double" }; }
+        Bool { return CTypeResult.Ok { text = "bool" }; }
+        String { return CTypeResult.Ok { text = "const pcy_string *" }; }
+        Byte { return CTypeResult.Ok { text = "uint8_t" }; }
+        Void { return CTypeResult.Ok { text = "void" }; }
+        Array { return CTypeResult.Ok { text = "pcy_array *" }; }
+        Map { return CTypeResult.Ok { text = "pcy_map *" }; }
+        Enum { return CTypeResult.Ok { text = enum_name(value.name, value.module) }; }
+        Struct { return CTypeResult.Ok { text = struct_name(value.name, value.module) + " *" }; }
+        Union { return CTypeResult.Ok { text = struct_name(value.name, value.module) + " *" }; }
+        None {
+            return CTypeResult.Failed { message = "unsupported type " + quoted(type_string(value)) };
+        }
+    }
+}
+
+// --- C string literals -------------------------------------------------------
+
+// CStringLiteral is a Percy string literal token re-encoded as a C string
+// literal, together with the number of bytes it denotes.
+//
+// There is no failure case. The reference decoder reports an error for an
+// unsupported escape, but a literal that reached the parser cannot contain one:
+// the lexer rejects every escape the language does not define before the parser
+// or the generator ever sees the token, so decoding here always succeeds.
+public struct CStringLiteral {
+    // escaped is the literal's bytes as a C string literal, including its
+    // surrounding quotation marks.
+    string escaped;
+
+    // length is the number of bytes in the literal, excluding the NUL
+    // terminator that C appends, and is what the generated string object stores
+    // as its length.
+    int length;
+}
+
+// c_string_literal converts a Percy string literal token into a safe C string
+// literal and its byte length, mirroring codegen/cstring.go.
+//
+// The Percy token text includes the surrounding quotation marks and the escapes
+// exactly as written, so this function decodes those escapes with the parser's
+// decoder and then re-encodes the resulting bytes for C. Re-encoding rather than
+// copying the source text guarantees the generated C is well-formed: quotes,
+// backslashes, control characters, question marks, and non-ASCII bytes are all
+// escaped explicitly, so no source text can break out of the C literal.
+public fn c_string_literal(string percy_literal) -> CStringLiteral {
+    string decoded = decode_string(percy_literal);
+    string escaped = "\"";
+    int index = 0;
+    while (index < length(decoded)) {
+        int character = decoded[index];
+        if (character == 34) {
+            escaped += "\\\"";
+        } else if (character == 92) {
+            escaped += "\\\\";
+        } else if (character == 10) {
+            escaped += "\\n";
+        } else if (character == 9) {
+            escaped += "\\t";
+        } else if (character == 13) {
+            escaped += "\\r";
+        } else if (character == 63) {
+            // Escape '?' so that it can never begin a trigraph.
+            escaped += "\\?";
+        } else if (character >= 32 && character <= 126) {
+            escaped += substring(decoded, index, index + 1);
+        } else {
+            // Three-digit octal escapes are unambiguous and cannot merge with a
+            // following digit, so a byte may be followed by any character.
+            escaped += "\\" + octal_three(character);
+        }
+        index++;
+    }
+    escaped += "\"";
+    return CStringLiteral { escaped = escaped, length = length(decoded) };
+}
+
+// octal_three renders one byte as a three-digit octal escape, which is what the
+// reference's %03o verb produces.
+fn octal_three(int octet) -> string {
+    string digits = "01234567";
+    int high = octet / 64;
+    int middle = (octet / 8) % 8;
+    int low = octet % 8;
+    return substring(digits, high, high + 1) + substring(digits, middle, middle + 1) + substring(digits, low, low + 1);
+}

@@ -1,0 +1,39 @@
+fn main() {
+    string[] empty = new string[0];
+    string[] words = new string[2];
+    words[0] = "hello";
+    words[1] = "two words";
+
+    match (try_run("/bin/echo", words)) {
+        Ok(status) {
+            print("echo", status);
+        }
+        Failed(message) {
+            print("echo fail", message);
+        }
+    }
+    match (try_run("/bin/true", empty)) {
+        Ok(status) {
+            print("true", status);
+        }
+        Failed(message) {
+            print("true fail", message);
+        }
+    }
+    match (try_run("/bin/false", empty)) {
+        Ok(status) {
+            print("false", status);
+        }
+        Failed(message) {
+            print("false fail", message);
+        }
+    }
+    match (try_run("/definitely/missing", empty)) {
+        Ok(status) {
+            print("missing ran", status);
+        }
+        Failed(message) {
+            print("missing", message);
+        }
+    }
+}

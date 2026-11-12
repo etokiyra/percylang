@@ -1,8 +1,8 @@
-# A parser for Kitten, written in Kitten
+# A parser for Percy, written in Percy
 
 This directory holds the second component of the eventual self-hosting compiler:
-a parser written in Kitten that consumes the tokens produced by the
-Kitten-written lexer and builds an abstract syntax tree.
+a parser written in Percy that consumes the tokens produced by the
+Percy-written lexer and builds an abstract syntax tree.
 
 It is **not** the production front end. `purr build` and `purr run` still use
 the Go parser in `parser/`, which remains authoritative. Nothing here changes the
@@ -12,11 +12,11 @@ language, and no language feature was added to make the parser easier.
 
 | File | Contents |
 | --- | --- |
-| `ast.ktn` | the AST types: declarations, statements, expressions, types, positions |
-| `parser.ktn` | the parser: token access, error construction, and every grammar production |
-| `printer.ktn` | the canonical AST rendering used by the driver and by differential testing |
+| `ast.pcy` | the AST types: declarations, statements, expressions, types, positions |
+| `parser.pcy` | the parser: token access, error construction, and every grammar production |
+| `printer.pcy` | the canonical AST rendering used by the driver and by differential testing |
 
-The driver is `../parse.ktn`, one directory up, rather than `main.ktn` here. The
+The driver is `../parse.pcy`, one directory up, rather than `main.pcy` here. The
 loader requires every import to resolve **inside the directory of the file being
 compiled**, so a driver that uses both the lexer and the parser has to sit above
 both `../lexer/` and `../parser/`. This is a property of the current import
@@ -29,7 +29,7 @@ policy, not of the parser.
 # "input.txt", so the working directory selects the input.
 printf 'fn add(int a, int b) -> int {\n    return a + b;\n}\n' > input.txt
 go build -o /tmp/purr ./cmd/purr
-/tmp/purr build selfhost/parse.ktn -o /tmp/purr-parser
+/tmp/purr build selfhost/parse.pcy -o /tmp/purr-parser
 /tmp/purr-parser
 ```
 
@@ -61,14 +61,14 @@ a lexical or syntax error it prints one line instead:
 error <line> <column> <message>
 ```
 
-The driver cannot take a path from the command line, because the Kitten runtime
+The driver cannot take a path from the command line, because the Percy runtime
 exposes no command-line arguments, no standard error, and no program-selected
 exit status (SPEC.md 16 and 25.4); it reports failure on standard output and
 leaves the exit status to the runtime, exactly like the lexer driver.
 
 ## The AST
 
-`ast.ktn` mirrors `parser/ast.go`: the same node kinds, the same fields, and the
+`ast.pcy` mirrors `parser/ast.go`: the same node kinds, the same fields, and the
 same positions. It contains no semantic information, resolves no names, and
 assigns no types.
 
@@ -86,7 +86,7 @@ Two representation choices are worth knowing:
   to nodes by that id, which is what makes the semantic model's keys stable under
   nesting, repetition, and multiple modules; source coordinates are not identity,
   because several nodes share a position.
-- **Absence is a value, not a null.** Kitten has no null: a local variable
+- **Absence is a value, not a null.** Percy has no null: a local variable
   declared without an initializer is undefined rather than empty, and there is no
   literal that denotes "no object". Optional sub-nodes - an else branch, a
   variable initializer, a return value, a for-loop clause, a function's return
@@ -129,7 +129,7 @@ end-of-input token for any position outside it.
 
 ## Failure handling and termination
 
-Kitten has no exceptions, so every step that can fail returns a small result
+Percy has no exceptions, so every step that can fail returns a small result
 union carrying either the value or a `ParseError`, and callers propagate the
 first failure unchanged. Propagation is explicit: a caller cannot read a value
 without having handled the failure case, and the first error always wins,
@@ -142,7 +142,7 @@ as the reference parser's does.
 
 ## Array capacities
 
-Kitten arrays are fixed-size, so each AST list is allocated with a capacity
+Percy arrays are fixed-size, so each AST list is allocated with a capacity
 computed by `list_capacity` and carries a separate count. The capacity is the
 **extent of the enclosing delimited group**: the number of tokens from the
 current position to the first closing delimiter that no opening delimiter
@@ -156,12 +156,12 @@ out-of-bounds write, and the differential corpus checks the bound on every input
 
 ## Differential testing
 
-`cmd/purr/parser_differential_test.go` builds the Kitten parser once and runs
+`cmd/purr/parser_differential_test.go` builds the Percy parser once and runs
 it over a corpus of 289 inputs, comparing its rendering with the reference
 implementation's rendering of the same source:
 
 ```sh
-go test -count=1 -v -run TestKittenParser ./cmd/purr/
+go test -count=1 -v -run TestPercyParser ./cmd/purr/
 ```
 
 The corpus covers every grammar production listed above, empty and one-token
@@ -170,7 +170,7 @@ alone and in C#-style precedence-boundary combinations including the
 bitwise/shift levels, every break in the precedence table, nested and deeply nested constructs (forty levels of parentheses, unary
 operators, calls, member access, and blocks), collections and their literals,
 `match` arms with and without bindings, sixty-five malformed or truncated
-inputs, non-ASCII input both valid and invalid as UTF-8, every `.ktn` fixture,
+inputs, non-ASCII input both valid and invalid as UTF-8, every `.pcy` fixture,
 and the self-hosted sources themselves.
 
 Results: **284 of the 289 inputs render byte-identically**. The remaining five
@@ -179,15 +179,15 @@ documented lexer-level ways - a byte-oriented column, and a lexeme or message
 that Go renders by decoding UTF-8 - and the harness verifies those by comparing
 the AST shape, node kind by kind and depth by depth, plus the error position.
 
-`TestKittenParserOutputFormat` also pins the rendering with hand-written
+`TestPercyParserOutputFormat` also pins the rendering with hand-written
 expectations, so a format regression is caught even if both implementations
 change together.
 
 ## Performance
 
 Parsing is roughly linear in the input size. Measured with
-`TestKittenParserScaling`, which also checks that both implementations agree on
-the largest input (`go test -count=1 -v -run TestKittenParserScaling
+`TestPercyParserScaling`, which also checks that both implementations agree on
+the largest input (`go test -count=1 -v -run TestPercyParserScaling
 ./cmd/purr/`), including the cost of rendering the AST and starting the
 process:
 
@@ -204,7 +204,7 @@ large part of the cost, as it is for the lexer driver.
 ## What is deliberately not here
 
 - A code generator. A semantic checker that consumes this AST exists in
-  `selfhost/checker`, with its driver in `selfhost/check.ktn`.
+  `selfhost/checker`, with its driver in `selfhost/check.pcy`.
 - Module resolution: the parser parses one token stream, exactly like the
   reference parser.
 - A null or optional type in the language, which would replace the explicit

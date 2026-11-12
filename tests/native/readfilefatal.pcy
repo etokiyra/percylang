@@ -1,0 +1,10 @@
+fn main() {
+    match (try_write_file("fatal-data.txt", "hello")) {
+        Ok { }
+        Failed(message) { print("write", message); }
+    }
+    string text = read_file("fatal-data.txt");
+    print(length(text), text);
+    read_file("fatal-missing.txt");
+    print("unreachable");
+}

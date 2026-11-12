@@ -14,9 +14,9 @@ import (
 	"strings"
 	"testing"
 
-	"kitten/checker"
-	"kitten/codegen"
-	"kitten/loader"
+	"percy/checker"
+	"percy/codegen"
+	"percy/loader"
 )
 
 type newTreeEntry struct {
@@ -33,7 +33,7 @@ func buildNewProbeWithGo(t *testing.T) string {
 		repoPath(t, "..", "..", "runtime", "csrc"),
 	}), func(output string) error {
 		var diagnostics bytes.Buffer
-		if err := buildExecutable(repoPath(t, "..", "..", "purr", "new_probe.ktn"), output, &diagnostics); err != nil {
+		if err := buildExecutable(repoPath(t, "..", "..", "purr", "new_probe.pcy"), output, &diagnostics); err != nil {
 			return err
 		}
 		if warnings := strings.TrimSpace(diagnostics.String()); warnings != "" {
@@ -43,15 +43,15 @@ func buildNewProbeWithGo(t *testing.T) string {
 	})
 }
 
-func buildNewProbeWithKitten(t *testing.T, stage1 string) string {
+func buildNewProbeWithPercy(t *testing.T, stage1 string) string {
 	t.Helper()
-	key := cachedBuildHash(t, "new_probe_kitten", []string{
+	key := cachedBuildHash(t, "new_probe_percy", []string{
 		repoPath(t, "..", "..", "purr"),
 		repoPath(t, "..", "..", "runtime", "csrc"),
 	}) + "-" + fileHash(t, stage1)
-	output := cachedBuild(t, "new_probe_kitten", key, func(path string) error {
+	output := cachedBuild(t, "new_probe_percy", key, func(path string) error {
 		result := runExternal(t, wrapperPath(t), []string{
-			"build", repoPath(t, "..", "..", "purr", "new_probe.ktn"), "-o", path,
+			"build", repoPath(t, "..", "..", "purr", "new_probe.pcy"), "-o", path,
 		}, repoPath(t, "..", ".."), wrapperEnvironment(stage1, t))
 		if result.status != 0 || result.stderr != "" {
 			return fmt.Errorf("status %d, stderr %q", result.status, result.stderr)
@@ -143,11 +143,11 @@ func assertNewTree(t *testing.T, root, name string, library bool, directoryMode,
 		name + "/.gitignore",
 		name + "/purr.toml",
 		name + "/src",
-		name + "/src/main.ktn",
+		name + "/src/main.pcy",
 	}
-	sourcePath := name + "/src/main.ktn"
+	sourcePath := name + "/src/main.pcy"
 	if library {
-		sourcePath = name + "/src/lib.ktn"
+		sourcePath = name + "/src/lib.pcy"
 		expected[4] = sourcePath
 	}
 	if keys := newTreeKeys(entries); strings.Join(keys, "\n") != strings.Join(expected, "\n") {
@@ -199,8 +199,8 @@ func TestNewProjectSuccess(t *testing.T) {
 	requireToolchain(t)
 	stage1 := buildStage1(t)
 	probes := map[string]string{
-		"Go":     buildNewProbeWithGo(t),
-		"Kitten": buildNewProbeWithKitten(t, stage1),
+		"Go":    buildNewProbeWithGo(t),
+		"Percy": buildNewProbeWithPercy(t, stage1),
 	}
 	for pipeline, probe := range probes {
 		for _, library := range []bool{false, true} {
@@ -242,8 +242,8 @@ func TestNewProjectModes(t *testing.T) {
 	requireToolchain(t)
 	stage1 := buildStage1(t)
 	probes := map[string]string{
-		"Go":     buildNewProbeWithGo(t),
-		"Kitten": buildNewProbeWithKitten(t, stage1),
+		"Go":    buildNewProbeWithGo(t),
+		"Percy": buildNewProbeWithPercy(t, stage1),
 	}
 	cases := []struct {
 		mask      string
@@ -273,8 +273,8 @@ func TestNewProjectInvalidNames(t *testing.T) {
 	requireToolchain(t)
 	stage1 := buildStage1(t)
 	probes := map[string]string{
-		"Go":     buildNewProbeWithGo(t),
-		"Kitten": buildNewProbeWithKitten(t, stage1),
+		"Go":    buildNewProbeWithGo(t),
+		"Percy": buildNewProbeWithPercy(t, stage1),
 	}
 	names := []string{"", strings.Repeat("a", 65), "A", "a/b", ".", "..", "x-", "x_", "a b", "caf\u00e9", "a\n"}
 	for _, name := range names {
@@ -319,7 +319,7 @@ func sameSnapshot(left, right map[string]newTreeEntry) bool {
 }
 
 func newHelpText() string {
-	return "Kitten project scaffolding\n" +
+	return "Percy project scaffolding\n" +
 		"\n" +
 		"Usage:\n" +
 		"  purr new [--lib] <name>\n" +
@@ -333,8 +333,8 @@ func TestNewProjectHelp(t *testing.T) {
 	requireToolchain(t)
 	stage1 := buildStage1(t)
 	probes := map[string]string{
-		"Go":     buildNewProbeWithGo(t),
-		"Kitten": buildNewProbeWithKitten(t, stage1),
+		"Go":    buildNewProbeWithGo(t),
+		"Percy": buildNewProbeWithPercy(t, stage1),
 	}
 	// Help wins over every other argument, including an unknown flag or a
 	// name, matching the top-level help flags' treatment of extra arguments.
@@ -366,8 +366,8 @@ func TestNewProjectUsage(t *testing.T) {
 	requireToolchain(t)
 	stage1 := buildStage1(t)
 	probes := map[string]string{
-		"Go":     buildNewProbeWithGo(t),
-		"Kitten": buildNewProbeWithKitten(t, stage1),
+		"Go":    buildNewProbeWithGo(t),
+		"Percy": buildNewProbeWithPercy(t, stage1),
 	}
 	cases := [][]string{
 		nil,
@@ -409,7 +409,7 @@ func TestNewProjectGeneratedProjectWorks(t *testing.T) {
 	stage1 := buildStage1(t)
 	probe := buildNewProbeWithGo(t)
 	manifestProbe := buildManifestProbeWithGo(t)
-	unit := buildKittenUnit(t)
+	unit := buildPercyUnit(t)
 	for _, library := range []bool{false, true} {
 		directory := t.TempDir()
 		name := "project"
@@ -422,9 +422,9 @@ func TestNewProjectGeneratedProjectWorks(t *testing.T) {
 		}
 
 		if library {
-			libPath := filepath.Join(project, "src", "lib.ktn")
-			testPath := filepath.Join(project, "test_main.ktn")
-			testSource := "import \"src/lib.ktn\";\nfn main() {\n    print(add(2, 3));\n}\n"
+			libPath := filepath.Join(project, "src", "lib.pcy")
+			testPath := filepath.Join(project, "test_main.pcy")
+			testSource := "import \"src/lib.pcy\";\nfn main() {\n    print(add(2, 3));\n}\n"
 			if err := os.WriteFile(testPath, []byte(testSource), 0o644); err != nil {
 				t.Fatalf("writing library test main: %v", err)
 			}
@@ -433,12 +433,12 @@ func TestNewProjectGeneratedProjectWorks(t *testing.T) {
 			if err := buildExecutable(testPath, goProgram, &diagnostics); err != nil {
 				t.Fatalf("building library test with Go: %v\n%s", err, diagnostics.String())
 			}
-			kittenProgram := filepath.Join(directory, "lib-program-kitten")
-			result := runExternal(t, wrapperPath(t), []string{"build", testPath, "-o", kittenProgram}, project, wrapperEnvironment(stage1, t))
+			percyProgram := filepath.Join(directory, "lib-program-percy")
+			result := runExternal(t, wrapperPath(t), []string{"build", testPath, "-o", percyProgram}, project, wrapperEnvironment(stage1, t))
 			if result.status != 0 || result.stderr != "" {
-				t.Fatalf("building library test with Kitten: %d %q", result.status, result.stderr)
+				t.Fatalf("building library test with Percy: %d %q", result.status, result.stderr)
 			}
-			for pipeline, executable := range map[string]string{"Go": goProgram, "Kitten": kittenProgram} {
+			for pipeline, executable := range map[string]string{"Go": goProgram, "Percy": percyProgram} {
 				run := runExternal(t, executable, nil, project, nil)
 				if run.status != 0 || run.stdout != "5\n" || run.stderr != "" {
 					t.Errorf("%s library run: %d %q %q", pipeline, run.status, run.stdout, run.stderr)
@@ -449,15 +449,15 @@ func TestNewProjectGeneratedProjectWorks(t *testing.T) {
 			if !ok {
 				return
 			}
-			kittenC, err := runKittenUnit(unit, t.TempDir(), testSource, string(libSource))
+			percyC, err := runPercyUnit(unit, t.TempDir(), testSource, string(libSource))
 			if err != nil {
-				t.Fatalf("Kitten library C: %v", err)
+				t.Fatalf("Percy library C: %v", err)
 			}
-			if difference := unitDifference(kittenC, goC); difference != "" {
+			if difference := unitDifference(percyC, goC); difference != "" {
 				t.Fatalf("library C differs: %s", difference)
 			}
 		} else {
-			mainPath := filepath.Join(project, "src", "main.ktn")
+			mainPath := filepath.Join(project, "src", "main.pcy")
 			mainSource, _ := os.ReadFile(mainPath)
 			for pipeline, build := range map[string]func(string) string{
 				"Go": func(destination string) string {
@@ -467,10 +467,10 @@ func TestNewProjectGeneratedProjectWorks(t *testing.T) {
 					}
 					return destination
 				},
-				"Kitten": func(destination string) string {
+				"Percy": func(destination string) string {
 					result := runExternal(t, wrapperPath(t), []string{"build", mainPath, "-o", destination}, project, wrapperEnvironment(stage1, t))
 					if result.status != 0 || result.stderr != "" {
-						t.Fatalf("Kitten main build: %d %q", result.status, result.stderr)
+						t.Fatalf("Percy main build: %d %q", result.status, result.stderr)
 					}
 					return destination
 				},
@@ -485,11 +485,11 @@ func TestNewProjectGeneratedProjectWorks(t *testing.T) {
 			if !ok {
 				return
 			}
-			kittenC, err := runKittenUnit(unit, t.TempDir(), string(mainSource), "")
+			percyC, err := runPercyUnit(unit, t.TempDir(), string(mainSource), "")
 			if err != nil {
-				t.Fatalf("Kitten main C: %v", err)
+				t.Fatalf("Percy main C: %v", err)
 			}
-			if difference := unitDifference(kittenC, goC); difference != "" {
+			if difference := unitDifference(percyC, goC); difference != "" {
 				t.Fatalf("main C differs: %s", difference)
 			}
 		}
@@ -500,8 +500,8 @@ func TestNewProjectFailures(t *testing.T) {
 	requireToolchain(t)
 	stage1 := buildStage1(t)
 	probes := map[string]string{
-		"Go":     buildNewProbeWithGo(t),
-		"Kitten": buildNewProbeWithKitten(t, stage1),
+		"Go":    buildNewProbeWithGo(t),
+		"Percy": buildNewProbeWithPercy(t, stage1),
 	}
 
 	t.Run("destination regular file", func(t *testing.T) {
@@ -598,8 +598,8 @@ func TestNewProjectFailures(t *testing.T) {
 	}{
 		{"step 5a", 0, false, "error: write a/.gitignore: file too large\n"},
 		{"step 5b", 16, false, "error: write a/purr.toml: file too large\n"},
-		{"step 5c", 40, false, "error: write a/src/main.ktn: file too large\n"},
-		{"step 5c library", 50, true, "error: write a/src/lib.ktn: file too large\n"},
+		{"step 5c", 40, false, "error: write a/src/main.pcy: file too large\n"},
+		{"step 5c library", 50, true, "error: write a/src/lib.pcy: file too large\n"},
 	}
 	for _, testCase := range writeCases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -646,17 +646,17 @@ func assertNewDestinationFailure(t *testing.T, probe, directory, name, pipeline 
 func writeNewVariant(t *testing.T, source string) string {
 	t.Helper()
 	root := t.TempDir()
-	manifestSource, err := os.ReadFile(repoPath(t, "..", "..", "purr", "manifest.ktn"))
+	manifestSource, err := os.ReadFile(repoPath(t, "..", "..", "purr", "manifest.pcy"))
 	if err != nil {
 		t.Fatalf("reading manifest module: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "manifest.ktn"), manifestSource, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "manifest.pcy"), manifestSource, 0o644); err != nil {
 		t.Fatalf("writing variant manifest: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "new_variant.ktn"), []byte(source), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "new_variant.pcy"), []byte(source), 0o644); err != nil {
 		t.Fatalf("writing new variant: %v", err)
 	}
-	driver := `import "new_variant.ktn";
+	driver := `import "new_variant.pcy";
 
 fn main() {
     match (new_project(argv()[1], false)) {
@@ -670,7 +670,7 @@ fn main() {
     }
 }
 `
-	if err := os.WriteFile(filepath.Join(root, "driver.ktn"), []byte(driver), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "driver.pcy"), []byte(driver), 0o644); err != nil {
 		t.Fatalf("writing variant driver: %v", err)
 	}
 	return root
@@ -678,24 +678,24 @@ fn main() {
 
 func buildVariantProbes(t *testing.T, root, stage1 string) map[string]string {
 	t.Helper()
-	driverPath := filepath.Join(root, "driver.ktn")
+	driverPath := filepath.Join(root, "driver.pcy")
 	goProbe := filepath.Join(root, "driver-go")
 	var diagnostics bytes.Buffer
 	if err := buildExecutable(driverPath, goProbe, &diagnostics); err != nil {
 		t.Fatalf("building Go variant probe: %v\n%s", err, diagnostics.String())
 	}
-	kittenProbe := filepath.Join(root, "driver-kitten")
-	result := runExternal(t, wrapperPath(t), []string{"build", driverPath, "-o", kittenProbe}, root, wrapperEnvironment(stage1, t))
+	percyProbe := filepath.Join(root, "driver-percy")
+	result := runExternal(t, wrapperPath(t), []string{"build", driverPath, "-o", percyProbe}, root, wrapperEnvironment(stage1, t))
 	if result.status != 0 || result.stderr != "" {
-		t.Fatalf("building Kitten variant probe: status %d, stderr %q", result.status, result.stderr)
+		t.Fatalf("building Percy variant probe: status %d, stderr %q", result.status, result.stderr)
 	}
-	return map[string]string{"Go": goProbe, "Kitten": kittenProbe}
+	return map[string]string{"Go": goProbe, "Percy": percyProbe}
 }
 
 func TestNewProjectDashNameAPI(t *testing.T) {
 	requireToolchain(t)
 	stage1 := buildStage1(t)
-	newSource, err := os.ReadFile(repoPath(t, "..", "..", "purr", "new.ktn"))
+	newSource, err := os.ReadFile(repoPath(t, "..", "..", "purr", "new.pcy"))
 	if err != nil {
 		t.Fatalf("reading new module: %v", err)
 	}
@@ -719,7 +719,7 @@ func TestNewProjectDashNameAPI(t *testing.T) {
 func TestNewProjectRaceModel(t *testing.T) {
 	requireToolchain(t)
 	stage1 := buildStage1(t)
-	newSource, err := os.ReadFile(repoPath(t, "..", "..", "purr", "new.ktn"))
+	newSource, err := os.ReadFile(repoPath(t, "..", "..", "purr", "new.pcy"))
 	if err != nil {
 		t.Fatalf("reading new module: %v", err)
 	}
@@ -757,7 +757,7 @@ fn try_file_info(string path) -> FileInfoResult {
 func TestNewProjectCleanupNotesModel(t *testing.T) {
 	requireToolchain(t)
 	stage1 := buildStage1(t)
-	newSource, err := os.ReadFile(repoPath(t, "..", "..", "purr", "new.ktn"))
+	newSource, err := os.ReadFile(repoPath(t, "..", "..", "purr", "new.pcy"))
 	if err != nil {
 		t.Fatalf("reading new module: %v", err)
 	}
@@ -809,7 +809,7 @@ func TestNewProjectProbeCParity(t *testing.T) {
 	requireToolchain(t)
 	stage1 := buildStage1(t)
 	root := repoPath(t, "..", "..")
-	probePath := filepath.Join(root, "purr", "new_probe.ktn")
+	probePath := filepath.Join(root, "purr", "new_probe.pcy")
 	modules, err := loader.Load(probePath)
 	if err != nil {
 		t.Fatalf("loading new probe: %v", err)
@@ -833,7 +833,7 @@ func TestNewProjectProbeCParity(t *testing.T) {
 
 func TestNewProjectSanitizer(t *testing.T) {
 	requireToolchain(t)
-	probePath := repoPath(t, "..", "..", "purr", "new_probe.ktn")
+	probePath := repoPath(t, "..", "..", "purr", "new_probe.pcy")
 	modules, err := loader.Load(probePath)
 	if err != nil {
 		t.Fatalf("loading new probe: %v", err)
@@ -852,7 +852,7 @@ func TestNewProjectSanitizer(t *testing.T) {
 	}
 	compileFlags, linkFlags := gcBuildFlags()
 	compileFlags = append(compileFlags, "-fsanitize=undefined")
-	executable, err := buildKittenRunProgram(t, compiler, compileFlags, linkFlags, text)
+	executable, err := buildPercyRunProgram(t, compiler, compileFlags, linkFlags, text)
 	if err != nil {
 		t.Skipf("undefined behavior sanitizer is unavailable with %s: %v", filepath.Base(compiler[0]), err)
 	}

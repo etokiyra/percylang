@@ -1,7 +1,7 @@
 package main
 
 // Runtime tests for the eprint() built-in. The generated C is compared between
-// the Go and Kitten pipelines, then each pipeline's executable is run and its
+// the Go and Percy pipelines, then each pipeline's executable is run and its
 // stdout and stderr are captured separately: stdout must contain only print
 // output and stderr only eprint output.
 
@@ -29,9 +29,9 @@ func TestEprintRuntime(t *testing.T) {
 	requireToolchain(t)
 
 	sourceDirectory := t.TempDir()
-	sourcePath := filepath.Join(sourceDirectory, "main.ktn")
+	sourcePath := filepath.Join(sourceDirectory, "main.pcy")
 	if err := os.WriteFile(sourcePath, []byte(eprintSource), 0o644); err != nil {
-		t.Fatalf("writing main.ktn: %v", err)
+		t.Fatalf("writing main.pcy: %v", err)
 	}
 
 	goExecutable := filepath.Join(sourceDirectory, "go-program")
@@ -40,9 +40,9 @@ func TestEprintRuntime(t *testing.T) {
 		t.Fatalf("building the Go-pipeline program: %v\n%s", err, diagnostics.String())
 	}
 
-	kittenExecutable := buildKittenUnit(t)
-	kittenProbeDirectory := t.TempDir()
-	kittenText, err := runKittenUnit(kittenExecutable, kittenProbeDirectory, eprintSource, "")
+	percyExecutable := buildPercyUnit(t)
+	percyProbeDirectory := t.TempDir()
+	percyText, err := runPercyUnit(percyExecutable, percyProbeDirectory, eprintSource, "")
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -50,7 +50,7 @@ func TestEprintRuntime(t *testing.T) {
 	if !ok {
 		t.Fatalf("the reference rejected the eprint program")
 	}
-	if difference := unitDifference(kittenText, generated); difference != "" {
+	if difference := unitDifference(percyText, generated); difference != "" {
 		t.Fatalf("the eprint translation units differ: %s", difference)
 	}
 
@@ -69,14 +69,14 @@ func TestEprintRuntime(t *testing.T) {
 			goResult.stdout, wantStdout, goResult.stderr, wantStderr, goResult.status)
 	}
 
-	kittenDirectory := t.TempDir()
-	kittenResult, err := buildAndRunProgramWithArgs(t, compiler, compileFlags, linkFlags, kittenDirectory, kittenText, 0, nil)
+	percyDirectory := t.TempDir()
+	percyResult, err := buildAndRunProgramWithArgs(t, compiler, compileFlags, linkFlags, percyDirectory, percyText, 0, nil)
 	if err != nil {
-		t.Fatalf("Kitten pipeline: %v", err)
+		t.Fatalf("Percy pipeline: %v", err)
 	}
-	if kittenResult.stdout != wantStdout || kittenResult.stderr != wantStderr || kittenResult.status != 0 {
-		t.Errorf("Kitten pipeline printed stdout %q (want %q), stderr %q (want %q), exited %d",
-			kittenResult.stdout, wantStdout, kittenResult.stderr, wantStderr, kittenResult.status)
+	if percyResult.stdout != wantStdout || percyResult.stderr != wantStderr || percyResult.status != 0 {
+		t.Errorf("Percy pipeline printed stdout %q (want %q), stderr %q (want %q), exited %d",
+			percyResult.stdout, wantStdout, percyResult.stderr, wantStderr, percyResult.status)
 	}
 	t.Logf("eprint: stdout and stderr matched separately under %s", filepath.Base(compiler[0]))
 }

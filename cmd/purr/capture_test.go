@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"kitten/checker"
-	"kitten/parser"
+	"percy/checker"
+	"percy/parser"
 )
 
 const captureSource = `fn report(CapturedRunResult result) {
@@ -60,7 +60,7 @@ fn main() {
 func buildCaptureGoProgram(t *testing.T) string {
 	t.Helper()
 	directory := t.TempDir()
-	sourcePath := filepath.Join(directory, "capture.ktn")
+	sourcePath := filepath.Join(directory, "capture.pcy")
 	if err := os.WriteFile(sourcePath, []byte(captureSource), 0o644); err != nil {
 		t.Fatalf("writing capture fixture: %v", err)
 	}
@@ -96,21 +96,21 @@ func runCapture(t *testing.T, executable, directory string, environment []string
 	return programResult{stdout: stdout.String(), stderr: stderr.String(), status: status}
 }
 
-func captureCase(t *testing.T, goExecutable, kittenExecutable, directory string, environment []string, args []string, wantStdout, wantStderr string) {
+func captureCase(t *testing.T, goExecutable, percyExecutable, directory string, environment []string, args []string, wantStdout, wantStderr string) {
 	t.Helper()
 	goResult := runCapture(t, goExecutable, directory, environment, args)
-	kittenResult := runCapture(t, kittenExecutable, directory, environment, args)
+	percyResult := runCapture(t, percyExecutable, directory, environment, args)
 	if goResult.stdout != wantStdout || goResult.stderr != wantStderr || goResult.status != 0 {
 		t.Errorf("Go pipeline: stdout %q, stderr %q, status %d; want %q, %q, 0",
 			goResult.stdout, goResult.stderr, goResult.status, wantStdout, wantStderr)
 	}
-	if kittenResult.stdout != wantStdout || kittenResult.stderr != wantStderr || kittenResult.status != 0 {
-		t.Errorf("Kitten pipeline: stdout %q, stderr %q, status %d; want %q, %q, 0",
-			kittenResult.stdout, kittenResult.stderr, kittenResult.status, wantStdout, wantStderr)
+	if percyResult.stdout != wantStdout || percyResult.stderr != wantStderr || percyResult.status != 0 {
+		t.Errorf("Percy pipeline: stdout %q, stderr %q, status %d; want %q, %q, 0",
+			percyResult.stdout, percyResult.stderr, percyResult.status, wantStdout, wantStderr)
 	}
-	if goResult.stdout != kittenResult.stdout || goResult.stderr != kittenResult.stderr || goResult.status != kittenResult.status {
-		t.Errorf("pipelines disagree: Go %q/%q/%d; Kitten %q/%q/%d",
-			goResult.stdout, goResult.stderr, goResult.status, kittenResult.stdout, kittenResult.stderr, kittenResult.status)
+	if goResult.stdout != percyResult.stdout || goResult.stderr != percyResult.stderr || goResult.status != percyResult.status {
+		t.Errorf("pipelines disagree: Go %q/%q/%d; Percy %q/%q/%d",
+			goResult.stdout, goResult.stderr, goResult.status, percyResult.stdout, percyResult.stderr, percyResult.status)
 	}
 }
 
@@ -122,16 +122,16 @@ func TestCaptureRuntime(t *testing.T) {
 		}
 	}
 	goExecutable := buildCaptureGoProgram(t)
-	unitExecutable := buildKittenUnit(t)
-	kittenText, err := runKittenUnit(unitExecutable, t.TempDir(), captureSource, "")
+	unitExecutable := buildPercyUnit(t)
+	percyText, err := runPercyUnit(unitExecutable, t.TempDir(), captureSource, "")
 	if err != nil {
-		t.Fatalf("generating C with the Kitten pipeline: %v", err)
+		t.Fatalf("generating C with the Percy pipeline: %v", err)
 	}
 	_, _, referenceText, ok := checkProgram(t, "capture runtime", captureSource, "")
 	if !ok {
 		return
 	}
-	if difference := unitDifference(kittenText, referenceText); difference != "" {
+	if difference := unitDifference(percyText, referenceText); difference != "" {
 		t.Fatalf("capture translation unit differs: %s", difference)
 	}
 	compiler, err := discoverCompiler()
@@ -139,7 +139,7 @@ func TestCaptureRuntime(t *testing.T) {
 		t.Fatalf("discovering compiler: %v", err)
 	}
 	compileFlags, linkFlags := gcBuildFlags()
-	kittenExecutable, err := buildKittenRunProgram(t, compiler, compileFlags, linkFlags, kittenText)
+	percyExecutable, err := buildPercyRunProgram(t, compiler, compileFlags, linkFlags, percyText)
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -164,94 +164,94 @@ func TestCaptureRuntime(t *testing.T) {
 
 	t.Run("output streams and status", func(t *testing.T) {
 		args := []string{"values", "/bin/sh", "-c", "printf out; printf err >&2; exit 3"}
-		captureCase(t, goExecutable, kittenExecutable, working, nil, args, "status 3\nout\nerr\n", "")
+		captureCase(t, goExecutable, percyExecutable, working, nil, args, "status 3\nout\nerr\n", "")
 	})
 	t.Run("empty output", func(t *testing.T) {
-		captureCase(t, goExecutable, kittenExecutable, working, nil, []string{"values", "/bin/true"}, "status 0\n\n\n", "")
+		captureCase(t, goExecutable, percyExecutable, working, nil, []string{"values", "/bin/true"}, "status 0\n\n\n", "")
 	})
 	t.Run("signal status and partial output", func(t *testing.T) {
-		captureCase(t, goExecutable, kittenExecutable, working, nil, []string{"values", "/bin/sh", "-c", "printf part; kill -9 $$"}, "status 137\npart\n\n", "")
+		captureCase(t, goExecutable, percyExecutable, working, nil, []string{"values", "/bin/sh", "-c", "printf part; kill -9 $$"}, "status 137\npart\n\n", "")
 	})
 	t.Run("stdin is dev null", func(t *testing.T) {
-		captureCase(t, goExecutable, kittenExecutable, working, nil, []string{"report", "/bin/cat"}, "ok 0 0 0\n", "")
+		captureCase(t, goExecutable, percyExecutable, working, nil, []string{"report", "/bin/cat"}, "ok 0 0 0\n", "")
 	})
 	t.Run("arguments intact", func(t *testing.T) {
 		args := []string{"values", "/bin/sh", "-c", `printf '%s|' "$@"`, "sh", "a b", "", "c"}
-		captureCase(t, goExecutable, kittenExecutable, working, nil, args, "status 0\na b||c|\n\n", "")
+		captureCase(t, goExecutable, percyExecutable, working, nil, args, "status 0\na b||c|\n\n", "")
 	})
 	t.Run("environment inherited", func(t *testing.T) {
-		environment := append(os.Environ(), "KITTEN_CAPTURE_ENV=a b")
-		args := []string{"values", "/bin/sh", "-c", `printf '%s' "$KITTEN_CAPTURE_ENV"`}
-		captureCase(t, goExecutable, kittenExecutable, working, environment, args, "status 0\na b\n\n", "")
+		environment := append(os.Environ(), "PERCY_CAPTURE_ENV=a b")
+		args := []string{"values", "/bin/sh", "-c", `printf '%s' "$PERCY_CAPTURE_ENV"`}
+		captureCase(t, goExecutable, percyExecutable, working, environment, args, "status 0\na b\n\n", "")
 	})
 	t.Run("working directory inherited", func(t *testing.T) {
-		captureCase(t, goExecutable, kittenExecutable, working, nil, []string{"values", "/bin/pwd"}, "status 0\n"+working+"\n\n\n", "")
+		captureCase(t, goExecutable, percyExecutable, working, nil, []string{"values", "/bin/pwd"}, "status 0\n"+working+"\n\n\n", "")
 	})
 	t.Run("ordering and capture", func(t *testing.T) {
-		captureCase(t, goExecutable, kittenExecutable, working, nil, []string{"ordering"}, "before\nafter\nok 0 8 8\n", "")
+		captureCase(t, goExecutable, percyExecutable, working, nil, []string{"ordering"}, "before\nafter\nok 0 8 8\n", "")
 	})
 	t.Run("missing program", func(t *testing.T) {
 		want := "failed " + startProcessError(t, missing) + "\n"
-		captureCase(t, goExecutable, kittenExecutable, working, nil, []string{"report", missing}, want, "")
+		captureCase(t, goExecutable, percyExecutable, working, nil, []string{"report", missing}, want, "")
 	})
 	t.Run("non-executable program", func(t *testing.T) {
 		want := "failed " + startProcessError(t, nonexec) + "\n"
-		captureCase(t, goExecutable, kittenExecutable, working, nil, []string{"report", nonexec}, want, "")
+		captureCase(t, goExecutable, percyExecutable, working, nil, []string{"report", nonexec}, want, "")
 	})
 	t.Run("directory program", func(t *testing.T) {
 		want := "failed " + startProcessError(t, directory) + "\n"
-		captureCase(t, goExecutable, kittenExecutable, working, nil, []string{"report", directory}, want, "")
+		captureCase(t, goExecutable, percyExecutable, working, nil, []string{"report", directory}, want, "")
 	})
 	t.Run("no PATH search", func(t *testing.T) {
 		want := "failed " + startProcessError(t, "true") + "\n"
-		captureCase(t, goExecutable, kittenExecutable, working, nil, []string{"report", "true"}, want, "")
+		captureCase(t, goExecutable, percyExecutable, working, nil, []string{"report", "true"}, want, "")
 	})
 	if os.Geteuid() != 0 {
 		t.Run("permission denied", func(t *testing.T) {
 			want := "failed " + startProcessError(t, permissionPath) + "\n"
-			captureCase(t, goExecutable, kittenExecutable, working, nil, []string{"report", permissionPath}, want, "")
+			captureCase(t, goExecutable, percyExecutable, working, nil, []string{"report", permissionPath}, want, "")
 		})
 	}
 	t.Run("NUL in stdout", func(t *testing.T) {
-		captureCase(t, goExecutable, kittenExecutable, working, nil, []string{"report", "/bin/sh", "-c", "printf 'A\\0B'"}, "failed run /bin/sh: stdout contains a NUL byte at offset 1\n", "")
+		captureCase(t, goExecutable, percyExecutable, working, nil, []string{"report", "/bin/sh", "-c", "printf 'A\\0B'"}, "failed run /bin/sh: stdout contains a NUL byte at offset 1\n", "")
 	})
 	t.Run("NUL at offset zero", func(t *testing.T) {
-		captureCase(t, goExecutable, kittenExecutable, working, nil, []string{"report", "/bin/sh", "-c", "printf '\\0B'"}, "failed run /bin/sh: stdout contains a NUL byte at offset 0\n", "")
+		captureCase(t, goExecutable, percyExecutable, working, nil, []string{"report", "/bin/sh", "-c", "printf '\\0B'"}, "failed run /bin/sh: stdout contains a NUL byte at offset 0\n", "")
 	})
 	t.Run("NUL at end", func(t *testing.T) {
-		captureCase(t, goExecutable, kittenExecutable, working, nil, []string{"report", "/bin/sh", "-c", "printf 'AB\\0'"}, "failed run /bin/sh: stdout contains a NUL byte at offset 2\n", "")
+		captureCase(t, goExecutable, percyExecutable, working, nil, []string{"report", "/bin/sh", "-c", "printf 'AB\\0'"}, "failed run /bin/sh: stdout contains a NUL byte at offset 2\n", "")
 	})
 	t.Run("NUL in stderr at end", func(t *testing.T) {
-		captureCase(t, goExecutable, kittenExecutable, working, nil, []string{"report", "/bin/sh", "-c", "printf 'AB\\0' >&2"}, "failed run /bin/sh: stderr contains a NUL byte at offset 2\n", "")
+		captureCase(t, goExecutable, percyExecutable, working, nil, []string{"report", "/bin/sh", "-c", "printf 'AB\\0' >&2"}, "failed run /bin/sh: stderr contains a NUL byte at offset 2\n", "")
 	})
 	t.Run("bytes above 0x7F", func(t *testing.T) {
-		captureCase(t, goExecutable, kittenExecutable, working, nil, []string{"values", "/bin/sh", "-c", "printf '\\303\\251'"}, "status 0\n\303\251\n\n", "")
+		captureCase(t, goExecutable, percyExecutable, working, nil, []string{"values", "/bin/sh", "-c", "printf '\\303\\251'"}, "status 0\n\303\251\n\n", "")
 	})
 	t.Run("NUL in stderr", func(t *testing.T) {
-		captureCase(t, goExecutable, kittenExecutable, working, nil, []string{"report", "/bin/sh", "-c", "printf 'A\\0B' >&2"}, "failed run /bin/sh: stderr contains a NUL byte at offset 1\n", "")
+		captureCase(t, goExecutable, percyExecutable, working, nil, []string{"report", "/bin/sh", "-c", "printf 'A\\0B' >&2"}, "failed run /bin/sh: stderr contains a NUL byte at offset 1\n", "")
 	})
 	t.Run("child closes stdout early", func(t *testing.T) {
-		captureCase(t, goExecutable, kittenExecutable, working, nil, []string{"report", "/bin/sh", "-c", "exec 1>&-; sleep 0.05; printf err >&2"}, "ok 0 0 3\n", "")
+		captureCase(t, goExecutable, percyExecutable, working, nil, []string{"report", "/bin/sh", "-c", "exec 1>&-; sleep 0.05; printf err >&2"}, "ok 0 0 3\n", "")
 	})
 	t.Run("large balanced streams", func(t *testing.T) {
 		script := "yes e | head -c 1048576 >&2; yes o | head -c 1048576"
-		captureCase(t, goExecutable, kittenExecutable, working, nil, []string{"report", "/bin/sh", "-c", script}, "ok 0 1048576 1048576\n", "")
+		captureCase(t, goExecutable, percyExecutable, working, nil, []string{"report", "/bin/sh", "-c", script}, "ok 0 1048576 1048576\n", "")
 	})
 	t.Run("large stdout then stderr", func(t *testing.T) {
 		script := "yes o | head -c 1048576; yes e | head -c 1048576 >&2"
-		captureCase(t, goExecutable, kittenExecutable, working, nil, []string{"report", "/bin/sh", "-c", script}, "ok 0 1048576 1048576\n", "")
+		captureCase(t, goExecutable, percyExecutable, working, nil, []string{"report", "/bin/sh", "-c", script}, "ok 0 1048576 1048576\n", "")
 	})
 	t.Run("exact stdout cap", func(t *testing.T) {
 		script := "yes x | head -c 16777216"
-		captureCase(t, goExecutable, kittenExecutable, working, nil, []string{"report", "/bin/sh", "-c", script}, "ok 0 16777216 0\n", "")
+		captureCase(t, goExecutable, percyExecutable, working, nil, []string{"report", "/bin/sh", "-c", script}, "ok 0 16777216 0\n", "")
 	})
 	t.Run("stdout over cap", func(t *testing.T) {
 		script := "yes x | head -c 16777217"
-		captureCase(t, goExecutable, kittenExecutable, working, nil, []string{"report", "/bin/sh", "-c", script}, "failed run /bin/sh: stdout exceeds the 16777216 byte limit\n", "")
+		captureCase(t, goExecutable, percyExecutable, working, nil, []string{"report", "/bin/sh", "-c", script}, "failed run /bin/sh: stdout exceeds the 16777216 byte limit\n", "")
 	})
 	t.Run("stderr over cap", func(t *testing.T) {
 		script := "yes x | head -c 16777217 >&2"
-		captureCase(t, goExecutable, kittenExecutable, working, nil, []string{"report", "/bin/sh", "-c", script}, "failed run /bin/sh: stderr exceeds the 16777216 byte limit\n", "")
+		captureCase(t, goExecutable, percyExecutable, working, nil, []string{"report", "/bin/sh", "-c", script}, "failed run /bin/sh: stderr exceeds the 16777216 byte limit\n", "")
 	})
 }
 
@@ -280,7 +280,7 @@ const captureLeakSource = `fn main() {
 func TestCaptureLeak(t *testing.T) {
 	requireToolchain(t)
 	directory := t.TempDir()
-	sourcePath := filepath.Join(directory, "leak.ktn")
+	sourcePath := filepath.Join(directory, "leak.pcy")
 	if err := os.WriteFile(sourcePath, []byte(captureLeakSource), 0o644); err != nil {
 		t.Fatalf("writing capture leak fixture: %v", err)
 	}
@@ -312,10 +312,10 @@ func TestCaptureLeak(t *testing.T) {
 
 func TestCaptureSanitizer(t *testing.T) {
 	requireToolchain(t)
-	unitExecutable := buildKittenUnit(t)
-	kittenText, err := runKittenUnit(unitExecutable, t.TempDir(), captureSource, "")
+	unitExecutable := buildPercyUnit(t)
+	percyText, err := runPercyUnit(unitExecutable, t.TempDir(), captureSource, "")
 	if err != nil {
-		t.Fatalf("generating C with the Kitten pipeline: %v", err)
+		t.Fatalf("generating C with the Percy pipeline: %v", err)
 	}
 	compiler, err := discoverCompiler()
 	if err != nil {
@@ -323,7 +323,7 @@ func TestCaptureSanitizer(t *testing.T) {
 	}
 	compileFlags, linkFlags := gcBuildFlags()
 	compileFlags = append(compileFlags, "-fsanitize=undefined")
-	executable, err := buildKittenRunProgram(t, compiler, compileFlags, linkFlags, kittenText)
+	executable, err := buildPercyRunProgram(t, compiler, compileFlags, linkFlags, percyText)
 	if err != nil {
 		t.Skipf("undefined behavior sanitizer is unavailable with %s: %v", filepath.Base(compiler[0]), err)
 	}
@@ -357,7 +357,7 @@ func TestCaptureNoZombies(t *testing.T) {
 		}
 	}
 	directory := t.TempDir()
-	sourcePath := filepath.Join(directory, "zombie.ktn")
+	sourcePath := filepath.Join(directory, "zombie.pcy")
 	if err := os.WriteFile(sourcePath, []byte(captureZombieSource), 0o644); err != nil {
 		t.Fatalf("writing capture zombie fixture: %v", err)
 	}
@@ -397,7 +397,7 @@ func TestCaptureNoZombies(t *testing.T) {
 }
 
 func TestCaptureWithRuntimeModuleIDs(t *testing.T) {
-	runtimeSource, err := os.ReadFile(filepath.Join("..", "..", "runtime", "ktn", "memory.ktn"))
+	runtimeSource, err := os.ReadFile(filepath.Join("..", "..", "runtime", "pcy", "memory.pcy"))
 	if err != nil {
 		t.Fatalf("reading runtime helper: %v", err)
 	}

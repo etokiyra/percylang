@@ -1,0 +1,28 @@
+fn main() {
+    int[] values = new int[3];
+    values[0] = 10;
+    values[1] = 20;
+    values[2] = values[0] + values[1];
+    values[0] += 5;
+    print(values[0]);
+    print(values[1]);
+    print(values[2]);
+    print(length(values));
+
+    bool[] flags = new bool[2];
+    flags[0] = true;
+    flags[1] = false;
+    print(flags[0]);
+    print(flags[1]);
+
+    float[] points = new float[2];
+    points[0] = 1.5;
+    points[1] = 2.25;
+    points[0] += 0.5;
+    print(points[0] + points[1]);
+
+    string[] names = new string[2];
+    names[0] = "alpha";
+    names[1] = "beta";
+    print(names[0] + names[1]);
+}

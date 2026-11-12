@@ -13,13 +13,13 @@
 A user installs one thing: `purr`. Typing
 
 ```sh
-purr build src/main.ktn -o hello
+purr build src/main.pcy -o hello
 ./hello
 ```
 
 must work on Linux x86-64 with **no Go, no C compiler, no libc, no Boehm GC, no
 assembler, and no linker** on the machine. `purr` itself is a static ELF
-executable written in Kitten. It lexes, parses, checks, lays out, emits machine
+executable written in Percy. It lexes, parses, checks, lays out, emits machine
 code, writes a static ELF executable, and runs it for `purr run`.
 
 This design does **not** cover the installer, package registry, `purr new`,
@@ -30,52 +30,52 @@ roadmap items.
 
 ### 2.1 The C runtime
 
-The runtime is **867 lines / 31,631 bytes**: `kitten_runtime.c` is 552 lines /
-18,989 bytes and `kitten_runtime.h` is 315 lines / 12,642 bytes. It exports
-**33 functions** (`runtime/csrc/kitten_runtime.h:59-313`):
+The runtime is **867 lines / 31,631 bytes**: `percy_runtime.c` is 552 lines /
+18,989 bytes and `percy_runtime.h` is 315 lines / 12,642 bytes. It exports
+**33 functions** (`runtime/csrc/percy_runtime.h:59-313`):
 
 GC/initialization/allocation:
 
-- `ktn_rt_init`, `ktn_rt_alloc`
+- `pcy_rt_init`, `pcy_rt_alloc`
 
 Strings:
 
-- `ktn_rt_string_equal`, `ktn_rt_string_concat`, `ktn_rt_string_append`,
-  `ktn_rt_string_length`, `ktn_rt_string_at`, `ktn_rt_substring`
+- `pcy_rt_string_equal`, `pcy_rt_string_concat`, `pcy_rt_string_append`,
+  `pcy_rt_string_length`, `pcy_rt_string_at`, `pcy_rt_substring`
 
 Arrays:
 
-- `ktn_rt_array_new`, `ktn_rt_array_at`, `ktn_rt_array_length`
+- `pcy_rt_array_new`, `pcy_rt_array_at`, `pcy_rt_array_length`
 
 Arguments and process:
 
-- `ktn_rt_set_args`, `ktn_rt_argv`, `ktn_rt_exit`, `ktn_rt_fail`
+- `pcy_rt_set_args`, `pcy_rt_argv`, `pcy_rt_exit`, `pcy_rt_fail`
 
 Maps:
 
-- `ktn_rt_map_new`, `ktn_rt_map_set`, `ktn_rt_map_at`, `ktn_rt_map_has`,
-  `ktn_rt_map_length`
+- `pcy_rt_map_new`, `pcy_rt_map_set`, `pcy_rt_map_at`, `pcy_rt_map_has`,
+  `pcy_rt_map_length`
 
 Files:
 
-- `ktn_rt_read_file`
+- `pcy_rt_read_file`
 
 Printing:
 
-- `ktn_rt_print_int/float/bool/string/space/newline`
-- `ktn_rt_eprint_int/float/bool/string/space/newline`
+- `pcy_rt_print_int/float/bool/string/space/newline`
+- `pcy_rt_eprint_int/float/bool/string/space/newline`
 
 Generated code can call all **33** directly; the compiler's own generated C
 exercises all 33, because it uses every built-in somewhere.
 
-External dependencies in `runtime/csrc/kitten_runtime.c`:
+External dependencies in `runtime/csrc/percy_runtime.c`:
 
 - libc headers: `<errno.h>`, `<stdio.h>`, `<stdlib.h>`, `<string.h>`.
 - libc functions: `fflush`, `fputs`, `fputc`, `fprintf`, `printf`, `fwrite`,
   `snprintf`, `exit`, `fopen`, `fclose`, `fseek`, `ftell`, `fread`, `strlen`,
   `memcpy`, `strerror`; `errno`; `FILE`, `stdout`, `stderr`, `SEEK_END`,
   `SEEK_SET`.
-- Boehm GC: `GC_INIT` and `GC_MALLOC` (`kitten_runtime.c:78-83`).
+- Boehm GC: `GC_INIT` and `GC_MALLOC` (`percy_runtime.c:78-83`).
 - C integer/size types through the header: `int64_t`, `uint64_t`, `size_t`,
   `bool`, `NULL`, `INT64_MAX`, `SIZE_MAX`.
 
@@ -88,14 +88,14 @@ Generated code is not just expressions. It relies on the C compiler for:
 
 - C ABI and calling convention between generated functions and the runtime.
 - Struct/union layout, field offsets, `sizeof`, and alignment. The generator
-  uses `sizeof(<type>)` at runtime in `ktn_rt_array_new` and `ktn_rt_map_new`
+  uses `sizeof(<type>)` at runtime in `pcy_rt_array_new` and `pcy_rt_map_new`
   calls (`codegen/emit.go:628`, `codegen/emit.go:648`,
-  `selfhost/codegen/expressions.ktn:580`, `:617`), so layout is currently
+  `selfhost/codegen/expressions.pcy:580`, `:617`), so layout is currently
   delegated entirely to C.
 - C operators, short-circuit evaluation, casts, comma expressions, compound
   literals (`&(T){ ... }` used for map set), `NULL`, `_Noreturn`, and the C
   entry point.
-- `static const ktn_string` literal objects
+- `static const pcy_string` literal objects
   (`codegen/codegen.go:198-210`).
 - The C compiler's linker and startup code.
 
@@ -104,7 +104,7 @@ Generated code is not just expressions. It relies on the C compiler for:
 `cmd/purr/main.go:211-289` loads, checks, generates C, then:
 
 - creates a temporary build directory;
-- writes generated C, `kitten_runtime.c`, and `kitten_runtime.h`;
+- writes generated C, `percy_runtime.c`, and `percy_runtime.h`;
 - discovers `CC` or `cc`/`gcc`/`clang` (`cmd/purr/toolchain.go:18-37`);
 - asks `pkg-config` for `bdw-gc` flags, falling back to `-lgc`
   (`cmd/purr/toolchain.go:39-60`);
@@ -113,7 +113,7 @@ Generated code is not just expressions. It relies on the C compiler for:
 
 The production `purr` is still the Go implementation:
 `cmd/purr/main.go` calls `loader.Load`, `checker.CheckModules`, and
-`codegen.Generate`. The Kitten-written driver/fixpoint is not yet the production
+`codegen.Generate`. The Percy-written driver/fixpoint is not yet the production
 pipeline.
 
 ### 2.4 What the Go dependency means today
@@ -122,9 +122,9 @@ pipeline.
   program still needs a C compiler, libgc, and (currently) an installed `purr`
   built somewhere with Go. There is no one-line installer yet.
 - **Building the toolchain:** Go is required to build `cmd/purr`; Go plus a C
-  compiler is required to build the Kitten-written stage-1 driver. The native
-  path still has no compiler backend in Kitten.
-- **The test suite:** every differential harness is Go code. It builds Kitten
+  compiler is required to build the Percy-written stage-1 driver. The native
+  path still has no compiler backend in Percy.
+- **The test suite:** every differential harness is Go code. It builds Percy
   stages with the Go C pipeline and runs C compilers under `CC=gcc`/`CC=clang`.
   The tests therefore require Go, a C compiler, and libgc even after the
   C-level fixpoint.
@@ -133,18 +133,18 @@ pipeline.
 
 There are three separate questions:
 
-1. **User runtime:** can a user build and run Kitten programs with only `purr`?
+1. **User runtime:** can a user build and run Percy programs with only `purr`?
 2. **Toolchain build:** can `purr` itself be rebuilt without Go?
 3. **Verification:** can correctness be established without Go as the oracle?
 
 The three possible Go-exit models:
 
 - **Ship generated C as a bootstrap seed.** Check in the C generated from
-  `selfhost/driver.ktn`, let users compile it with a C compiler, then use the
+  `selfhost/driver.pcy`, let users compile it with a C compiler, then use the
   resulting `purr` to build native code. This removes Go from user builds but
   retains a C compiler for bootstrap and keeps a second language in the trust
   chain.
-- **Promote the Kitten compiler to reference status.** The Kitten compiler
+- **Promote the Percy compiler to reference status.** The Percy compiler
   becomes the normative implementation; Go is never invoked. The Go-pipeline
   cross-check disappears. It can be replaced by a frozen golden corpus of
   generated C/native behavior, plus stage-to-stage fixpoint comparisons. That is
@@ -152,11 +152,11 @@ The three possible Go-exit models:
 - **Freeze Go as a bootstrap-only tool.** Keep the Go implementation in the
   repository for regenerating seeds and investigating discrepancies, but remove
   it from the production `purr` path. This is the most honest transition: the
-  reference remains available historically, but the shipped compiler is Kitten.
+  reference remains available historically, but the shipped compiler is Percy.
 
 The recommended end state is the third model followed by the second: first
 freeze Go as a bootstrap/reference tool while native parity is established, then
-make the Kitten compiler normative once the native fixpoint and golden corpus are
+make the Percy compiler normative once the native fixpoint and golden corpus are
 stable. “Go leaves the pipeline” must mean no Go in `purr build`, `purr run`, the
 minimal dependency test, or a user's build; it cannot mean the Go source is
 deleted from history.
@@ -168,11 +168,11 @@ The existing split stays unblurred:
 - The compiler, native backend, ELF writer, loader, checker, and CLI are
   **GPL-3.0-or-later**.
 - `runtime/csrc/` remains **MIT**.
-- A new runtime written in Kitten — GC, strings, arrays, maps, printing, file
+- A new runtime written in Percy — GC, strings, arrays, maps, printing, file
   and syscall wrappers — is **MIT**, under a runtime directory with its own MIT
   notice, because its code is linked or embedded into every user program. It
   must not be placed under the GPL compiler tree.
-- If the compiler embeds the Kitten runtime source to include it in a generated
+- If the compiler embeds the Percy runtime source to include it in a generated
   program, the MIT notice must travel with that embedded text, just as the
   current `runtime/csrc/` notice travels with copied runtime files.
 
@@ -181,7 +181,7 @@ that emits it is GPL.
 
 ## 3. Language and model gaps
 
-### 3.1 Missing Kitten capabilities
+### 3.1 Missing Percy capabilities
 
 The current language cannot express a runtime or native backend by itself.
 
@@ -221,7 +221,7 @@ It does **not** carry:
 - GC root/type descriptors.
 
 Evidence: `checker/types.go:46-88` and `checker/StructInfo` at `:148-195`;
-`selfhost/checker/model.ktn:90-117` and `:65-88`. The C backend avoids needing
+`selfhost/checker/model.pcy:90-117` and `:65-88`. The C backend avoids needing
 this because C computes layout; a native backend must add a layout pass. That
 pass is compiler-internal, but its choices affect runtime representation and
 must be recorded in SPEC Section 19 (compilation model), not silently invented.
@@ -229,7 +229,7 @@ must be recorded in SPEC Section 19 (compilation model), not silently invented.
 ## 4. Target architecture
 
 ```text
-purr (static ELF, written in Kitten)
+purr (static ELF, written in Percy)
   -> read source and imports
   -> lex, parse, check
   -> typed IR + layout
@@ -316,18 +316,18 @@ Emit a static ELF64 `ET_EXEC` with:
 - ELF header and one or two `PT_LOAD` program headers;
 - `R-X` text segment and `R/W` data/bss segment;
 - entry label `_start`, which reads `argc`/`argv` from the initial stack, calls
-  the runtime init and the Kitten `main`, then exits via `exit_group`;
+  the runtime init and the Percy `main`, then exits via `exit_group`;
 - no section headers required for execution, no dynamic section, no
   `PT_INTERP`, no relocations after final layout;
 - a two-pass encoder: first assign addresses/label offsets, then patch branch
   and absolute references. If absolute addresses are difficult, use
   PC-relative data references and a data pointer register.
 
-The ELF writer is a Kitten module using the runtime’s file/syscall intrinsics.
+The ELF writer is a Percy module using the runtime’s file/syscall intrinsics.
 `purr build` writes the file; `purr run` writes a temporary file or uses
 `memfd_create`/`execveat`, then waits and propagates the status.
 
-## 6. Runtime written in Kitten
+## 6. Runtime written in Percy
 
 ### 6.1 Intrinsic boundary
 
@@ -364,10 +364,10 @@ it needs an explicit SPEC decision; the design recommends keeping it internal.
 
 ### 6.2 Runtime components
 
-Implemented in Kitten using the intrinsic layer:
+Implemented in Percy using the intrinsic layer:
 
 - allocation and GC (Section 7);
-- `ktn_string`: length-carrying immutable bytes, concatenation, equality,
+- `pcy_string`: length-carrying immutable bytes, concatenation, equality,
   substring, indexing, NUL handling;
 - arrays: length, element size, bounds-checked access;
 - maps: FNV-1a or another fixed hash, open addressing, inline value copies;
@@ -381,7 +381,7 @@ Implemented in Kitten using the intrinsic layer:
 - process launch for `purr run`;
 - no libc/libgc symbols remain.
 
-The runtime's functions become ordinary Kitten functions with a reserved
+The runtime's functions become ordinary Percy functions with a reserved
 internal module; generated code calls them through the same calling convention.
 The compiler does not need C ABI compatibility in the zero-dependency state.
 
@@ -444,8 +444,8 @@ Every rung is a command/byte-level check, not a claim:
 3. **Runtime and GC.** Add strings, arrays, maps, printing, bounds checks, and
    failure paths; compare all nine fixtures and `tests/modules/` against the C
    pipeline under a no-cc environment.
-4. **Native compiler stage.** The Kitten compiler (still built by the C pipeline
-   as stage 1) uses the native backend to compile `selfhost/driver.ktn` into a
+4. **Native compiler stage.** The Percy compiler (still built by the C pipeline
+   as stage 1) uses the native backend to compile `selfhost/driver.pcy` into a
    native stage 2. Stage 2 must reproduce the C pipeline's behavior on the
    fixture/corpus set and must compile itself to native stage 3.
 5. **Native fixpoint.** Stage 2 and stage 3 native binaries are compared
@@ -483,7 +483,7 @@ literal printing, with no GC**.
    no-cc environment.
 4. **Arrays, maps, and file I/O.** Complete the runtime and the compiler
    built-ins; acceptance: all fixtures and `tests/modules/` native/C parity.
-5. **Native compiler stage.** Native backend compiles `selfhost/driver.ktn`;
+5. **Native compiler stage.** Native backend compiles `selfhost/driver.pcy`;
    stage 2 compiles itself; acceptance: fixture parity and native stage fixpoint.
 6. **Zero-dependency hard cut.** Remove the C runtime/cc path from production
    `purr`; retain Go as a frozen bootstrap/oracle tool. Acceptance: Section 8
@@ -532,11 +532,11 @@ silent implementation decision:
 
 ## 11. Where `purr` ends up
 
-`purr` is a Kitten program with:
+`purr` is a Percy program with:
 
 - the existing front end (lexer, parser, checker, loader);
 - a native layout/IR/backend module;
-- the Kitten runtime/GC;
+- the Percy runtime/GC;
 - the ELF writer and CLI (`build`/`run`);
 - later, the installer/package/LSP/format components as separate Goal 3 work.
 
@@ -573,7 +573,7 @@ syscall ABI, ELF64, and x86-64 encoding. No other platform is claimed.
   but must map pointers to bases and scan stacks safely.
 - **Float formatting** is a real semantic cliff; decide it before native output
   is claimed equivalent.
-- **Runtime self-hosting circularity.** A Kitten runtime needs allocation and
+- **Runtime self-hosting circularity.** A Percy runtime needs allocation and
   raw memory before it can implement arrays/maps; the intrinsic layer and a
   minimal bootstrap runtime must be designed first.
 - **Installer/ecosystem mismatch.** Shipping a one-line installer before

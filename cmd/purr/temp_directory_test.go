@@ -51,7 +51,7 @@ const tempDirectoryManySource = `fn main() {
 func buildTempDirectoryPrograms(t *testing.T, source string) (string, string) {
 	t.Helper()
 	directory := t.TempDir()
-	sourcePath := filepath.Join(directory, "temp_directory.ktn")
+	sourcePath := filepath.Join(directory, "temp_directory.pcy")
 	if err := os.WriteFile(sourcePath, []byte(source), 0o644); err != nil {
 		t.Fatalf("writing temp-directory fixture: %v", err)
 	}
@@ -64,16 +64,16 @@ func buildTempDirectoryPrograms(t *testing.T, source string) (string, string) {
 		t.Fatalf("C compiler diagnostics: %s", warnings)
 	}
 
-	unitExecutable := buildKittenUnit(t)
-	kittenText, err := runKittenUnit(unitExecutable, t.TempDir(), source, "")
+	unitExecutable := buildPercyUnit(t)
+	percyText, err := runPercyUnit(unitExecutable, t.TempDir(), source, "")
 	if err != nil {
-		t.Fatalf("generating C with the Kitten pipeline: %v", err)
+		t.Fatalf("generating C with the Percy pipeline: %v", err)
 	}
 	_, _, referenceText, ok := checkProgram(t, "temp-directory fixture", source, "")
 	if !ok {
 		t.Fatalf("reference pipeline rejected the temp-directory fixture")
 	}
-	if difference := unitDifference(kittenText, referenceText); difference != "" {
+	if difference := unitDifference(percyText, referenceText); difference != "" {
 		t.Fatalf("temp-directory translation unit differs: %s", difference)
 	}
 	compiler, err := discoverCompiler()
@@ -81,11 +81,11 @@ func buildTempDirectoryPrograms(t *testing.T, source string) (string, string) {
 		t.Fatalf("discovering compiler: %v", err)
 	}
 	compileFlags, linkFlags := gcBuildFlags()
-	kittenExecutable, err := buildKittenRunProgram(t, compiler, compileFlags, linkFlags, kittenText)
+	percyExecutable, err := buildPercyRunProgram(t, compiler, compileFlags, linkFlags, percyText)
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
-	return goExecutable, kittenExecutable
+	return goExecutable, percyExecutable
 }
 
 func environmentWithTMPDIR(value *string) []string {
@@ -242,7 +242,7 @@ func goTempDirectoryFailure(t *testing.T, base, prefix string) string {
 
 func TestTempDirectoryRuntime(t *testing.T) {
 	requireToolchain(t)
-	goExecutable, kittenExecutable := buildTempDirectoryPrograms(t, tempDirectorySource)
+	goExecutable, percyExecutable := buildTempDirectoryPrograms(t, tempDirectorySource)
 	root := t.TempDir()
 	base := filepath.Join(root, "base")
 	if err := os.Mkdir(base, 0o755); err != nil {
@@ -252,7 +252,7 @@ func TestTempDirectoryRuntime(t *testing.T) {
 
 	t.Run("normal creation", func(t *testing.T) {
 		environment := environmentWithTMPDIR(&base)
-		for name, executable := range map[string]string{"Go": goExecutable, "Kitten": kittenExecutable} {
+		for name, executable := range map[string]string{"Go": goExecutable, "Percy": percyExecutable} {
 			result := runTempDirectory(t, executable, root, environment, "purr")
 			ok, path := parseTempDirectoryResult(t, result)
 			if !ok {
@@ -268,7 +268,7 @@ func TestTempDirectoryRuntime(t *testing.T) {
 		for _, mask := range []string{"022", "000", "077", "777"} {
 			t.Run(mask, func(t *testing.T) {
 				environment := environmentWithTMPDIR(&base)
-				for name, executable := range map[string]string{"Go": goExecutable, "Kitten": kittenExecutable} {
+				for name, executable := range map[string]string{"Go": goExecutable, "Percy": percyExecutable} {
 					result := runTempDirectoryWithUmask(t, executable, root, environment, "mode", mask)
 					ok, path := parseTempDirectoryResult(t, result)
 					if !ok {
@@ -283,9 +283,9 @@ func TestTempDirectoryRuntime(t *testing.T) {
 	})
 
 	t.Run("two calls are distinct", func(t *testing.T) {
-		twoGo, twoKitten := buildTempDirectoryPrograms(t, tempDirectoryTwoSource)
+		twoGo, twoPercy := buildTempDirectoryPrograms(t, tempDirectoryTwoSource)
 		environment := environmentWithTMPDIR(&base)
-		for name, executable := range map[string]string{"Go": twoGo, "Kitten": twoKitten} {
+		for name, executable := range map[string]string{"Go": twoGo, "Percy": twoPercy} {
 			result := runTempDirectory(t, executable, root, environment, "purr")
 			if result.status != 0 || result.stderr != "" {
 				t.Fatalf("%s pipeline: status %d, stderr %q", name, result.status, result.stderr)
@@ -310,7 +310,7 @@ func TestTempDirectoryRuntime(t *testing.T) {
 			"empty": environmentWithTMPDIR(func() *string { value := ""; return &value }()),
 		} {
 			t.Run(name, func(t *testing.T) {
-				for pipeline, executable := range map[string]string{"Go": goExecutable, "Kitten": kittenExecutable} {
+				for pipeline, executable := range map[string]string{"Go": goExecutable, "Percy": percyExecutable} {
 					result := runTempDirectory(t, executable, root, environment, "purr")
 					ok, path := parseTempDirectoryResult(t, result)
 					if !ok {
@@ -331,7 +331,7 @@ func TestTempDirectoryRuntime(t *testing.T) {
 		}
 		relative := "relative"
 		environment := environmentWithTMPDIR(&relative)
-		for pipeline, executable := range map[string]string{"Go": goExecutable, "Kitten": kittenExecutable} {
+		for pipeline, executable := range map[string]string{"Go": goExecutable, "Percy": percyExecutable} {
 			result := runTempDirectory(t, executable, workspace, environment, "purr")
 			ok, path := parseTempDirectoryResult(t, result)
 			if !ok {
@@ -356,7 +356,7 @@ func TestTempDirectoryRuntime(t *testing.T) {
 			t.Fatalf("creating base symlink: %v", err)
 		}
 		environment := environmentWithTMPDIR(&link)
-		for pipeline, executable := range map[string]string{"Go": goExecutable, "Kitten": kittenExecutable} {
+		for pipeline, executable := range map[string]string{"Go": goExecutable, "Percy": percyExecutable} {
 			result := runTempDirectory(t, executable, root, environment, "purr")
 			ok, path := parseTempDirectoryResult(t, result)
 			if !ok {
@@ -384,10 +384,10 @@ func TestTempDirectoryRuntime(t *testing.T) {
 			if ok || message != "invalid temporary directory prefix" {
 				t.Errorf("Go prefix %q: ok=%t message=%q", prefix, ok, message)
 			}
-			result = runTempDirectory(t, kittenExecutable, root, environment, prefix)
+			result = runTempDirectory(t, percyExecutable, root, environment, prefix)
 			ok, message = parseTempDirectoryResult(t, result)
 			if ok || message != "invalid temporary directory prefix" {
-				t.Errorf("Kitten prefix %q: ok=%t message=%q", prefix, ok, message)
+				t.Errorf("Percy prefix %q: ok=%t message=%q", prefix, ok, message)
 			}
 			if _, err := os.Stat(missing); !os.IsNotExist(err) {
 				t.Errorf("invalid prefix %q touched the base: %v", prefix, err)
@@ -398,7 +398,7 @@ func TestTempDirectoryRuntime(t *testing.T) {
 	t.Run("64 byte prefix succeeds", func(t *testing.T) {
 		prefix := strings.Repeat("a", 64)
 		environment := environmentWithTMPDIR(&base)
-		for pipeline, executable := range map[string]string{"Go": goExecutable, "Kitten": kittenExecutable} {
+		for pipeline, executable := range map[string]string{"Go": goExecutable, "Percy": percyExecutable} {
 			result := runTempDirectory(t, executable, root, environment, prefix)
 			ok, path := parseTempDirectoryResult(t, result)
 			if !ok {
@@ -414,7 +414,7 @@ func TestTempDirectoryRuntime(t *testing.T) {
 		missing := filepath.Join(root, "missing-base")
 		environment := environmentWithTMPDIR(&missing)
 		want := goTempDirectoryFailure(t, missing, "purr")
-		for pipeline, executable := range map[string]string{"Go": goExecutable, "Kitten": kittenExecutable} {
+		for pipeline, executable := range map[string]string{"Go": goExecutable, "Percy": percyExecutable} {
 			result := runTempDirectory(t, executable, root, environment, "purr")
 			ok, message := parseTempDirectoryResult(t, result)
 			if ok || message != want {
@@ -430,7 +430,7 @@ func TestTempDirectoryRuntime(t *testing.T) {
 		}
 		environment := environmentWithTMPDIR(&file)
 		want := goTempDirectoryFailure(t, file, "purr")
-		for pipeline, executable := range map[string]string{"Go": goExecutable, "Kitten": kittenExecutable} {
+		for pipeline, executable := range map[string]string{"Go": goExecutable, "Percy": percyExecutable} {
 			result := runTempDirectory(t, executable, root, environment, "purr")
 			ok, message := parseTempDirectoryResult(t, result)
 			if ok || message != want {
@@ -450,7 +450,7 @@ func TestTempDirectoryRuntime(t *testing.T) {
 		t.Cleanup(func() { _ = os.Chmod(locked, 0o755) })
 		environment := environmentWithTMPDIR(&locked)
 		want := goTempDirectoryFailure(t, locked, "purr")
-		for pipeline, executable := range map[string]string{"Go": goExecutable, "Kitten": kittenExecutable} {
+		for pipeline, executable := range map[string]string{"Go": goExecutable, "Percy": percyExecutable} {
 			result := runTempDirectory(t, executable, root, environment, "purr")
 			ok, message := parseTempDirectoryResult(t, result)
 			if ok || message != want {
@@ -460,9 +460,9 @@ func TestTempDirectoryRuntime(t *testing.T) {
 	})
 
 	t.Run("thousand creations", func(t *testing.T) {
-		manyGo, manyKitten := buildTempDirectoryPrograms(t, tempDirectoryManySource)
+		manyGo, manyPercy := buildTempDirectoryPrograms(t, tempDirectoryManySource)
 		environment := environmentWithTMPDIR(&base)
-		for pipeline, executable := range map[string]string{"Go": manyGo, "Kitten": manyKitten} {
+		for pipeline, executable := range map[string]string{"Go": manyGo, "Percy": manyPercy} {
 			result := runTempDirectoryWithFdLimit(t, executable, root, environment, "purr")
 			if result.status != 0 || result.stderr != "" {
 				t.Fatalf("%s pipeline: status %d, stderr %q", pipeline, result.status, result.stderr)
@@ -491,10 +491,10 @@ func TestTempDirectoryRuntime(t *testing.T) {
 
 func TestTempDirectorySanitizer(t *testing.T) {
 	requireToolchain(t)
-	unitExecutable := buildKittenUnit(t)
-	kittenText, err := runKittenUnit(unitExecutable, t.TempDir(), tempDirectorySource, "")
+	unitExecutable := buildPercyUnit(t)
+	percyText, err := runPercyUnit(unitExecutable, t.TempDir(), tempDirectorySource, "")
 	if err != nil {
-		t.Fatalf("generating C with the Kitten pipeline: %v", err)
+		t.Fatalf("generating C with the Percy pipeline: %v", err)
 	}
 	compiler, err := discoverCompiler()
 	if err != nil {
@@ -502,7 +502,7 @@ func TestTempDirectorySanitizer(t *testing.T) {
 	}
 	compileFlags, linkFlags := gcBuildFlags()
 	compileFlags = append(compileFlags, "-fsanitize=undefined")
-	executable, err := buildKittenRunProgram(t, compiler, compileFlags, linkFlags, kittenText)
+	executable, err := buildPercyRunProgram(t, compiler, compileFlags, linkFlags, percyText)
 	if err != nil {
 		t.Skipf("undefined behavior sanitizer is unavailable with %s: %v", filepath.Base(compiler[0]), err)
 	}

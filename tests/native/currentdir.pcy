@@ -1,0 +1,11 @@
+fn main() {
+    CurrentDirectoryResult result = try_current_directory();
+    match (result) {
+        Ok(path) {
+            print(length(path) > 0);
+        }
+        Failed(message) {
+            eprint(message);
+        }
+    }
+}

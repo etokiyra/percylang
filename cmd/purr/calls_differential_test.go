@@ -1,7 +1,7 @@
 package main
 
-// Differential testing for the Kitten-written function-call emitter
-// (the Call case of selfhost/codegen/expressions.ktn, driven by selfhost/unit.ktn).
+// Differential testing for the Percy-written function-call emitter
+// (the Call case of selfhost/codegen/expressions.pcy, driven by selfhost/unit.pcy).
 //
 // Calls are compared the same way every other expression is: by generating the whole
 // translation unit with both backends and comparing the two texts byte for byte, so
@@ -21,9 +21,9 @@ import (
 	"testing"
 	"time"
 
-	"kitten/checker"
-	"kitten/codegen"
-	"kitten/parser"
+	"percy/checker"
+	"percy/codegen"
+	"percy/parser"
 )
 
 // --- Targeted programs -------------------------------------------------------
@@ -473,20 +473,20 @@ fn main() {
 	}}
 }
 
-// TestKittenCallsMatchReference compares whole translation units for programs whose
+// TestPercyCallsMatchReference compares whole translation units for programs whose
 // expressions are calls, and compares the reference's failure for the programs it
 // rejects.
-func TestKittenCallsMatchReference(t *testing.T) {
+func TestPercyCallsMatchReference(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenUnit(t)
+	executable := buildPercyUnit(t)
 	directory := t.TempDir()
 
 	units := 0
 	unitLines := 0
 	rejected := 0
 	for _, testCase := range callCases() {
-		got, err := runKittenUnit(executable, directory, testCase.root, testCase.imported)
+		got, err := runPercyUnit(executable, directory, testCase.root, testCase.imported)
 		if err != nil {
 			t.Errorf("%s: %v", testCase.description, err)
 			continue
@@ -728,18 +728,18 @@ fn main() {
 	}}
 }
 
-// TestKittenCallsExecute compiles, links, and runs both generated programs for every
+// TestPercyCallsExecute compiles, links, and runs both generated programs for every
 // execution case, under the compiler the environment selects, and compares stdout,
 // stderr, and exit status between them and against the values the source implies.
 //
 // Both units are generated independently - one by the reference generator and one by
-// the Kitten-written one - and required to be identical before either is compiled, so
+// the Percy-written one - and required to be identical before either is compiled, so
 // this compares two generated programs rather than one text compiled twice. The
 // generated entry point is the one the backend emits; nothing is injected.
-func TestKittenCallsExecute(t *testing.T) {
+func TestPercyCallsExecute(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenUnit(t)
+	executable := buildPercyUnit(t)
 	probeDirectory := t.TempDir()
 
 	compiler, err := discoverCompiler()
@@ -760,19 +760,19 @@ func TestKittenCallsExecute(t *testing.T) {
 			t.Errorf("%s: the reference rejected the program: %v", testCase.description, generationError)
 			continue
 		}
-		kittenText, err := runKittenUnit(executable, probeDirectory, testCase.root, testCase.imported)
+		percyText, err := runPercyUnit(executable, probeDirectory, testCase.root, testCase.imported)
 		if err != nil {
 			t.Errorf("%s: %v", testCase.description, err)
 			continue
 		}
-		if difference := unitDifference(kittenText, referenceText); difference != "" {
+		if difference := unitDifference(percyText, referenceText); difference != "" {
 			t.Errorf("%s: the translation unit differs: %s", testCase.description, difference)
 			continue
 		}
 
 		results := make([]programResult, 0, 2)
 		failed := false
-		for index, text := range []string{referenceText, kittenText} {
+		for index, text := range []string{referenceText, percyText} {
 			directory := t.TempDir()
 			for _, file := range testCase.files {
 				if err := os.WriteFile(filepath.Join(directory, file.name), []byte(file.content), 0o644); err != nil {
@@ -792,7 +792,7 @@ func TestKittenCallsExecute(t *testing.T) {
 		}
 
 		if results[0] != results[1] {
-			t.Errorf("%s: the two programs behaved differently:\n reference: %+v\n     Kitten: %+v", testCase.description, results[0], results[1])
+			t.Errorf("%s: the two programs behaved differently:\n reference: %+v\n     Percy: %+v", testCase.description, results[0], results[1])
 			continue
 		}
 		if results[0].status != 0 || results[0].stderr != "" {
@@ -821,14 +821,14 @@ func TestKittenCallsExecute(t *testing.T) {
 
 // --- Sensitivity -------------------------------------------------------------
 
-// TestKittenCallsComparisonIsSensitive checks that the whole-unit comparison rejects
+// TestPercyCallsComparisonIsSensitive checks that the whole-unit comparison rejects
 // the kinds of difference a call can get wrong. It corrupts a correct unit and
 // requires the comparison to notice, so a comparison that accepted everything could
 // not pass.
-func TestKittenCallsComparisonIsSensitive(t *testing.T) {
+func TestPercyCallsComparisonIsSensitive(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenUnit(t)
+	executable := buildPercyUnit(t)
 	directory := t.TempDir()
 
 	root := `fn twice(int value) -> int {
@@ -848,7 +848,7 @@ fn main() {
 	if !ok {
 		t.Fatalf("the reference rejected the program")
 	}
-	got, err := runKittenUnit(executable, directory, root, "")
+	got, err := runPercyUnit(executable, directory, root, "")
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -861,15 +861,15 @@ fn main() {
 		text        string
 	}{
 		{"identical unit", generated},
-		{"a wrong callee name", strings.Replace(generated, "ktn_fn_twice(3)", "ktn_fn_thrice(3)", 1)},
-		{"a dropped argument", strings.Replace(generated, "ktn_fn_twice(3)", "ktn_fn_twice()", 1)},
-		{"reordered arguments", strings.Replace(generated, "ktn_rt_print_int(1), ktn_rt_print_space(), ktn_rt_print_int(2)", "ktn_rt_print_int(2), ktn_rt_print_space(), ktn_rt_print_int(1)", 1)},
-		{"omitted parentheses", strings.Replace(generated, "ktn_fn_twice(3)", "ktn_fn_twice 3", 1)},
-		{"a wrong print helper", strings.Replace(generated, "ktn_rt_print_int(ktn_fn_twice(3))", "ktn_rt_print_float(ktn_fn_twice(3))", 1)},
-		{"a missing space helper", strings.Replace(generated, "ktn_rt_print_space(), ", "", 1)},
-		{"a wrong length helper", strings.Replace(generated, "ktn_rt_string_length", "ktn_rt_array_length", 1)},
-		{"a reordered literal pool", swapLines(generated, "ktn_literal_1", "ktn_literal_2")},
-		{"a dropped call statement", strings.Replace(generated, "    (ktn_rt_print_int(ktn_fn_twice(3)), ktn_rt_print_newline());\n", "", 1)},
+		{"a wrong callee name", strings.Replace(generated, "pcy_fn_twice(3)", "pcy_fn_thrice(3)", 1)},
+		{"a dropped argument", strings.Replace(generated, "pcy_fn_twice(3)", "pcy_fn_twice()", 1)},
+		{"reordered arguments", strings.Replace(generated, "pcy_rt_print_int(1), pcy_rt_print_space(), pcy_rt_print_int(2)", "pcy_rt_print_int(2), pcy_rt_print_space(), pcy_rt_print_int(1)", 1)},
+		{"omitted parentheses", strings.Replace(generated, "pcy_fn_twice(3)", "pcy_fn_twice 3", 1)},
+		{"a wrong print helper", strings.Replace(generated, "pcy_rt_print_int(pcy_fn_twice(3))", "pcy_rt_print_float(pcy_fn_twice(3))", 1)},
+		{"a missing space helper", strings.Replace(generated, "pcy_rt_print_space(), ", "", 1)},
+		{"a wrong length helper", strings.Replace(generated, "pcy_rt_string_length", "pcy_rt_array_length", 1)},
+		{"a reordered literal pool", swapLines(generated, "pcy_literal_1", "pcy_literal_2")},
+		{"a dropped call statement", strings.Replace(generated, "    (pcy_rt_print_int(pcy_fn_twice(3)), pcy_rt_print_newline());\n", "", 1)},
 	}
 	for _, corruption := range corruptions {
 		difference := unitDifference(corruption.text, generated)
@@ -891,23 +891,23 @@ fn main() {
 
 // --- Determinism and cost ----------------------------------------------------
 
-// TestKittenCallsAreDeterministic checks that generation depends only on its input:
+// TestPercyCallsAreDeterministic checks that generation depends only on its input:
 // the same program must produce the same bytes after a different program.
-func TestKittenCallsAreDeterministic(t *testing.T) {
+func TestPercyCallsAreDeterministic(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenUnit(t)
+	executable := buildPercyUnit(t)
 	directory := t.TempDir()
 
 	root := "fn twice(int value) -> int {\n    return value * 2;\n}\nfn main() {\n    print(twice(3), \"text\");\n}\n"
-	first, err := runKittenUnit(executable, directory, root, "")
+	first, err := runPercyUnit(executable, directory, root, "")
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
-	if _, err := runKittenUnit(executable, directory, "fn main() {\n    print(substring(\"abc\", 0, 1));\n}\n", ""); err != nil {
+	if _, err := runPercyUnit(executable, directory, "fn main() {\n    print(substring(\"abc\", 0, 1));\n}\n", ""); err != nil {
 		t.Fatalf("%v", err)
 	}
-	second, err := runKittenUnit(executable, directory, root, "")
+	second, err := runPercyUnit(executable, directory, root, "")
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -932,12 +932,12 @@ func nestedCallProgram(depth int) string {
 	return builder.String()
 }
 
-// TestKittenCallsScaling measures emitting and generating a unit with deeply nested
+// TestPercyCallsScaling measures emitting and generating a unit with deeply nested
 // calls and checks it still matches the reference.
-func TestKittenCallsScaling(t *testing.T) {
+func TestPercyCallsScaling(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenUnit(t)
+	executable := buildPercyUnit(t)
 	directory := t.TempDir()
 
 	previous := time.Duration(0)
@@ -959,7 +959,7 @@ func TestKittenCallsScaling(t *testing.T) {
 		var got string
 		for repetition := 0; repetition < 3; repetition++ {
 			start := time.Now()
-			rendered, err := runKittenUnit(executable, directory, root, "")
+			rendered, err := runPercyUnit(executable, directory, root, "")
 			if err != nil {
 				t.Fatalf("depth %d: %v", depth, err)
 			}

@@ -1,7 +1,7 @@
 package main
 
-// Differential testing for the Kitten-written C generator's foundation
-// (selfhost/codegen.ktn and selfhost/codegen/*.ktn).
+// Differential testing for the Percy-written C generator's foundation
+// (selfhost/codegen.pcy and selfhost/codegen/*.pcy).
 //
 // The generator emitter does not exist yet, so there is no generated translation
 // unit to compare. What exists is the foundation the emitter builds on - C name
@@ -9,13 +9,13 @@ package main
 // accumulation - and this harness verifies those helpers against the reference
 // implementation before anything depends on them.
 //
-// The Kitten side is selfhost/codegen.ktn, which reads directive lines from the
+// The Percy side is selfhost/codegen.pcy, which reads directive lines from the
 // fixed relative path "input.txt" and prints one result line per directive. The
 // harness writes the directives and predicts each result.
 //
 // Predictions are anchored to the reference wherever the reference can answer:
 //
-//   - The Kitten probe's escape results are compared with the pooled string
+//   - The Percy probe's escape results are compared with the pooled string
 //     literal declarations in C the reference generator produced for a program
 //     containing exactly that literal, so both the escaping and the byte length
 //     are read out of the reference's own output rather than re-derived.
@@ -23,7 +23,7 @@ package main
 //     program that uses them, so a prediction cannot drift away from what the
 //     reference implementation actually emits.
 //
-// The reference is the Go generator in kitten/codegen, which remains the
+// The reference is the Go generator in percy/codegen, which remains the
 // production backend.
 
 import (
@@ -39,27 +39,27 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"kitten/checker"
-	"kitten/codegen"
-	"kitten/lexer"
-	"kitten/parser"
+	"percy/checker"
+	"percy/codegen"
+	"percy/lexer"
+	"percy/parser"
 )
 
-// kittenCodegenProgram is the driver program of the Kitten-written generator.
-func kittenCodegenProgram() string {
-	return filepath.Join("..", "..", "selfhost", "codegen.ktn")
+// percyCodegenProgram is the driver program of the Percy-written generator.
+func percyCodegenProgram() string {
+	return filepath.Join("..", "..", "selfhost", "codegen.pcy")
 }
 
-// buildKittenCodegen builds the generator probe. It fails if the build produces
+// buildPercyCodegen builds the generator probe. It fails if the build produces
 // any C diagnostic, so the probe must compile warning-free.
-func buildKittenCodegen(t *testing.T) string {
+func buildPercyCodegen(t *testing.T) string {
 	t.Helper()
 
 	requireToolchain(t)
 
-	executable := filepath.Join(t.TempDir(), "kitten-codegen")
+	executable := filepath.Join(t.TempDir(), "percy-codegen")
 	var diagnostics bytes.Buffer
-	if err := buildExecutable(kittenCodegenProgram(), executable, &diagnostics); err != nil {
+	if err := buildExecutable(percyCodegenProgram(), executable, &diagnostics); err != nil {
 		t.Fatalf("building the codegen probe: %v\n%s", err, diagnostics.String())
 	}
 	if warnings := strings.TrimSpace(diagnostics.String()); warnings != "" {
@@ -68,8 +68,8 @@ func buildKittenCodegen(t *testing.T) string {
 	return executable
 }
 
-// runKittenCodegen writes the directives and runs the generator probe.
-func runKittenCodegen(executable, directory, directives string) (string, error) {
+// runPercyCodegen writes the directives and runs the generator probe.
+func runPercyCodegen(executable, directory, directives string) (string, error) {
 	if err := os.WriteFile(filepath.Join(directory, "input.txt"), []byte(directives), 0o644); err != nil {
 		return "", fmt.Errorf("writing input.txt: %v", err)
 	}
@@ -125,7 +125,7 @@ func referenceC(t *testing.T, sources ...string) string {
 
 // pooledLiteral is one pooled static string literal declaration in generated C:
 //
-//	static const ktn_string ktn_literal_N = { LENGTH, "ESCAPED" };
+//	static const pcy_string pcy_literal_N = { LENGTH, "ESCAPED" };
 type pooledLiteral struct {
 	name    string
 	length  string
@@ -136,7 +136,7 @@ type pooledLiteral struct {
 // matched greedily so that a literal containing the pattern's own trailing text
 // still parses, and the anchor is the end of the line, so the final "};" is the
 // declaration's.
-var pooledLiteralPattern = regexp.MustCompile(`^static const ktn_string (ktn_literal_[0-9]+) = \{ ([0-9]+), (.*) \};$`)
+var pooledLiteralPattern = regexp.MustCompile(`^static const pcy_string (pcy_literal_[0-9]+) = \{ ([0-9]+), (.*) \};$`)
 
 // pooledLiterals returns the pooled literals of generated C, in pool order.
 func pooledLiterals(generated string) []pooledLiteral {
@@ -151,7 +151,7 @@ func pooledLiterals(generated string) []pooledLiteral {
 	return found
 }
 
-// referenceLiteral returns the reference generator's pooled entry for one Kitten
+// referenceLiteral returns the reference generator's pooled entry for one Percy
 // string literal, by generating C for a program whose only literal it is. The
 // program is small enough that the literal is the first and only one in the pool,
 // so the entry cannot be confused with another literal's.
@@ -163,7 +163,7 @@ func referenceLiteral(t *testing.T, literal string) pooledLiteral {
 	if len(pool) != 1 {
 		t.Fatalf("expected exactly one pooled literal for %q, found %d", literal, len(pool))
 	}
-	if pool[0].name != "ktn_literal_1" {
+	if pool[0].name != "pcy_literal_1" {
 		t.Fatalf("expected the first pooled literal for %q, found %q", literal, pool[0].name)
 	}
 	return pool[0]
@@ -260,24 +260,24 @@ tag-field
 `,
 		want: []string{
 			"module-prefix 0 -",
-			"function 0 main ktn_fn_main",
-			"function 0 helper ktn_fn_helper",
-			"variable p ktn_var_p",
-			"struct 0 Point ktn_s_Point",
-			"field x ktn_f_x",
-			"field label ktn_f_label",
-			"constructor 0 Point ktn_new_Point",
-			"argument x ktn_arg_x",
-			"enum 0 Color ktn_e_Color",
-			"enum-case 0 Color Red ktn_ec_Color_Red",
-			"enum-case 0 Color Green ktn_ec_Color_Green",
-			"union-tag 0 Value Number ktn_uc_Value_Number",
-			"variant-field Number n ktn_v_Number_n",
-			"variant-constructor 0 Value Number ktn_new_Value_Number",
-			"match-temporary 0 ktn_match_0",
-			"literal-name 1 ktn_literal_1",
-			"object ktn_object",
-			"tag-field ktn_tag",
+			"function 0 main pcy_fn_main",
+			"function 0 helper pcy_fn_helper",
+			"variable p pcy_var_p",
+			"struct 0 Point pcy_s_Point",
+			"field x pcy_f_x",
+			"field label pcy_f_label",
+			"constructor 0 Point pcy_new_Point",
+			"argument x pcy_arg_x",
+			"enum 0 Color pcy_e_Color",
+			"enum-case 0 Color Red pcy_ec_Color_Red",
+			"enum-case 0 Color Green pcy_ec_Color_Green",
+			"union-tag 0 Value Number pcy_uc_Value_Number",
+			"variant-field Number n pcy_v_Number_n",
+			"variant-constructor 0 Value Number pcy_new_Value_Number",
+			"match-temporary 0 pcy_match_0",
+			"literal-name 1 pcy_literal_1",
+			"object pcy_object",
+			"tag-field pcy_tag",
 		},
 	}, {
 		description: "imported module exists",
@@ -306,12 +306,12 @@ field x
 `,
 		want: []string{
 			"module-prefix 1 1_",
-			"function 0 main ktn_fn_main",
-			"function 1 make ktn_fn_1_make",
-			"function 1 other ktn_fn_1_other",
-			"struct 1 Point ktn_s_1_Point",
-			"constructor 1 Point ktn_new_1_Point",
-			"field x ktn_f_x",
+			"function 0 main pcy_fn_main",
+			"function 1 make pcy_fn_1_make",
+			"function 1 other pcy_fn_1_other",
+			"struct 1 Point pcy_s_1_Point",
+			"constructor 1 Point pcy_new_1_Point",
+			"field x pcy_f_x",
 		},
 	}, {
 		description: "same name in two modules stays distinct",
@@ -337,27 +337,27 @@ constructor 0 Item
 constructor 1 Item
 `,
 		want: []string{
-			"struct 0 Item ktn_s_Item",
-			"struct 1 Item ktn_s_1_Item",
-			"constructor 0 Item ktn_new_Item",
-			"constructor 1 Item ktn_new_1_Item",
+			"struct 0 Item pcy_s_Item",
+			"struct 1 Item pcy_s_1_Item",
+			"constructor 0 Item pcy_new_Item",
+			"constructor 1 Item pcy_new_1_Item",
 		},
 	}}
 }
 
-// TestKittenCodegenNamesMatchReference compares the probe's mangled names with the
+// TestPercyCodegenNamesMatchReference compares the probe's mangled names with the
 // reference generator's, and requires every predicted name to appear in the
 // reference C for the program that uses it.
-func TestKittenCodegenNamesMatchReference(t *testing.T) {
+func TestPercyCodegenNamesMatchReference(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenCodegen(t)
+	executable := buildPercyCodegen(t)
 	directory := t.TempDir()
 	anchored := 0
 
 	for _, testCase := range codegenNameCases() {
 		want := expectedProbeOutput(testCase.want)
-		got, err := runKittenCodegen(executable, directory, testCase.directives)
+		got, err := runPercyCodegen(executable, directory, testCase.directives)
 		if err != nil {
 			t.Errorf("%s: %v", testCase.description, err)
 			continue
@@ -429,13 +429,13 @@ func codegenTypeCases() []codegenTypeCase {
 			"ctype int int64_t",
 			"ctype float double",
 			"ctype bool bool",
-			"ctype string const ktn_string *",
+			"ctype string const pcy_string *",
 		},
 		anchors: []string{
-			"int64_t ktn_var_i",
-			"double ktn_var_f",
-			"bool ktn_var_b",
-			"const ktn_string * ktn_var_s",
+			"int64_t pcy_var_i",
+			"double pcy_var_f",
+			"bool pcy_var_b",
+			"const pcy_string * pcy_var_s",
 		},
 	}, {
 		description: "void return and no parameters",
@@ -447,7 +447,7 @@ fn main() {
 `,
 		directives: "ctype void\n",
 		want:       []string{"ctype void void"},
-		anchors:    []string{"void ktn_fn_nothing(void)"},
+		anchors:    []string{"void pcy_fn_nothing(void)"},
 	}, {
 		description: "collections",
 		root: `fn main() {
@@ -460,14 +460,14 @@ fn main() {
 `,
 		directives: "ctype array\nctype map\n",
 		want: []string{
-			"ctype array ktn_array *",
-			"ctype map ktn_map *",
+			"ctype array pcy_array *",
+			"ctype map pcy_map *",
 		},
 		anchors: []string{
-			"ktn_array * ktn_var_values",
-			"ktn_array * ktn_var_names",
-			"ktn_array * ktn_var_grid",
-			"ktn_map * ktn_var_counts",
+			"pcy_array * pcy_var_values",
+			"pcy_array * pcy_var_names",
+			"pcy_array * pcy_var_grid",
+			"pcy_map * pcy_var_counts",
 		},
 	}, {
 		description: "named types",
@@ -490,14 +490,14 @@ fn main() {
 `,
 		directives: "ctype-enum 0 Color\nctype-struct 0 Point\nctype-union 0 Value\n",
 		want: []string{
-			"ctype-enum 0 Color ktn_e_Color",
-			"ctype-struct 0 Point ktn_s_Point *",
-			"ctype-union 0 Value ktn_s_Value *",
+			"ctype-enum 0 Color pcy_e_Color",
+			"ctype-struct 0 Point pcy_s_Point *",
+			"ctype-union 0 Value pcy_s_Value *",
 		},
 		anchors: []string{
-			"ktn_e_Color ktn_var_c",
-			"ktn_s_Point * ktn_var_p",
-			"ktn_s_Value * ktn_var_v",
+			"pcy_e_Color pcy_var_c",
+			"pcy_s_Point * pcy_var_p",
+			"pcy_s_Value * pcy_var_v",
 		},
 	}, {
 		description: "named types from an imported module",
@@ -519,14 +519,14 @@ public fn make() -> Point {
 `,
 		directives: "ctype-enum 1 Color\nctype-struct 1 Point\nctype-union 1 Value\n",
 		want: []string{
-			"ctype-enum 1 Color ktn_e_1_Color",
-			"ctype-struct 1 Point ktn_s_1_Point *",
-			"ctype-union 1 Value ktn_s_1_Value *",
+			"ctype-enum 1 Color pcy_e_1_Color",
+			"ctype-struct 1 Point pcy_s_1_Point *",
+			"ctype-union 1 Value pcy_s_1_Value *",
 		},
 		anchors: []string{
-			"typedef int64_t ktn_e_1_Color;",
-			"ktn_s_1_Point *",
-			"struct ktn_s_1_Value {",
+			"typedef int64_t pcy_e_1_Color;",
+			"pcy_s_1_Point *",
+			"struct pcy_s_1_Value {",
 		},
 	}, {
 		description: "the absent type has no C representation",
@@ -535,19 +535,19 @@ public fn make() -> Point {
 	}}
 }
 
-// TestKittenCodegenTypesMatchReference compares the probe's C type mapping with
+// TestPercyCodegenTypesMatchReference compares the probe's C type mapping with
 // the reference generator's spelling, and requires the complex spellings to
 // appear in reference C.
-func TestKittenCodegenTypesMatchReference(t *testing.T) {
+func TestPercyCodegenTypesMatchReference(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenCodegen(t)
+	executable := buildPercyCodegen(t)
 	directory := t.TempDir()
 	anchored := 0
 
 	for _, testCase := range codegenTypeCases() {
 		want := expectedProbeOutput(testCase.want)
-		got, err := runKittenCodegen(executable, directory, testCase.directives)
+		got, err := runPercyCodegen(executable, directory, testCase.directives)
 		if err != nil {
 			t.Errorf("%s: %v", testCase.description, err)
 			continue
@@ -646,13 +646,13 @@ func corpusLiterals(t *testing.T) []string {
 	return literals
 }
 
-// TestKittenCodegenEscapingMatchesReference compares the probe's escaping and
+// TestPercyCodegenEscapingMatchesReference compares the probe's escaping and
 // byte lengths with the pooled literal declarations of the reference generator,
 // for every literal in the curated set and the corpus.
-func TestKittenCodegenEscapingMatchesReference(t *testing.T) {
+func TestPercyCodegenEscapingMatchesReference(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenCodegen(t)
+	executable := buildPercyCodegen(t)
 	directory := t.TempDir()
 
 	literals := curatedEscapeLiterals()
@@ -663,7 +663,7 @@ func TestKittenCodegenEscapingMatchesReference(t *testing.T) {
 	for _, literal := range literals {
 		directives.WriteString("escape " + literal + "\n")
 	}
-	got, err := runKittenCodegen(executable, directory, directives.String())
+	got, err := runPercyCodegen(executable, directory, directives.String())
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -691,10 +691,10 @@ func TestKittenCodegenEscapingMatchesReference(t *testing.T) {
 	t.Logf("string escaping: %d literals match the reference generator's pooled literals", checked)
 }
 
-// TestKittenCodegenLiteralPoolOrder checks that equal literals share one pooled
+// TestPercyCodegenLiteralPoolOrder checks that equal literals share one pooled
 // object and that the pool is numbered in first-use order, which the escaping
 // comparison cannot see because it compares one literal at a time.
-func TestKittenCodegenLiteralPoolOrder(t *testing.T) {
+func TestPercyCodegenLiteralPoolOrder(t *testing.T) {
 	requireToolchain(t)
 
 	generated := referenceC(t, "fn main() {\n    print(\"second\", \"first\", \"second\");\n}\n")
@@ -702,11 +702,11 @@ func TestKittenCodegenLiteralPoolOrder(t *testing.T) {
 	if len(pool) != 2 {
 		t.Fatalf("expected two pooled literals, found %d", len(pool))
 	}
-	if pool[0].name != "ktn_literal_1" || pool[0].escaped != "\"second\"" {
-		t.Errorf("the first pooled literal is %q with text %s, want ktn_literal_1 with \"second\"", pool[0].name, pool[0].escaped)
+	if pool[0].name != "pcy_literal_1" || pool[0].escaped != "\"second\"" {
+		t.Errorf("the first pooled literal is %q with text %s, want pcy_literal_1 with \"second\"", pool[0].name, pool[0].escaped)
 	}
-	if pool[1].name != "ktn_literal_2" || pool[1].escaped != "\"first\"" {
-		t.Errorf("the second pooled literal is %q with text %s, want ktn_literal_2 with \"first\"", pool[1].name, pool[1].escaped)
+	if pool[1].name != "pcy_literal_2" || pool[1].escaped != "\"first\"" {
+		t.Errorf("the second pooled literal is %q with text %s, want pcy_literal_2 with \"first\"", pool[1].name, pool[1].escaped)
 	}
 }
 
@@ -769,19 +769,19 @@ func codegenOutputCases() []codegenOutputCase {
 	}}
 }
 
-// TestKittenCodegenOutputAccumulation pins the accumulation and finalization
+// TestPercyCodegenOutputAccumulation pins the accumulation and finalization
 // behavior: the exact text for empty, small, and many-chunk runs, the chunk
 // boundary, the rejection of a line that does not fit, and a partial line that
 // never ends.
-func TestKittenCodegenOutputAccumulation(t *testing.T) {
+func TestPercyCodegenOutputAccumulation(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenCodegen(t)
+	executable := buildPercyCodegen(t)
 	directory := t.TempDir()
 
 	chunks := 0
 	for _, testCase := range codegenOutputCases() {
-		got, err := runKittenCodegen(executable, directory, testCase.directives)
+		got, err := runPercyCodegen(executable, directory, testCase.directives)
 		if err != nil {
 			t.Errorf("%s: %v", testCase.description, err)
 			continue
@@ -798,19 +798,19 @@ func TestKittenCodegenOutputAccumulation(t *testing.T) {
 	}
 }
 
-// TestKittenCodegenIgnoresBlankAndCommentLines checks that the directive reader
+// TestPercyCodegenIgnoresBlankAndCommentLines checks that the directive reader
 // skips what it is documented to skip and still reads every directive.
-func TestKittenCodegenIgnoresBlankAndCommentLines(t *testing.T) {
+func TestPercyCodegenIgnoresBlankAndCommentLines(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenCodegen(t)
+	executable := buildPercyCodegen(t)
 	directory := t.TempDir()
 
-	got, err := runKittenCodegen(executable, directory, "# a comment\n\nfield x\n\n# another\nobject\n")
+	got, err := runPercyCodegen(executable, directory, "# a comment\n\nfield x\n\n# another\nobject\n")
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
-	want := "field x ktn_f_x\nobject ktn_object\n"
+	want := "field x pcy_f_x\nobject pcy_object\n"
 	if got != want {
 		t.Errorf("probe output differs\n got: %q\nwant: %q", got, want)
 	}
@@ -818,13 +818,13 @@ func TestKittenCodegenIgnoresBlankAndCommentLines(t *testing.T) {
 
 // --- Probe format and determinism --------------------------------------------
 
-// TestKittenCodegenProbeFormat pins the directive interface and the shape of
+// TestPercyCodegenProbeFormat pins the directive interface and the shape of
 // every result line with hand-written expectations, so that a format change is
 // caught even if the harness's tables changed with it.
-func TestKittenCodegenProbeFormat(t *testing.T) {
+func TestPercyCodegenProbeFormat(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenCodegen(t)
+	executable := buildPercyCodegen(t)
 	directory := t.TempDir()
 
 	directives := strings.Join([]string{
@@ -858,7 +858,7 @@ func TestKittenCodegenProbeFormat(t *testing.T) {
 		"nonsense-directive",
 	}, "\n") + "\n"
 
-	got, err := runKittenCodegen(executable, directory, directives)
+	got, err := runPercyCodegen(executable, directory, directives)
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -866,28 +866,28 @@ func TestKittenCodegenProbeFormat(t *testing.T) {
 	want := expectedProbeOutput([]string{
 		"module-prefix 0 -",
 		"module-prefix 3 3_",
-		"function 3 main ktn_fn_3_main",
-		"variable x ktn_var_x",
-		"struct 3 Point ktn_s_3_Point",
-		"field x ktn_f_x",
-		"constructor 3 Point ktn_new_3_Point",
-		"argument x ktn_arg_x",
-		"enum 3 Color ktn_e_3_Color",
-		"enum-case 3 Color Red ktn_ec_3_Color_Red",
-		"union-tag 3 Value Number ktn_uc_3_Value_Number",
-		"variant-field Number n ktn_v_Number_n",
-		"variant-constructor 3 Value Number ktn_new_3_Value_Number",
-		"match-temporary 1 ktn_match_1",
-		"literal-name 2 ktn_literal_2",
-		"object ktn_object",
-		"tag-field ktn_tag",
+		"function 3 main pcy_fn_3_main",
+		"variable x pcy_var_x",
+		"struct 3 Point pcy_s_3_Point",
+		"field x pcy_f_x",
+		"constructor 3 Point pcy_new_3_Point",
+		"argument x pcy_arg_x",
+		"enum 3 Color pcy_e_3_Color",
+		"enum-case 3 Color Red pcy_ec_3_Color_Red",
+		"union-tag 3 Value Number pcy_uc_3_Value_Number",
+		"variant-field Number n pcy_v_Number_n",
+		"variant-constructor 3 Value Number pcy_new_3_Value_Number",
+		"match-temporary 1 pcy_match_1",
+		"literal-name 2 pcy_literal_2",
+		"object pcy_object",
+		"tag-field pcy_tag",
 		`escape "a\tb" 3`,
 		"ctype int int64_t",
-		"ctype string const ktn_string *",
-		"ctype map ktn_map *",
-		"ctype-enum 3 Color ktn_e_3_Color",
-		"ctype-struct 3 Point ktn_s_3_Point *",
-		"ctype-union 3 Value ktn_s_3_Value *",
+		"ctype string const pcy_string *",
+		"ctype map pcy_map *",
+		"ctype-enum 3 Color pcy_e_3_Color",
+		"ctype-struct 3 Point pcy_s_3_Point *",
+		"ctype-union 3 Value pcy_s_3_Value *",
 		`ctype-none failed unsupported type "<invalid>"`,
 		`ctype nonsense failed unknown ctype kind "nonsense"`,
 		"output 1 1 ok 1",
@@ -900,7 +900,7 @@ func TestKittenCodegenProbeFormat(t *testing.T) {
 	}
 }
 
-// TestKittenCodegenAccumulationScaling checks that accumulating and finalizing a
+// TestPercyCodegenAccumulationScaling checks that accumulating and finalizing a
 // large output costs time proportional to its size.
 //
 // Chunks exist so that appending stays linear, and the final join is balanced so
@@ -908,10 +908,10 @@ func TestKittenCodegenProbeFormat(t *testing.T) {
 // right instead would copy the growing result once per chunk, which is quadratic:
 // measured on a 2.5 GHz x86-64 host, 32,000 accumulated lines took 10.2 s and
 // 128,000 took 211.6 s, against 0.07 s and 0.31 s joined in halves.
-func TestKittenCodegenAccumulationScaling(t *testing.T) {
+func TestPercyCodegenAccumulationScaling(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenCodegen(t)
+	executable := buildPercyCodegen(t)
 	directory := t.TempDir()
 
 	previous := time.Duration(0)
@@ -924,7 +924,7 @@ func TestKittenCodegenAccumulationScaling(t *testing.T) {
 		var output string
 		for repetition := 0; repetition < 3; repetition++ {
 			start := time.Now()
-			got, err := runKittenCodegen(executable, directory, directives)
+			got, err := runPercyCodegen(executable, directory, directives)
 			if err != nil {
 				t.Fatalf("lines %d: %v", lines, err)
 			}
@@ -958,24 +958,24 @@ func TestKittenCodegenAccumulationScaling(t *testing.T) {
 	}
 }
 
-// TestKittenCodegenIsDeterministic checks that the probe's output depends only on
+// TestPercyCodegenIsDeterministic checks that the probe's output depends only on
 // its input: the same directives must produce the same bytes, in any order of
 // runs and after other inputs.
-func TestKittenCodegenIsDeterministic(t *testing.T) {
+func TestPercyCodegenIsDeterministic(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenCodegen(t)
+	executable := buildPercyCodegen(t)
 	directory := t.TempDir()
 
 	directives := "function 0 main\nstruct 2 Point\nenum-case 2 Color Red\nctype-struct 2 Point\noutput 4 3\nfragments 2\n"
-	first, err := runKittenCodegen(executable, directory, directives)
+	first, err := runPercyCodegen(executable, directory, directives)
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
-	if _, err := runKittenCodegen(executable, directory, "escape \"other\"\n"); err != nil {
+	if _, err := runPercyCodegen(executable, directory, "escape \"other\"\n"); err != nil {
 		t.Fatalf("%v", err)
 	}
-	second, err := runKittenCodegen(executable, directory, directives)
+	second, err := runPercyCodegen(executable, directory, directives)
 	if err != nil {
 		t.Fatalf("%v", err)
 	}

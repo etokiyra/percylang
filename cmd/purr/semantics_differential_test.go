@@ -1,12 +1,12 @@
 package main
 
-// Differential testing for the semantic model the Kitten-written checker
-// produces (selfhost/checker/semantics.ktn and selfhost/semantics.ktn).
+// Differential testing for the semantic model the Percy-written checker
+// produces (selfhost/checker/semantics.pcy and selfhost/semantics.pcy).
 //
 // The harness builds the model driver once and compares its rendering with the
 // reference implementation's rendering of the same input. The rendering is one
 // line per declaration and per annotated node, in a fixed walk order, and it is
-// produced from the reference checker's Result exactly as the Kitten driver
+// produced from the reference checker's Result exactly as the Percy driver
 // produces it from SemanticModel:
 //
 //	<m> module <id> <path>
@@ -37,24 +37,24 @@ import (
 	"strings"
 	"testing"
 
-	"kitten/checker"
-	"kitten/parser"
+	"percy/checker"
+	"percy/parser"
 )
 
-// kittenSemanticsProgram is the driver program that prints the semantic model.
-func kittenSemanticsProgram() string {
-	return filepath.Join("..", "..", "selfhost", "semantics.ktn")
+// percySemanticsProgram is the driver program that prints the semantic model.
+func percySemanticsProgram() string {
+	return filepath.Join("..", "..", "selfhost", "semantics.pcy")
 }
 
-// buildKittenSemantics builds the semantic-model driver.
-func buildKittenSemantics(t *testing.T) string {
+// buildPercySemantics builds the semantic-model driver.
+func buildPercySemantics(t *testing.T) string {
 	t.Helper()
 
 	requireToolchain(t)
 
-	executable := filepath.Join(t.TempDir(), "kitten-semantics")
+	executable := filepath.Join(t.TempDir(), "percy-semantics")
 	var diagnostics bytes.Buffer
-	if err := buildExecutable(kittenSemanticsProgram(), executable, &diagnostics); err != nil {
+	if err := buildExecutable(percySemanticsProgram(), executable, &diagnostics); err != nil {
 		t.Fatalf("building the semantic-model driver: %v\n%s", err, diagnostics.String())
 	}
 	if warnings := strings.TrimSpace(diagnostics.String()); warnings != "" {
@@ -63,8 +63,8 @@ func buildKittenSemantics(t *testing.T) string {
 	return executable
 }
 
-// runKittenSemantics writes the two module sources and runs the model driver.
-func runKittenSemantics(executable, directory, root, imported string) (string, error) {
+// runPercySemantics writes the two module sources and runs the model driver.
+func runPercySemantics(executable, directory, root, imported string) (string, error) {
 	if err := os.WriteFile(filepath.Join(directory, "input.txt"), []byte(root), 0o644); err != nil {
 		return "", fmt.Errorf("writing input.txt: %v", err)
 	}
@@ -88,7 +88,7 @@ func runKittenSemantics(executable, directory, root, imported string) (string, e
 
 // --- Rendering the reference model -------------------------------------------
 
-// referenceModel renders the reference checker's result in the Kitten driver's
+// referenceModel renders the reference checker's result in the Percy driver's
 // format.
 func referenceModel(root, imported string) (string, error) {
 	return referenceModelWithRuntime(root, imported, "")
@@ -149,7 +149,7 @@ func (p *referenceModelPrinter) line(fields ...string) {
 	p.builder.WriteByte('\n')
 }
 
-// typeText renders a type with its module, structurally, as the Kitten driver
+// typeText renders a type with its module, structurally, as the Percy driver
 // does.
 func typeText(value *checker.Type) string {
 	if value == nil {
@@ -179,7 +179,7 @@ func signatureText(function *checker.Function) string {
 	return typeText(function.ReturnType) + "(" + strings.Join(parts, ",") + ")"
 }
 
-// builtinKindName mirrors the Kitten driver's builtin_kind_name.
+// builtinKindName mirrors the Percy driver's builtin_kind_name.
 func builtinKindName(kind checker.BuiltinKind) string {
 	switch kind {
 	case checker.NotBuiltin:
@@ -248,6 +248,8 @@ func builtinKindName(kind checker.BuiltinKind) string {
 		return "StringToBytes"
 	case checker.BuiltinBytesToString:
 		return "BytesToString"
+	case checker.BuiltinPush:
+		return "Push"
 	default:
 		return "?"
 	}
@@ -449,7 +451,7 @@ func (p *referenceModelPrinter) expression(moduleIndex int, expression parser.Ex
 	}
 }
 
-// expressionKind names an expression node as the Kitten driver does.
+// expressionKind names an expression node as the Percy driver does.
 func expressionKind(expression parser.Expr) string {
 	switch expression.(type) {
 	case *parser.Identifier:
@@ -520,6 +522,8 @@ func (p *referenceModelPrinter) statement(moduleIndex int, statement parser.Stmt
 			p.expression(moduleIndex, node.Increment)
 		}
 		p.statement(moduleIndex, node.Body)
+	case *parser.BreakStmt:
+	case *parser.ContinueStmt:
 	case *parser.ReturnStmt:
 		if node.Value != nil {
 			p.expression(moduleIndex, node.Value)
@@ -559,12 +563,12 @@ func errorLineFields(line string) []string {
 	return strings.SplitN(strings.TrimSuffix(line, "\n"), " ", 6)
 }
 
-// TestKittenSemanticsMatchesReference compares the semantic model the Kitten
+// TestPercySemanticsMatchesReference compares the semantic model the Percy
 // checker produces with the reference's, over the checker corpus.
-func TestKittenSemanticsMatchesReference(t *testing.T) {
+func TestPercySemanticsMatchesReference(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenSemantics(t)
+	executable := buildPercySemantics(t)
 	directory := t.TempDir()
 	cases := checkerCorpus(t)
 	t.Logf("semantic-model corpus: %d inputs", len(cases))
@@ -578,7 +582,7 @@ func TestKittenSemanticsMatchesReference(t *testing.T) {
 			t.Errorf("%s: %v", describeCheckerCase(testCase), err)
 			continue
 		}
-		got, err := runKittenSemantics(executable, directory, testCase.root, testCase.imported)
+		got, err := runPercySemantics(executable, directory, testCase.root, testCase.imported)
 		if err != nil {
 			t.Errorf("%s: %v", describeCheckerCase(testCase), err)
 			continue
@@ -630,7 +634,7 @@ func TestKittenSemanticsMatchesReference(t *testing.T) {
 			continue
 		}
 
-		t.Errorf("semantic model mismatch for %s\n--- reference ---\n%s--- Kitten ---\n%s", describeCheckerCase(testCase), want, got)
+		t.Errorf("semantic model mismatch for %s\n--- reference ---\n%s--- Percy ---\n%s", describeCheckerCase(testCase), want, got)
 	}
 
 	if annotated < 1000 || nonzero < 1000 {
@@ -639,17 +643,17 @@ func TestKittenSemanticsMatchesReference(t *testing.T) {
 	t.Logf("semantic model: %d inputs, %d identical, %d annotated lines (%d carrying a fact)", len(cases), exact, annotated, nonzero)
 }
 
-// TestKittenSemanticsOutputFormat pins the model rendering for one program with
+// TestPercySemanticsOutputFormat pins the model rendering for one program with
 // explicit expected text, so that a format change is caught even if both
 // implementations change together.
-func TestKittenSemanticsOutputFormat(t *testing.T) {
+func TestPercySemanticsOutputFormat(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenSemantics(t)
+	executable := buildPercySemantics(t)
 	directory := t.TempDir()
 
 	root := "struct Point { int x; }\nfn area(Point p) -> int {\n    return p.x;\n}\nfn main() {\n    Point p = Point { x = 1 };\n    int y = area(p);\n}\n"
-	got, err := runKittenSemantics(executable, directory, root, "")
+	got, err := runPercySemantics(executable, directory, root, "")
 	if err != nil {
 		t.Fatalf("running the model driver: %v", err)
 	}
@@ -677,13 +681,13 @@ func TestKittenSemanticsOutputFormat(t *testing.T) {
 func TestAnnotationIdentitiesDistinguishSameNames(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenSemantics(t)
+	executable := buildPercySemantics(t)
 	directory := t.TempDir()
 
 	// The inner x shadows the outer one, and both are used at the same column on
 	// different lines; the model must report the two different declarations.
 	root := "fn main() {\n    int x = 1;\n    {\n        int x = 2;\n        print(x);\n    }\n    print(x);\n}\n"
-	got, err := runKittenSemantics(executable, directory, root, "")
+	got, err := runPercySemantics(executable, directory, root, "")
 	if err != nil {
 		t.Fatalf("running the model driver: %v", err)
 	}
@@ -710,7 +714,7 @@ func TestAnnotationIdentitiesDistinguishSameNames(t *testing.T) {
 	// Two enum cases with the same text in two enums: the variant's owner must
 	// distinguish them.
 	variantRoot := "enum First { A, B }\nenum Second { A, B }\nfn f() -> bool {\n    return First.A == First.A;\n}\nfn g() -> bool {\n    return Second.A == Second.A;\n}\n"
-	gotVariant, err := runKittenSemantics(executable, directory, variantRoot, "")
+	gotVariant, err := runPercySemantics(executable, directory, variantRoot, "")
 	if err != nil {
 		t.Fatalf("running the model driver: %v", err)
 	}
@@ -731,7 +735,7 @@ func TestAnnotationIdentitiesDistinguishSameNames(t *testing.T) {
 	// Two same-named private types in different modules must stay distinct.
 	moduleRoot := "struct Item { int a; }\nfn main() {\n    Item item = Item { a = 1 };\n    print(item.a);\n}\n"
 	moduleImported := "struct Item { string b; }\npublic fn other() -> int {\n    Item item = Item { b = \"x\" };\n    return length(item.b);\n}\n"
-	gotModules, err := runKittenSemantics(executable, directory, moduleRoot, moduleImported)
+	gotModules, err := runPercySemantics(executable, directory, moduleRoot, moduleImported)
 	if err != nil {
 		t.Fatalf("running the model driver: %v", err)
 	}
@@ -752,10 +756,10 @@ func TestAnnotationIdentitiesDistinguishSameNames(t *testing.T) {
 func TestEmptyModelOnFailure(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenSemantics(t)
+	executable := buildPercySemantics(t)
 	directory := t.TempDir()
 
-	got, err := runKittenSemantics(executable, directory, "fn main() {\n    int x = \"s\";\n}\n", "")
+	got, err := runPercySemantics(executable, directory, "fn main() {\n    int x = \"s\";\n}\n", "")
 	if err != nil {
 		t.Fatalf("running the model driver: %v", err)
 	}
@@ -772,17 +776,17 @@ func TestEmptyModelOnFailure(t *testing.T) {
 func TestModelIsIsolatedBetweenInvocations(t *testing.T) {
 	requireToolchain(t)
 
-	executable := buildKittenSemantics(t)
+	executable := buildPercySemantics(t)
 	directory := t.TempDir()
 
-	first, err := runKittenSemantics(executable, directory, "struct S { int a; }\nfn f() { S s = S { a = 1 }; }\n", "")
+	first, err := runPercySemantics(executable, directory, "struct S { int a; }\nfn f() { S s = S { a = 1 }; }\n", "")
 	if err != nil {
 		t.Fatalf("running the model driver: %v", err)
 	}
-	if _, err := runKittenSemantics(executable, directory, "enum E { A }\nfn g(E e) { match (e) { A { } } }\n", ""); err != nil {
+	if _, err := runPercySemantics(executable, directory, "enum E { A }\nfn g(E e) { match (e) { A { } } }\n", ""); err != nil {
 		t.Fatalf("running the model driver: %v", err)
 	}
-	second, err := runKittenSemantics(executable, directory, "struct S { int a; }\nfn f() { S s = S { a = 1 }; }\n", "")
+	second, err := runPercySemantics(executable, directory, "struct S { int a; }\nfn f() { S s = S { a = 1 }; }\n", "")
 	if err != nil {
 		t.Fatalf("running the model driver: %v", err)
 	}

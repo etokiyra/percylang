@@ -2,9 +2,9 @@ package main
 
 // The two-stage self-hosting fixpoint test.
 //
-// Stage 1 is built from selfhost/driver.ktn by the Go compiler. Stage 2 is built
+// Stage 1 is built from selfhost/driver.pcy by the Go compiler. Stage 2 is built
 // from that source by stage 1 through the wrapper, and stage 3 by stage 2. The
-// generated C for driver.ktn must be byte-identical across the Go reference and
+// generated C for driver.pcy must be byte-identical across the Go reference and
 // all stages; stage 2 must also reproduce the Go reference for every fixture.
 
 import (
@@ -14,9 +14,9 @@ import (
 	"testing"
 	"time"
 
-	"kitten/checker"
-	"kitten/codegen"
-	"kitten/loader"
+	"percy/checker"
+	"percy/codegen"
+	"percy/loader"
 )
 
 // referenceCForRoot renders the Go pipeline's C for one absolute root path.
@@ -66,15 +66,15 @@ func buildStageThroughWrapper(t *testing.T, wrapper, driver, driverSource, outpu
 	}
 }
 
-// TestKittenFixpoint proves that the Kitten compiler reaches a C-level fixpoint.
-func TestKittenFixpoint(t *testing.T) {
+// TestPercyFixpoint proves that the Percy compiler reaches a C-level fixpoint.
+func TestPercyFixpoint(t *testing.T) {
 	if testing.Short() {
 		t.Skip("fixpoint test builds three compiler stages")
 	}
 	requireToolchain(t)
 
 	wrapper := wrapperPath(t)
-	driverSource := repoPath(t, "..", "..", "selfhost", "driver.ktn")
+	driverSource := repoPath(t, "..", "..", "selfhost", "driver.pcy")
 	work := t.TempDir()
 
 	start := time.Now()
@@ -144,13 +144,13 @@ func TestKittenFixpoint(t *testing.T) {
 	for _, name := range fixtureNames() {
 		roots = append(roots, rootCase{
 			name:     name,
-			root:     repoPath(t, "..", "..", "tests", name+".ktn"),
+			root:     repoPath(t, "..", "..", "tests", name+".pcy"),
 			expected: repoPath(t, "..", "..", "tests", name+".expected"),
 		})
 	}
 	roots = append(roots, rootCase{
 		name:     "modules",
-		root:     repoPath(t, "..", "..", "tests", "modules", "main.ktn"),
+		root:     repoPath(t, "..", "..", "tests", "modules", "main.pcy"),
 		expected: repoPath(t, "..", "..", "tests", "modules", "main.expected"),
 	})
 
@@ -190,17 +190,17 @@ func TestKittenFixpoint(t *testing.T) {
 		}
 		return path
 	}
-	if err := os.WriteFile(filepath.Join(errorDirectory, "bad.ktn"), []byte("fn broken( {\n"), 0o644); err != nil {
-		t.Fatalf("writing bad.ktn: %v", err)
+	if err := os.WriteFile(filepath.Join(errorDirectory, "bad.pcy"), []byte("fn broken( {\n"), 0o644); err != nil {
+		t.Fatalf("writing bad.pcy: %v", err)
 	}
 	errorPaths := []struct {
 		name string
 		path string
 	}{
-		{"type error", write("type.ktn", "fn main() {\n    int x = \"s\";\n}\n")},
-		{"syntax error", write("syntax.ktn", "fn main( {\n}\n")},
-		{"import syntax error", write("importsyntax.ktn", "import \"bad.ktn\";\nfn main() {\n}\n")},
-		{"outside root", write("inside/outside.ktn", "import \"../outside.ktn\";\nfn main() {\n}\n")},
+		{"type error", write("type.pcy", "fn main() {\n    int x = \"s\";\n}\n")},
+		{"syntax error", write("syntax.pcy", "fn main( {\n}\n")},
+		{"import syntax error", write("importsyntax.pcy", "import \"bad.pcy\";\nfn main() {\n}\n")},
+		{"outside root", write("inside/outside.pcy", "import \"../outside.pcy\";\nfn main() {\n}\n")},
 	}
 	for _, testCase := range errorPaths {
 		var goStdout, goStderr bytes.Buffer
@@ -239,5 +239,5 @@ func TestKittenFixpoint(t *testing.T) {
 	}
 	t.Logf("stage binaries: stage1=stage2 %t, stage2=stage3 %t, size %d bytes",
 		bytes.Equal(stage1Bytes, stage2Bytes), bytes.Equal(stage2Bytes, stage3Bytes), len(stage2Bytes))
-	t.Logf("fixpoint: Go, stage 1, stage 2, and stage 3 C for driver.ktn are byte-identical")
+	t.Logf("fixpoint: Go, stage 1, stage 2, and stage 3 C for driver.pcy are byte-identical")
 }

@@ -1,20 +1,22 @@
-# Kitten Language Specification — v0.1 (Provisional)
+# Percy Language Specification — v0.1 (Provisional)
 
-Status: **Provisional.** This document describes the agreed direction for the
-Kitten language. Syntax in this document is fixed for Phase 1. Semantics marked
-as deferred are not decided and must not be assumed by any component.
+Status: **Provisional.** This document is the source of truth for the Percy
+language. Semantics marked as deferred are not decided and must not be assumed by
+any component.
 
 This revision covers the language surface, its static semantics, and the native
-compilation model. The lexer, parser, checker, C code generator, and C runtime
-are implemented, and `purr build`/`purr run` produce and execute native
-executables on the host platform. Self-hosting, a native backend, and the
-standard library are not implemented.
+compilation model. The Go reference and the Percy-written toolchain both
+implement this surface: the reference lexer, parser, checker, C generator, and C
+runtime, and the Percy lexer, parser, checker, loader, C generator, and native
+backend that writes static ELF64 executables. `purr build` and `purr run` use the
+native backend by default and need no C compiler. A standard library, a package
+ecosystem, and a Go-free bootstrap remain future work.
 
 ---
 
 ## 1. Language goals and design philosophy
 
-Kitten is a compiled, statically typed, garbage-collected general-purpose
+Percy is a compiled, statically typed, garbage-collected general-purpose
 programming language.
 
 Goals:
@@ -31,7 +33,7 @@ Goals:
   free memory by hand.
 - **Native.** Programs are compiled ahead of time to native executables.
 - **Self-hosting.** The initial compiler is written in Go, but the long-term
-  goal is for Kitten to compile its own compiler. This constrains the language
+  goal is for Percy to compile its own compiler. This constrains the language
   toward being expressive and complete enough to implement a compiler, and it
   is a roadmap target only: self-hosting is not implemented now and must not
   drive premature feature work.
@@ -46,7 +48,7 @@ formatter, test runner, language server, third-party libraries).
 
 ## 2. Source file conventions
 
-- Source files use the `.ktn` extension.
+- Source files use the `.pcy` extension.
 - A source file is a sequence of Unicode code points, conventionally UTF-8
   encoded on disk. No byte-order mark handling is specified in this revision.
 - Statements are terminated by a semicolon `;`.
@@ -140,7 +142,7 @@ The following words are reserved keywords and cannot be used as ordinary
 identifiers:
 
 ```text
-struct if else while for return
+struct if else while for break continue return
 fn new import public private
 enum union match
 map
@@ -285,7 +287,7 @@ Punctuation:
 Notes:
 
 - `->` is used to introduce a function return type (Section 9).
-- `::` is **not** an operator in Kitten.
+- `::` is **not** an operator in Percy.
 - Square brackets `[` and `]` are used for array types and for indexing, and by
   the array creation operator `new` (Section 21). They are also reserved for a
   possible future generic parameter syntax such as `[T]`. Generics are **not**
@@ -357,7 +359,7 @@ semicolon:
 int score = 5;
 float temperature = 21.5;
 bool is_ready = true;
-string username = "kitten";
+string username = "percy";
 ```
 
 - **Types are always written explicitly.** There is no type inference, and
@@ -425,7 +427,7 @@ Section 19 for the full model and its consequences.
 
 ## 12. Control flow
 
-Kitten supports `if`/`else if`/`else`, `while`, and C-style `for`:
+Percy supports `if`/`else if`/`else`, `while`, and C-style `for`:
 
 ```text
 if (condition) {
@@ -451,8 +453,14 @@ for (int index = 0; index < 10; index++) {
   variable or be any expression. The example uses the postfix increment
   `index++`. Each of the three clauses may be empty, as in `for (;;)` or
   `for (int i = 0; ; )` (Section 17).
-- Whether `break` and `continue` exist, and any loop `else` clauses, are
-  **deferred**. They are not keywords in this revision.
+- `break;` and `continue;` are supported. Both are statements terminated by a
+  semicolon and require an enclosing `while` or `for`; outside a loop they are a
+  checker error. `break` exits the innermost enclosing loop. `continue` begins
+  the loop's next iteration: for `while` it re-evaluates the condition, and for
+  `for` it runs the increment and then the condition. A loop `else` clause is
+  **deferred**; there is none.
+- `break` and `continue` are ordinary statements for return-path analysis: they
+  never make a function "definitely return".
 
 ---
 
@@ -463,7 +471,7 @@ output, one line per call, so that a later `print` appears on the following
 line:
 
 ```text
-print("hello, kitten");
+print("hello, percy");
 print("5! =", factorial(5));
 ```
 
@@ -478,7 +486,7 @@ print("5! =", factorial(5));
   space, then a newline. An `int` is written in decimal; a `float` is written
   with C's `%g` conversion (six significant digits by default), so `2.5` prints
   as `2.5` and `4.0` prints as `4`; a `bool` is written as `true` or `false`; a
-  `string` is written as its bytes. This fixes the behavior the `.ktn` fixtures
+  `string` is written as its bytes. This fixes the behavior the `.pcy` fixtures
   depend on. The `float` and `bool` renderings are provisional (no fixture
   covers them) and are recorded in Section 19.
 
@@ -486,24 +494,25 @@ print("5! =", factorial(5));
 
 ## 14. Memory-management direction
 
-- Kitten is garbage-collected. Ordinary programs allocate objects and strings
+- Percy is garbage-collected. Ordinary programs allocate objects and strings
   and never free them manually.
-- The initial collector is the **Boehm–Demers–Weiser conservative garbage
-  collector** (Boehm GC, `libgc`), linked into compiled programs. Struct
-  literals are allocated with the collector (Section 19).
-- The compiler generates C, which a system C compiler then compiles and links
-  against Boehm GC to produce a native executable.
+- The shipped Percy-written `purr` compiles with the native backend and uses
+  the Percy-written non-moving conservative mark-sweep collector; no C
+  compiler or Boehm GC is involved.
+- The frozen Go reference/bootstrap pipeline still generates C and links Boehm
+  GC (`libgc`); it remains the cross-check oracle and the stage-1 bootstrap.
 - The precise collector configuration, finalization behavior, and any
   distinction between stack, heap, and static storage are **deferred**
   (Section 16). There is no finalizer support and no way to trigger collection
-  from Kitten code.
+  from Percy code.
 
 ---
 
 ## 15. Compiler architecture
 
-The compiler is written in Go and is organized into clearly separated packages,
-one per phase:
+The shipped compiler is the Percy-written `purr`; the Go implementation is the
+frozen bootstrap and cross-check oracle. The Go reference is organized into
+clearly separated packages, one per phase:
 
 | Package | Responsibility | Status |
 | --- | --- | --- |
@@ -516,15 +525,19 @@ one per phase:
 
 Supporting layout:
 
-- `cmd/purr` — the `purr` command-line entry point. It runs the full
-  pipeline and invokes the system C compiler and linker.
-- `tests/` — `.ktn` programs and matching `.expected` output files. They are
+- `cmd/purr` — the frozen Go bootstrap/reference CLI. It runs the C pipeline
+  and invokes the system C compiler and linker.
+- `purr.pcy` and `purr/` — the shipped Percy-written CLI. It loads, checks,
+  lowers, selects, and assembles a static ELF with no C compiler.
+- `tests/` — `.pcy` programs and matching `.expected` output files. They are
   compiled and executed by the end-to-end tests.
 
-Pipeline: root source → loader (file access, parsing, import resolution) →
-checker (all modules) → C code generator → C compiler/linker → link with Boehm
-GC → native executable. All stages are implemented for the host platform. See
-Section 19 for the compilation model and Section 22 for modules.
+Pipelines: the Go reference is root source → loader → checker → C code
+generator → C compiler/linker → Boehm GC → native executable. The shipped
+Percy `purr` is root source → Percy loader → Percy checker → native lowering
+→ x86-64 selector → static ELF writer → executable, with the Percy-written
+runtime and collector linked into the program. See Section 19 for the
+compilation model and Section 22 for modules.
 
 Phase boundaries are strict: a package must not take on another phase's
 responsibility, and later phases are not started without explicit authorization.
@@ -552,7 +565,7 @@ outcome here.
 
 - In-memory representation, mutability, indexing, and slicing. In this revision
   a string is an immutable, length-carrying byte sequence represented as a
-  pointer to the runtime's `ktn_string`, whose header and bytes are one object
+  pointer to the runtime's `pcy_string`, whose header and bytes are one object
   for constructed strings and static storage for literals (Sections 19 and 20).
   Byte indexing, byte length, and byte ranges (`substring`) are implemented, and
   length and indexing are constant-time; strings remain immutable.
@@ -598,7 +611,7 @@ outcome here.
 - Operator precedence and associativity, now provisionally defined in
   Section 17. A future revision may change it, which would be a breaking
   change.
-- Whether `break` and `continue` exist. They are not keywords in this revision.
+- `break` and `continue` exist and are keywords (Section 12).
 - Whether a bare `return;` is allowed and how it interacts with return types: a
   bare `return;` is valid only in a function that returns no value, and
   `return value;` must match the declared return type (Section 18.6).
@@ -646,6 +659,16 @@ outcome here.
 - Handling of a byte-order mark at the start of a file.
 - Whether block comments will ever be added.
 
+**Native production build boundary resolved**
+
+- The native backend compiles the production `purr` toolchain, and the Percy
+  `purr` accepts `--native` to lower, select, and assemble a static ELF with no
+  C compiler. The executable bit and the raw file operation are supplied by
+  the reserved `runtime/pcy/io.pcy` helper, which uses the `syscall` intrinsic
+  under the reserved-path rule in Section 19.8. The Go C pipeline remains the
+  default and the frozen reference until the native path's parity suite is
+  retired with the zero-dependency cut.
+
 **Implementation status**
 
 - The parser is implemented (Phase 2A) and accepts the grammar in Section 17.
@@ -653,17 +676,17 @@ outcome here.
 - The C code generator and C runtime are implemented (Phase 2C), and
   `purr build` and `purr run` compile to native executables on the host
   platform.
-- The `.ktn` fixtures lex, parse, check, compile, and execute; the end-to-end
+- The `.pcy` fixtures lex, parse, check, compile, and execute; the end-to-end
   tests compare their output with the matching `.expected` files byte-for-byte.
-- A lexer written in Kitten itself exists under `selfhost/lexer` and is compared
+- A lexer written in Percy itself exists under `selfhost/lexer` and is compared
   against the Go reference lexer by a differential test, but it is not part of
   the production pipeline (Section 25).
-- A parser written in Kitten itself exists under `selfhost/parser`, with its
-  driver in `selfhost/parse.ktn`, and is compared against the Go reference parser
+- A parser written in Percy itself exists under `selfhost/parser`, with its
+  driver in `selfhost/parse.pcy`, and is compared against the Go reference parser
   by a differential test. It also is not part of the production pipeline
   (Section 26).
-- A semantic checker written in Kitten itself exists under `selfhost/checker`,
-  with its driver in `selfhost/check.ktn`, and is compared against the Go
+- A semantic checker written in Percy itself exists under `selfhost/checker`,
+  with its driver in `selfhost/check.pcy`, and is compared against the Go
   reference checker by a differential test. It also is not part of the production
   pipeline (Section 27).
 - Self-hosting, a native (LLVM or assembly) backend, and the standard library
@@ -717,10 +740,15 @@ statement        = block
                  | if
                  | while
                  | for
+                 | break
+                 | continue
                  | return
                  | match
                  | variable_declaration
                  | expression_statement ;
+
+break            = "break" ";" ;
+continue         = "continue" ";" ;
 
 if               = "if" "(" expression ")" block [ "else" ( if | block ) ] ;
 while            = "while" "(" expression ")" block ;
@@ -850,7 +878,7 @@ Neither discrepancy changes which programs are accepted: a program with an empty
 enum or union body is rejected, by the checker rather than by the parser. The
 difference is only *where* it is reported, and it is **documented, not resolved**:
 moving the rule into the grammar would change the parser's accepted language, so
-the choice is deferred (Section 16). The Kitten-written parser and checker follow
+the choice is deferred (Section 16). The Percy-written parser and checker follow
 the reference in both places, and the differential corpora include both empty
 bodies.
 
@@ -1042,8 +1070,8 @@ Notes:
 
 ### 18.8 Built-in functions
 
-Twenty-four functions are provided by the language: `print`, `eprint`, `exit`,
-`length`, `argv`, `has`, `substring`, `read_file`, `try_read_file`,
+Twenty-five functions are provided by the language: `print`, `eprint`, `exit`,
+`length`, `push`, `argv`, `has`, `substring`, `read_file`, `try_read_file`,
 `try_write_file`, `try_write_bytes`, `try_create_directory`, `try_remove`,
 `try_list_directory`, `try_run`, `try_run_capture`, `try_current_directory`,
 `try_getenv`, `try_file_info`, `try_create_temp_directory`, `int_from_byte`,
@@ -1109,6 +1137,16 @@ the same name shadows the built-in.
   not a collection is an error.
 - Its return type is `int`, and it is not variadic.
 
+**`push`**
+
+- `push(array, value)` takes exactly two arguments: an array and a value whose
+  type is exactly the array's element type. It appends the value and returns the
+  array's new length as an `int` (Section 21.6).
+- The array's identity is preserved, so aliases see the appended element.
+- Passing a non-array first argument, a value of the wrong element type, or the
+  wrong number of arguments is an error.
+- Its return type is `int`, and it is not variadic.
+
 **`argv`**
 
 - `argv()` takes no arguments and returns the process argument vector as a
@@ -1153,7 +1191,7 @@ the same name shadows the built-in.
 
 - The language provides a predeclared public union:
 
-  ```kitten
+  ```percy
   union ReadFileResult {
       Ok { string text; }
       Failed { string message; }
@@ -1165,7 +1203,7 @@ the same name shadows the built-in.
   an empty file is `Ok { text = "" }`. On failure it returns `Failed` with the
   Go-compatible operating-system error text, without the loader's
   `cannot read source file: ` prefix. For example, a missing file is
-  `Failed { message = "open /x.ktn: no such file or directory" }`.
+  `Failed { message = "open /x.pcy: no such file or directory" }`.
 - The type is visible from every module without an import. It is introduced
   implicitly when a module contains a syntactic `try_read_file` call. The name
   `ReadFileResult` is reserved: any user top-level declaration with that name is
@@ -1175,7 +1213,7 @@ the same name shadows the built-in.
 - Users may construct `ReadFileResult.Ok { text = ... }` and
   `ReadFileResult.Failed { message = ... }` directly; the type behaves as an
   ordinary union.
-- `try_read_file` uses the same 256 MiB (`KTN_RT_MAX_FILE_SIZE`) limit as
+- `try_read_file` uses the same 256 MiB (`PCY_RT_MAX_FILE_SIZE`) limit as
   `read_file`. A larger file is a `Failed` result, not a fatal read. The same
   NUL-byte limitation as `read_file` applies.
 - Calling it with the wrong number of arguments or a non-`string` argument is an
@@ -1186,7 +1224,7 @@ the same name shadows the built-in.
 
 - The language also provides the following predeclared public unions:
 
-  ```kitten
+  ```percy
   union FileResult {
       Ok
       Failed { string message; }
@@ -1348,16 +1386,16 @@ the same name shadows the built-in.
   relative to the current working directory, exactly as `execv` would; it is
   **not** looked up in `PATH`. `argv[0]` is `program` as given, and the elements
   of `args` become `argv[1]`, `argv[2]`, and so on in order. Empty-string
-  arguments are passed intact. Kitten strings cannot contain NUL, so no NUL
+  arguments are passed intact. Percy strings cannot contain NUL, so no NUL
   validation is needed.
 - The child inherits the environment, the current working directory, and file
   descriptors 0, 1, and 2. Before forking, the runtime flushes standard output
-  and then standard error, so buffered Kitten output precedes child output and
+  and then standard error, so buffered Percy output precedes child output and
   is not duplicated into the child. There is no stdin redirection, output
   capture, environment control, or timeout; those are **deferred**.
 - `RunResult` is the predeclared result union:
 
-  ```kitten
+  ```percy
   union RunResult {
       Ok { int status; }
       Failed { string message; }
@@ -1391,7 +1429,7 @@ the same name shadows the built-in.
   Go-compatible reason mapping as `try_run`.
 - `CapturedRunResult` is the predeclared result union:
 
-  ```kitten
+  ```percy
   union CapturedRunResult {
       Ok { int status; string stdout; string stderr; }
       Failed { string message; }
@@ -1418,7 +1456,7 @@ the same name shadows the built-in.
 - `try_file_info(path)` takes exactly one `string` and returns
   `FileInfoResult`:
 
-  ```kitten
+  ```percy
   union FileInfoResult {
       Ok { bool is_file; bool is_directory; bool is_symlink; bool executable; int size; }
       Missing
@@ -1448,7 +1486,7 @@ the same name shadows the built-in.
 - `try_create_temp_directory(prefix)` takes exactly one `string` prefix and
   returns `TempDirectoryResult`:
 
-  ```kitten
+  ```percy
   union TempDirectoryResult {
       Ok { string path; }
       Failed { string message; }
@@ -1488,9 +1526,9 @@ the same name shadows the built-in.
   runtime ABI is:
 
   ```c
-  bool ktn_rt_try_create_temp_directory(const ktn_string *prefix,
-                                        const ktn_string **path,
-                                        const ktn_string **message);
+  bool pcy_rt_try_create_temp_directory(const pcy_string *prefix,
+                                        const pcy_string **path,
+                                        const pcy_string **message);
   ```
 
 - Calling it with the wrong number of arguments or a non-`string` argument is an
@@ -1508,7 +1546,7 @@ the same name shadows the built-in.
   limit.
 - `CurrentDirectoryResult` is the predeclared result union:
 
-  ```kitten
+  ```percy
   union CurrentDirectoryResult {
       Ok { string path; }
       Failed { string message; }
@@ -1528,7 +1566,7 @@ the same name shadows the built-in.
 
 - `try_getenv(name)` takes exactly one `string` and returns `EnvResult`:
 
-  ```kitten
+  ```percy
   union EnvResult {
       Set { string value; }
       Unset
@@ -1540,7 +1578,7 @@ the same name shadows the built-in.
   name, or a name containing `=`, returns `Unset`, matching `getenv` returning
   no match. The value is copied as the bytes stored by the OS, including bytes
   above `0x7F`, and is a fresh GC-managed string. NUL cannot occur because
-  Kitten strings cannot contain it.
+  Percy strings cannot contain it.
 - There is no setter: `setenv` is not provided, and `try_run` continues to
   inherit the environment unchanged. The future native runtime must read the
   environment from the process's initial stack (`envp`), because there is no
@@ -1631,33 +1669,33 @@ malformed or incomplete syntax trees.
 
 ## 19. Compilation model (provisional)
 
-This section records how Kitten programs are compiled to native executables. It
+This section records how Percy programs are compiled to native executables. It
 is **provisional**: the representation choices are the first working backend and
 are expected to evolve.
 
 ### 19.1 C type mapping
 
-| Kitten | C |
+| Percy | C |
 | --- | --- |
 | `int` | `int64_t` (signed 64-bit) |
 | `float` | `double` (IEEE 754 binary64) |
 | `bool` | `bool` (`<stdbool.h>`) |
 | `byte` | `uint8_t` (unsigned 8-bit) |
-| `string` | `const ktn_string *` (an immutable, length-carrying byte string) |
+| `string` | `const pcy_string *` (an immutable, length-carrying byte string) |
 | `void` | `void` (function return position only) |
-| struct type `S` | `ktn_s_S *` (a GC-managed object reference) |
-| enum type `E` | `ktn_e_E` (a typedef for `int64_t`) |
-| union type `U` | `ktn_s_U *` (a GC-managed object reference) |
-| map type `map[string]V` | `ktn_map *` (a GC-managed hash table) |
-| array type `T[]` | `ktn_array *` (a GC-managed dynamic array) |
+| struct type `S` | `pcy_s_S *` (a GC-managed object reference) |
+| enum type `E` | `pcy_e_E` (a typedef for `int64_t`) |
+| union type `U` | `pcy_s_U *` (a GC-managed object reference) |
+| map type `map[string]V` | `pcy_map *` (a GC-managed hash table) |
+| array type `T[]` | `pcy_array *` (a GC-managed dynamic array) |
 
 Generated code includes `<stdint.h>` and `<stdbool.h>` through the runtime
 header, so no C integer-width assumption is made and no undefined behavior is
 relied upon. Integer arithmetic is emitted through the runtime's
-`ktn_rt_i64_*` helpers, which use unsigned bit patterns and explicit division
+`pcy_rt_i64_*` helpers, which use unsigned bit patterns and explicit division
 checks; generated C never evaluates signed overflow, division by zero, or a
 signed shift with an out-of-range count. `&`, `|`, `^`, and `~` may use direct C
-operators; `<<` and `>>` use `ktn_rt_i64_shl` and `ktn_rt_i64_shr`.
+operators; `<<` and `>>` use `pcy_rt_i64_shl` and `pcy_rt_i64_shr`.
 
 ### 19.2 Struct representation and reference semantics
 
@@ -1678,7 +1716,7 @@ A struct value is a **reference to a heap object**, not an inline copy:
   including fields at any nesting depth.
 
 Because values are references, two struct expressions are never structurally
-equal; struct equality is a checker error (Section 18.3). Whether Kitten should
+equal; struct equality is a checker error (Section 18.3). Whether Percy should
 instead offer value semantics, an explicit reference type, or copy-on-assignment
 is **deferred**.
 
@@ -1686,30 +1724,31 @@ is **deferred**.
 
 - The runtime is written in C and has no dependency on the compiler's
   implementation language.
-- `ktn_rt_init` initializes the Boehm–Demers–Weiser conservative collector. The
+- `pcy_rt_init` initializes the Boehm–Demers–Weiser conservative collector. The
   generated C entry point calls it before any allocation, then calls
-  `ktn_rt_set_args(argc, argv)` before the Kitten `main` runs.
-- `ktn_rt_alloc` allocates a zero-initialized, pointer-scanned object with the
+  `pcy_rt_set_args(argc, argv)` before the Percy `main` runs.
+- `pcy_rt_alloc` allocates a zero-initialized, pointer-scanned object with the
   collector. Struct allocation and constructed strings go through it. The
-  collector reclaims objects automatically; Kitten code never frees memory by
+  collector reclaims objects automatically; Percy code never frees memory by
   hand.
-- `ktn_string` is the runtime's string object: it stores a byte length and a
+- `pcy_string` is the runtime's string object: it stores a byte length and a
   pointer to the bytes, which are still NUL-terminated (Section 20.1). A
   constructed string is one GC-managed object holding its header and its bytes
-  together; a literal is a `static const ktn_string` whose bytes are static.
-- The runtime also provides `ktn_rt_string_equal`, `ktn_rt_string_concat`,
-  `ktn_rt_string_append`, `ktn_rt_string_length`, `ktn_rt_string_at`,
-  `ktn_rt_substring`, `ktn_rt_array_new`, `ktn_rt_array_at`,
-  `ktn_rt_array_length`, `ktn_rt_set_args`, `ktn_rt_argv`, `ktn_rt_map_new`,
-  `ktn_rt_map_set`, `ktn_rt_map_at`, `ktn_rt_map_has`, `ktn_rt_map_length`,
-  `ktn_rt_read_file`, `ktn_rt_try_read_file`, `ktn_rt_try_write_file`,
-  `ktn_rt_try_write_bytes`, `ktn_rt_try_create_directory`,
-  `ktn_rt_try_remove`, `ktn_rt_try_list_directory`, `ktn_rt_try_run`,
-  `ktn_rt_try_current_directory`, `ktn_rt_try_getenv`,
-  `ktn_rt_try_run_capture`, `ktn_rt_try_file_info`,
-  `ktn_rt_try_create_temp_directory`, `ktn_rt_exit`, the
-  `ktn_rt_i64_*` integer helpers, `ktn_rt_string_to_bytes`,
-  `ktn_rt_bytes_to_string`, and the built-in print and eprint helpers.
+  together; a literal is a `static const pcy_string` whose bytes are static.
+- The runtime also provides `pcy_rt_string_equal`, `pcy_rt_string_concat`,
+  `pcy_rt_string_append`, `pcy_rt_string_length`, `pcy_rt_string_at`,
+  `pcy_rt_substring`, `pcy_rt_array_new`, `pcy_rt_array_at`,
+  `pcy_rt_array_length`, `pcy_rt_array_push`, `pcy_rt_set_args`,
+  `pcy_rt_argv`, `pcy_rt_map_new`,
+  `pcy_rt_map_set`, `pcy_rt_map_at`, `pcy_rt_map_has`, `pcy_rt_map_length`,
+  `pcy_rt_read_file`, `pcy_rt_try_read_file`, `pcy_rt_try_write_file`,
+  `pcy_rt_try_write_bytes`, `pcy_rt_try_create_directory`,
+  `pcy_rt_try_remove`, `pcy_rt_try_list_directory`, `pcy_rt_try_run`,
+  `pcy_rt_try_current_directory`, `pcy_rt_try_getenv`,
+  `pcy_rt_try_run_capture`, `pcy_rt_try_file_info`,
+  `pcy_rt_try_create_temp_directory`, `pcy_rt_exit`, the
+  `pcy_rt_i64_*` integer helpers, `pcy_rt_string_to_bytes`,
+  `pcy_rt_bytes_to_string`, and the built-in print and eprint helpers.
 - Strings are pointer-carrying objects, so structs may still contain pointers
   (to strings and to nested structs) and must be scanned; the runtime therefore
   uses the scanning allocator (`GC_MALLOC`), not the atomic one. Array element
@@ -1751,17 +1790,17 @@ or the equivalent `fn main() -> void`. The entry point:
 A missing or invalid entry point is rejected at build time with a diagnostic;
 the compiler never invents a `main`. The generated C entry point is the C
 function `main`, which calls the runtime initializer, saves its `argc`/`argv` for
-`argv()` (Section 18.8), and then calls the compiled Kitten `main` function. The
-two never collide because Kitten functions are emitted with a reserved prefix.
+`argv()` (Section 18.8), and then calls the compiled Percy `main` function. The
+two never collide because Percy functions are emitted with a reserved prefix.
 
 ### 19.6 Native build pipeline and command line
 
-`purr build <file.ktn> [-o <output>]` runs the whole pipeline and writes a
+`purr build <file.pcy> [-o <output>]` runs the whole pipeline and writes a
 native executable. Without `-o`, the executable is written to the current
-directory as the source file's base name without the `.ktn` extension. The
+directory as the source file's base name without the `.pcy` extension. The
 command never reports success unless the executable was produced.
 
-`purr run <file.ktn>` compiles through the same pipeline into a temporary
+`purr run <file.pcy>` compiles through the same pipeline into a temporary
 location, executes the program, forwards its standard output and standard error,
 and removes the temporary artifacts. It returns the program's exit status.
 
@@ -1783,9 +1822,9 @@ targets the host platform; cross-compilation and Windows are **not** supported.
 
 - Generated C is deterministic for a given program: declarations are emitted in
   source order and generated names follow a fixed scheme.
-- Kitten identifiers are never copied verbatim into C. Functions, variables,
+- Percy identifiers are never copied verbatim into C. Functions, variables,
   struct types, struct fields, and constructors are emitted with reserved
-  prefixes (`ktn_fn_`, `ktn_var_`, `ktn_s_`, `ktn_f_`, `ktn_new_`), so C
+  prefixes (`pcy_fn_`, `pcy_var_`, `pcy_s_`, `pcy_f_`, `pcy_new_`), so C
   keywords and generated helper names cannot collide, and shadowing maps onto C
   block scoping.
 - Struct declarations are forward-declared, and function prototypes are emitted
@@ -1801,7 +1840,7 @@ targets the host platform; cross-compilation and Windows are **not** supported.
 
 - `<runtime>` is a compiler-reserved synthetic module, separate from
   `<prelude>`. It is never loadable from disk, cannot be imported by user code,
-  and is never injected by `purr build` or `purr run`. An explicit Go/Kitten
+  and is never injected by `purr build` or `purr run`. An explicit Go/Percy
   harness hook supplies its source text; the production CLI cannot reach that
   hook.
 - The hook parses the supplied source with the ordinary lexer and parser and
@@ -1810,6 +1849,17 @@ targets the host platform; cross-compilation and Windows are **not** supported.
   program using both synthetic modules therefore has loaded modules, then
   `<prelude>`, then `<runtime>`; a program using neither has no synthetic
   module.
+- **Reserved runtime helper paths.** The checker also permits the intrinsics in
+  two ordinary files, `runtime/pcy/memory.pcy` and `runtime/pcy/io.pcy`. They
+  are loaded through a normal `import` from the compiler's own source, never
+  injected into a user program, so a program that does not import them never
+  sees them. The match is on the canonical path suffix, and the two file names
+  are reserved: another file with either name and an intrinsic call is checked
+  as a runtime helper, so the names are part of the compiler's boundary.
+  `runtime/pcy/io.pcy` exposes `write_executable(path, data)` (mode `0755`) and
+  `write_bytes(path, data)` (mode `0644`), both implemented over the `syscall`
+  intrinsic; `purr`'s native build path uses `write_executable` to create its
+  ELF. Both helpers return `0` on success or a negative errno.
 - Intrinsic names resolve only while checking `<runtime>`. In every other
   module they are ordinary names: an undeclared intrinsic call is the ordinary
   undefined-function error, a user may declare a function with that name, and
@@ -1838,9 +1888,9 @@ targets the host platform; cross-compilation and Windows are **not** supported.
 - Generated C lowers raw loads/stores with `memcpy` on an `unsigned char *`
   cast of the address, raw copy/zero with `memmove`/`memset`, `address_of` to a
   data-pointer cast to `int64_t`, and `syscall` to the C library `syscall()`
-  with `long` casts. The helpers are static inline `ktn_rt_raw_*` and
-  `ktn_rt_syscall` in the MIT runtime header.
-- The runtime module source lives under `runtime/ktn/` with the MIT notice. Its
+  with `long` casts. The helpers are static inline `pcy_rt_raw_*` and
+  `pcy_rt_syscall` in the MIT runtime header.
+- The runtime module source lives under `runtime/pcy/` with the MIT notice. Its
   public functions live in that module under the ordinary public/private rules.
 
 ### 19.9 Limitations and provisional decisions
@@ -1908,7 +1958,7 @@ before the native fixpoint as later rungs land:
   mark-sweep collection between the two (Sections 30.7 and 30.8). Objects
   are 8-aligned, preceded by the size-only header word. Exhaustion after
   the collection, a negative size, or a wrapped cursor is a fatal runtime
-  error with the C runtime's `ktn_rt_fail` spelling — `purr: out of
+  error with the C runtime's `pcy_rt_fail` spelling — `purr: out of
   memory` to standard error and exit status 1 — and a failed mapping fails
   the same way. The mark-sweep collection reuses the same header ABI on
   every block; the collector's shape can still refine before the native
@@ -1934,24 +1984,24 @@ the representation is the first working model and may evolve.
 ### 20.1 Representation
 
 - A `string` is an immutable, length-carrying sequence of bytes. The C
-  representation is `const ktn_string *` (Section 19.1): the runtime's
-  `ktn_string` stores the number of bytes and a pointer to the bytes, which are
+  representation is `const pcy_string *` (Section 19.1): the runtime's
+  `pcy_string` stores the number of bytes and a pointer to the bytes, which are
   NUL-terminated as well so that they remain usable with C library functions.
   Storing the length makes `length` and indexing constant-time (Section 20.6).
 - A string literal denotes a string backed by static storage: the code generator
-  emits one `static const ktn_string` per distinct literal, with the byte length
+  emits one `static const pcy_string` per distinct literal, with the byte length
   it computed from the decoded text and the bytes as a static C string. The lexer
   supports the escapes `\n`, `\t`, `\"`, and `\\` (Section 6.3); the code
   generator decodes them and re-encodes the bytes safely for C.
 - A string produced by concatenation or by `substring` is a freshly allocated,
-  exactly-sized, GC-managed `ktn_string` whose header and bytes are one object.
-  It remains valid as long as Kitten code can reach it, and it is never freed by
+  exactly-sized, GC-managed `pcy_string` whose header and bytes are one object.
+  It remains valid as long as Percy code can reach it, and it is never freed by
   hand. Copying the pointer copies the string value, and because strings are
   immutable the copies never diverge.
 - Strings are byte sequences, not necessarily valid text; concatenation and
   equality are byte operations.
 - **Embedded NUL bytes are not supported.** Because the bytes are
-  NUL-terminated, a string cannot contain a NUL byte in the middle. Kitten
+  NUL-terminated, a string cannot contain a NUL byte in the middle. Percy
   provides no way to create one: there is no `\0` escape, and concatenation of
   NUL-free strings is NUL-free. This is a limitation of the representation, not
   a hidden behavior.
@@ -2074,7 +2124,7 @@ This section records the implemented dynamic-array semantics. It is
 
 - An array value is a reference to a GC-managed object holding the length, the
   element size, and a pointer to the element storage. Its C representation is
-  `ktn_array *` (Section 19.1).
+  `pcy_array *` (Section 19.1).
 - The element storage is allocated with the scanning collector (`GC_MALLOC`)
   and zero-initialized, so arrays of `string`, structs, and nested arrays are
   handled correctly by the collector.
@@ -2099,8 +2149,8 @@ This section records the implemented dynamic-array semantics. It is
 - The element type may itself be an array type written with `[]`, so
   `new int[][3]` creates an array of three `int[]` elements; each element starts
   as a null reference and must be assigned before use.
-- A negative length at runtime is a fatal runtime error (Section 21.6).
-- Every element is zero-initialized (Section 21.8).
+- A negative length at runtime is a fatal runtime error (Section 21.7).
+- Every element is zero-initialized (Section 21.9).
 
 ### 21.4 Indexing and assignment
 
@@ -2122,7 +2172,31 @@ This section records the implemented dynamic-array semantics. It is
 - `length(array)` returns the number of elements as an `int` (Section 18.8).
 - An empty array has length 0. `new int[0]` is valid.
 
-### 21.6 Bounds checking and runtime errors
+### 21.6 Appending with push
+
+- `push(array, value)` appends `value` to `array` and returns the array's new
+  length as an `int`. The value's type must match the element type exactly, as
+  in assignment.
+- The array's identity does not change. Appending therefore mutates the shared
+  array object, so every reference to the same array observes the new element
+  and the new length; an alias is not invalidated (Section 21.7).
+- The array expression and the value expression are each evaluated exactly once
+  before the element is stored. Their relative evaluation order is unspecified,
+  so neither expression should depend on the other's side effects.
+- Appending to an array whose storage is full replaces the element buffer with a
+  larger one (twice the previous capacity, at least one element) and copies the
+  live elements. Growth is therefore amortized constant time, and the buffer is
+  an implementation detail that no Percy program can observe.
+- The value is copied into the array; later changes to the source variable do not
+  change the stored element. For a reference element type, this copies the
+  reference, not the referenced value.
+- Appending to a null array reference, or growing an array past the addressable
+  limit, is a fatal runtime error.
+- `push` returns the new length rather than the array, so a program that keeps
+  the array in a variable does not need to rebind it:
+  `push(values, 4);` suffices, and `length(values)` is one larger afterward.
+
+### 21.7 Bounds checking and runtime errors
 
 - Every element access is bounds-checked against the array length before the
   element is addressed.
@@ -2136,7 +2210,7 @@ This section records the implemented dynamic-array semantics. It is
   indexing with a non-`int`. The runtime check covers indices, which cannot be
   validated statically.
 
-### 21.7 Aliasing and mutation
+### 21.8 Aliasing and mutation
 
 - Arrays are references. Assigning one array variable to another copies the
   reference, so both names refer to the same storage and a mutation through
@@ -2147,7 +2221,7 @@ This section records the implemented dynamic-array semantics. It is
 - Arrays cannot be compared with `==` or `!=`; compare elements or lengths
   instead.
 
-### 21.8 Element types and zero values
+### 21.9 Element types and zero values
 
 - Every element is zero-initialized when the array is created: `int` is `0`,
   `float` is `0.0`, `bool` is `false`, `byte` is `0`, `string` is the empty
@@ -2156,23 +2230,24 @@ This section records the implemented dynamic-array semantics. It is
   safe to read and print before it is assigned (Section 20.1).
 - The zero value of a struct or nested-array element is a null reference. It
   must be assigned before it is used. Array access on a null array is caught
-  (Section 21.6), but member access on a null struct reference is not checked in
+  (Section 21.7), but member access on a null struct reference is not checked in
   this revision and is a defect in the program.
 - Any supported element type may be used: the primitive types, `string`, structs,
   and other arrays.
 
-### 21.9 Print behavior
+### 21.10 Print behavior
 
 `print` does not accept arrays: passing an array to `print` is a semantic error
 (Section 18.8). Print elements individually, for example in a loop over
 `length(array)`.
 
-### 21.10 Deferred array operations
+### 21.11 Deferred array operations
 
 The following are **not** implemented in this revision and must not be assumed:
 
 - Array literals and initializer lists.
-- Resizing, appending, inserting, and removing elements.
+- Resizing, inserting, and removing elements; `push` appends but there is no
+  `pop`, `insert`, `remove`, truncation, or explicit capacity control.
 - Slicing and subarrays.
 - Multi-dimensional creation syntax such as `new int[3][4]` (nest manually).
 - Iteration helpers such as a `for value in array` form.
@@ -2180,9 +2255,9 @@ The following are **not** implemented in this revision and must not be assumed:
 - Sorting, searching, copying, and other library operations.
 - A null/optional concept, and null-reference checking for structs.
 
-### 21.11 Provisional decisions recorded
+### 21.12 Provisional decisions recorded
 
-1. All array types share the C representation `ktn_array *`; element types are
+1. All array types share the C representation `pcy_array *`; element types are
    enforced by the checker.
 2. Array creation uses the `new` keyword: `new Element[length]`. This avoids the
    ambiguity between creating an array of a named type and indexing a variable
@@ -2202,7 +2277,7 @@ The following are **not** implemented in this revision and must not be assumed:
 
 ## 22. File I/O and modules (provisional)
 
-This section records how a Kitten program reads files and how a program can be
+This section records how a Percy program reads files and how a program can be
 split across several source files. It is **provisional**: the module model is a
 first working design and may evolve.
 
@@ -2213,8 +2288,8 @@ first working design and may evolve.
 - A module begins with any number of **import declarations**:
 
   ```text
-  import "geometry.ktn";
-  import "util/text.ktn";
+  import "geometry.pcy";
+  import "util/text.pcy";
   ```
 
   The path is a string literal naming a file relative to the directory of the
@@ -2329,7 +2404,7 @@ file metadata beyond the operations above are **not** implemented.
 - Import paths are resolved relative to the directory of the file that contains
   the import, then canonicalized.
 - The **resolution root** is the directory of the root source file. An import
-  whose canonical path lies outside that directory (for example `../outside.ktn`
+  whose canonical path lies outside that directory (for example `../outside.pcy`
   from the root) is rejected with an error. This keeps a program's sources
   inside the directory the compilation was started from.
 - Resolution does not depend on the current working directory, only on the root
@@ -2351,9 +2426,9 @@ supported.
 - Declarations from every module are emitted into one C translation unit.
 - To prevent private declarations in different modules from colliding in C,
   imported modules mangle top-level names with their module number: a
-  root-module function `f` becomes `ktn_fn_f`, and the same name in imported
-  module 1 becomes `ktn_fn_1_f`. Struct types use `ktn_s_1_F` and constructors
-  `ktn_new_1_F`. Because a Kitten identifier cannot begin with a digit, a
+  root-module function `f` becomes `pcy_fn_f`, and the same name in imported
+  module 1 becomes `pcy_fn_1_f`. Struct types use `pcy_s_1_F` and constructors
+  `pcy_new_1_F`. Because a Percy identifier cannot begin with a digit, a
   mangled imported name can never collide with a root-module name, and distinct
   module numbers keep imported modules distinct. Local variables, parameters,
   and struct fields are not mangled.
@@ -2370,8 +2445,8 @@ supported.
 
 ### 22.8 Command line
 
-`purr build <file.ktn> [-o <output>]` and `purr run <file.ktn>` are
-unchanged in shape. `<file.ktn>` is the root module; imported modules are found
+`purr build <file.pcy> [-o <output>]` and `purr run <file.pcy>` are
+unchanged in shape. `<file.pcy>` is the root module; imported modules are found
 relative to it. Diagnostics name the file an error was found in, with a
 line and column where the error is inside a source file.
 
@@ -2436,7 +2511,7 @@ The following are **not** implemented and must not be assumed:
 
 ## 23. Enums and tagged unions (provisional)
 
-This section records how a Kitten value can hold one of several explicitly
+This section records how a Percy value can hold one of several explicitly
 declared alternatives. It is **provisional**: the feature is the first working
 design and may evolve.
 
@@ -2574,19 +2649,21 @@ therefore supported and require no manual memory management.
 
 ### 23.9 C representation
 
-- An enum is a C `int64_t` typedef, `ktn_e_<Module>Name`, together with one
-  integer constant per case, `ktn_ec_<Module>Enum_Case`, numbered in declaration
+- An enum is a C `int64_t` typedef, `pcy_e_<Module>Name`, together with one
+  integer constant per case, `pcy_ec_<Module>Enum_Case`, numbered in declaration
   order.
-- A union is a C struct, `ktn_s_<Module>Name`, holding an `int64_t` tag member
+- A union is a C struct, `pcy_s_<Module>Name`, holding an `int64_t` tag member
   and every variant's fields as separate, variant-prefixed members
-  (`ktn_v_<Variant>_<field>`). A flat layout is used rather than a C `union` so
+  (`pcy_v_<Variant>_<field>`). A flat layout is used rather than a C `union` so
   that reading a field is never undefined behavior; only the active variant's
   members are read, always after the tag is checked.
-- Each variant has a constructor, `ktn_new_<Module>Union_Variant`, which
+- Each variant has a constructor, `pcy_new_<Module>Union_Variant`, which
   allocates through the GC, sets the tag, and then sets the fields.
-- A match compiles to a `switch` on the tag. The tag is compared against the
-  union's variant constants or the enum's case constants. Composite and imported
-  types are mangled by module number like other top-level names (Section 22.6).
+- A match compiles to an `if`/`else if` chain on the tag, not a C `switch`: a
+  C switch would make a user `break` inside an arm exit the match instead of the
+  enclosing loop. The tag is compared against the union's variant constants or
+  the enum's case constants. Composite and imported types are mangled by module
+  number like other top-level names (Section 22.6).
 
 ### 23.10 Deferred
 
@@ -2596,7 +2673,7 @@ The following are **not** implemented and must not be assumed:
 - Converting an enum to or from an integer, and iterating an enum's cases.
 - Comparing unions structurally, and hashing or ordering variants.
 - Variant payloads declared with anonymous struct types, tuples, or generics.
-- A `switch` statement, `break`, and `continue` (unrelated to `match`).
+- A `switch` statement (unrelated to `match`).
 - Exhaustiveness warnings when a type gains a variant in another module are
   errors rather than warnings, because matches are checked exhaustively.
 
@@ -2685,7 +2762,7 @@ int total = counts["total"];   // fatal when "total" is absent
   distinct strings with identical contents address the same entry.
 - A key may be the empty string; it is an ordinary key.
 - Map keys and values are **retained, not copied**: the map stores a reference
-  to the key string and copies the value's bytes. Kitten strings are immutable
+  to the key string and copies the value's bytes. Percy strings are immutable
   and garbage collected, so a stored key can never be mutated and stays alive as
   long as the map reaches it.
 - Maps cannot be compared with `==` or `!=`; map equality is not supported.
@@ -2699,7 +2776,7 @@ map, and a map stored in a struct field or array element is shared the same way.
 
 ### 24.8 Runtime representation
 
-- A map is a C `ktn_map` value: an entry count, a capacity, a value size, and
+- A map is a C `pcy_map` value: an entry count, a capacity, a value size, and
   garbage-collected arrays of keys, hashes, and value bytes.
 - The runtime uses **open addressing with linear probing** over a power-of-two
   table. Keys are hashed with FNV-1a over their bytes. Entries are never removed,
@@ -2714,7 +2791,7 @@ map, and a map stored in a struct field or array element is shared the same way.
 - Allocation sizes are checked for overflow; a negative or zero value size, an
   allocation that would overflow, or a table that is too large is a fatal
   runtime error.
-- No manual memory management is required from Kitten programs.
+- No manual memory management is required from Percy programs.
 
 ### 24.9 Deferred
 
@@ -2747,9 +2824,9 @@ The following are **not** implemented and must not be assumed:
 
 ---
 
-## 25. Kitten-written lexer (experimental)
+## 25. Percy-written lexer (experimental)
 
-This section records a component that is written in Kitten itself and runs under
+This section records a component that is written in Percy itself and runs under
 the Go bootstrap compiler. It is **not** the production front end: `purr build`
 and `purr run` continue to use the Go lexer in `lexer/`, and Sections 3–8
 remain the normative description of lexical structure. The section exists so that
@@ -2760,10 +2837,10 @@ rather than assumed.
 
 The sources are:
 
-- `selfhost/lexer/tokens.ktn` — the token vocabulary: the `TokenKind` enum, the
+- `selfhost/lexer/tokens.pcy` — the token vocabulary: the `TokenKind` enum, the
   `Token` struct, the `LexResult` union, and the mapping from a kind to its name.
-- `selfhost/lexer/lexer.ktn` — the scanner and the public `lex` function.
-- `selfhost/lexer/main.ktn` — a driver program that reads a file and prints
+- `selfhost/lexer/lexer.pcy` — the scanner and the public `lex` function.
+- `selfhost/lexer/main.pcy` — a driver program that reads a file and prints
   tokens.
 
 `selfhost/lexer/README.md` describes how to build and run them. This is the first
@@ -2772,10 +2849,10 @@ checker, and the code generator are still written only in Go.
 
 ### 25.2 Fidelity to the reference lexer
 
-The Kitten lexer reproduces the reference behavior described in Sections 3–8: the
+The Percy lexer reproduces the reference behavior described in Sections 3–8: the
 same token kinds, the same token text, the same one-based line and column
 positions, the same first-error behavior, and the same messages. A differential
-test in `cmd/purr` compiles the Kitten lexer and compares it against the Go
+test in `cmd/purr` compiles the Percy lexer and compares it against the Go
 lexer over a corpus of hundreds of inputs; the corpus, the comparison rules, and
 the results are recorded in `selfhost/lexer/README.md`.
 
@@ -2791,13 +2868,13 @@ uninitialized token is observed, and no slot is written twice.
 ### 25.4 Documented differences from the reference lexer
 
 - **Positions are counted in bytes.** The reference lexer scans a `[]rune` and
-  counts columns in code points (Section 3); the Kitten lexer scans bytes,
-  because Kitten strings are byte sequences with byte length, byte indexing, and
+  counts columns in code points (Section 3); the Percy lexer scans bytes,
+  because Percy strings are byte sequences with byte length, byte indexing, and
   byte ranges (Section 20.6). For ASCII input the two agree exactly. For input
   containing bytes at or above 128, the column numbers after those bytes differ,
   and the "unexpected character" message names a byte (`'\xc3'`) where the
   reference names a decoded code point.
-- **Embedded NUL bytes.** A Kitten string cannot contain a NUL byte
+- **Embedded NUL bytes.** A Percy string cannot contain a NUL byte
   (Section 20.1), so a source file containing one is truncated at that byte by
   `read_file`; the reference lexer would continue past it.
 - **Fixed driver input and output.** The lexer driver still reads the fixed
@@ -2816,7 +2893,7 @@ grows **linearly** with the input size. Measured on the development machine by
 running the compiled driver (which prints every token) with process start-up
 subtracted, and the Go reference lexer on the same input:
 
-| Source | Tokens | Go lexer | Kitten lexer |
+| Source | Tokens | Go lexer | Percy lexer |
 | --- | --- | --- | --- |
 | 1 KB | 253 | 0.08 ms | 0.3 ms |
 | 4 KB | 995 | 0.3 ms | 2.4 ms |
@@ -2824,7 +2901,7 @@ subtracted, and the Go reference lexer on the same input:
 | 64 KB | 15821 | 5.6 ms | 31 ms |
 | 256 KB | 63281 | 22 ms | 116 ms |
 
-A fourfold input increases the Kitten lexer's time by a factor of about four,
+A fourfold input increases the Percy lexer's time by a factor of about four,
 which is linear within measurement noise. Scanning itself is now the smaller
 part of the cost: a run that only lexes and prints the token count takes about
 249 ms at 1 MB, while printing every token takes about 461 ms, so the driver's
@@ -2843,7 +2920,7 @@ quadratic term rather than merely reducing it.
 
 The following are **not** implemented and must not be assumed:
 
-- Any part of the compiler other than the lexer: there is no Kitten-written
+- Any part of the compiler other than the lexer: there is no Percy-written
   parser, checker, or code generator.
 - Parsing, or any check that the tokens form a valid program: the driver reports
   tokens and lexical errors only.
@@ -2852,9 +2929,9 @@ The following are **not** implemented and must not be assumed:
 
 ---
 
-## 26. Kitten-written parser (experimental)
+## 26. Percy-written parser (experimental)
 
-This section records a second component written in Kitten itself, alongside the
+This section records a second component written in Percy itself, alongside the
 lexer of Section 25. It is **not** the production front end: `purr build` and
 `purr run` continue to use the Go parser in `parser/`, and Section 17 remains
 the normative description of the grammar. The section exists so that the
@@ -2865,14 +2942,14 @@ assumed.
 
 The sources are:
 
-- `selfhost/parser/ast.ktn` — the abstract syntax tree types and the position
+- `selfhost/parser/ast.pcy` — the abstract syntax tree types and the position
   helpers that compute each node's position.
-- `selfhost/parser/parser.ktn` — the parser and the public `parse` function.
-- `selfhost/parser/printer.ktn` — the canonical rendering of the tree.
-- `selfhost/parse.ktn` — the driver, which reads a file, lexes it with the
-  Kitten-written lexer, parses the tokens, and prints the result.
+- `selfhost/parser/parser.pcy` — the parser and the public `parse` function.
+- `selfhost/parser/printer.pcy` — the canonical rendering of the tree.
+- `selfhost/parse.pcy` — the driver, which reads a file, lexes it with the
+  Percy-written lexer, parses the tokens, and prints the result.
 
-The driver is `selfhost/parse.ktn` rather than a file inside `selfhost/parser/`
+The driver is `selfhost/parse.pcy` rather than a file inside `selfhost/parser/`
 because imports must resolve inside the directory of the file being compiled
 (Section 22.4), so a driver that uses both the lexer and the parser has to sit
 above both directories. `selfhost/parser/README.md` describes how to build and
@@ -2881,7 +2958,7 @@ exactly like the reference parser.
 
 ### 26.2 Fidelity to the reference parser
 
-The Kitten parser accepts the grammar of Section 17, applies the precedence and
+The Percy parser accepts the grammar of Section 17, applies the precedence and
 associativity of Section 17.3, and produces the same tree as the Go reference
 parser: the same node kinds, the same fields, the same positions, the same
 fail-fast diagnostics, and the same messages. A differential test in
@@ -2900,7 +2977,7 @@ constructs, malformed input, every fixture, and the self-hosted sources;
   kind, the text, and the position, so no lexeme or position is stored twice. A
   node's position is computed from the token that begins it, by the same rules
   the reference AST uses.
-- **Absence is explicit.** Kitten has no null value: a local declared without an
+- **Absence is explicit.** Percy has no null value: a local declared without an
   initializer is undefined rather than empty, and no literal denotes "no object".
   The optional parts of the grammar — an else branch, a variable initializer, a
   return value, a for-loop clause, a function's return type — are modelled as
@@ -2913,7 +2990,7 @@ constructs, malformed input, every fixture, and the self-hosted sources;
 ### 26.4 Documented differences
 
 The parser introduces no difference of its own. Because the driver lexes with the
-Kitten-written lexer, the differences recorded in Section 25.4 appear here too: a
+Percy-written lexer, the differences recorded in Section 25.4 appear here too: a
 column after a byte at or above 128 can differ from the reference lexer's
 code-point column, and an error message that quotes such a byte names the byte.
 The differential test therefore requires exact equality for input whose bytes are
@@ -2933,7 +3010,7 @@ the tree and starting the process, parsing takes about 15 ms for 11 KB, 111 ms f
 
 The following are **not** implemented and must not be assumed:
 
-- A Kitten-written semantic checker, code generator, or compiler driver. This
+- A Percy-written semantic checker, code generator, or compiler driver. This
   section covers the parser and its tree only.
 - Module resolution, import loading, and multi-file parsing.
 - Recovery from a syntax error: the parser reports the first error and stops.
@@ -2942,9 +3019,9 @@ The following are **not** implemented and must not be assumed:
 
 ---
 
-## 27. Kitten-written semantic checker (experimental)
+## 27. Percy-written semantic checker (experimental)
 
-This section records a third component written in Kitten itself, alongside the
+This section records a third component written in Percy itself, alongside the
 lexer of Section 25 and the parser of Section 26. It is **not** the production
 front end: `purr build` and `purr run` continue to use the Go checker in
 `checker/`, and Sections 18 and 22–24 remain the normative description of the
@@ -2955,21 +3032,21 @@ known limits are documented rather than assumed.
 
 The sources are:
 
-- `selfhost/checker/model.ktn` — the data model: types, variant and struct
+- `selfhost/checker/model.pcy` — the data model: types, variant and struct
   definitions, and the optional wrappers.
-- `selfhost/checker/state.ktn` — symbols, scopes, functions, the checker state,
+- `selfhost/checker/state.pcy` — symbols, scopes, functions, the checker state,
   name and type resolution, and diagnostics.
-- `selfhost/checker/expr.ktn` — expression checking.
-- `selfhost/checker/stmt.ktn` — statement checking and the conservative
+- `selfhost/checker/expr.pcy` — expression checking.
+- `selfhost/checker/stmt.pcy` — statement checking and the conservative
   control-flow analysis.
-- `selfhost/checker/checker.ktn` — the five passes and the public entry points.
-- `selfhost/check.ktn` — the driver.
+- `selfhost/checker/checker.pcy` — the five passes and the public entry points.
+- `selfhost/check.pcy` — the driver.
 
 `selfhost/checker/README.md` describes how to build and run it. The checker driver
 still checks exactly the two modules it is given — `input.txt` as the root and
 `input2.txt` as an import — so that cross-module checking can be exercised without
-a loader. The Kitten-written loader under `selfhost/loader` discovers imports and
-feeds the checker directly through `selfhost/loadunit.ktn`. Root paths may be
+a loader. The Percy-written loader under `selfhost/loader` discovers imports and
+feeds the checker directly through `selfhost/loadunit.pcy`. Root paths may be
 relative: `resolve_root` resolves a relative spelling against the kernel's
 current-directory query the way the reference's `canonicalPath` does with
 `filepath.Abs`, so the loader language parity with the reference is complete
@@ -2977,7 +3054,7 @@ current-directory query the way the reference's `canonicalPath` does with
 
 ### 27.2 API
 
-```kitten
+```percy
 public fn check_modules(Module[] modules, int module_count) -> CheckResult
 public fn check_program(Module module) -> CheckResult
 ```
@@ -2996,7 +3073,7 @@ that it can generate code without repeating name resolution or type checking. It
 mirrors the reference checker's `Result`, which associates each fact with an AST
 node:
 
-| Fact | Reference | Kitten |
+| Fact | Reference | Percy |
 | --- | --- | --- |
 | An expression's type | `ExpressionTypes` (by node) | `ExprInfo.type` at the node's id |
 | A variant reference | `VariantRefs` (by node) | `ExprInfo.variant` |
@@ -3017,7 +3094,7 @@ name in a qualified variant reference, has no type.
 ### 27.2.2 Node identity
 
 Associating a fact with a node requires a key that survives nesting, repetition,
-and multiple modules. The reference uses the node's address, which Kitten cannot
+and multiple modules. The reference uses the node's address, which Percy cannot
 compare or hash. Three alternatives were considered:
 
 - **Annotate the AST nodes with a stable integer id**, assigned by the parser at
@@ -3044,14 +3121,14 @@ naturally has.
   exactly when their parts are, and named types are equal exactly when they are
   the same declaration.
 - Absence is a value: an absent type is the `None` kind, and an absent payload or
-  parent is the `Absent` case of an optional union. Kitten cannot construct a
+  parent is the `Absent` case of an optional union. Percy cannot construct a
   struct value recursively, so optional payloads are unions rather than
   placeholder objects.
 - Scopes are the reference's: a scope is a name table plus an optional enclosing
   scope, a declaration is refused when the name is already declared in that same
   scope, and a lookup walks outward, which is what allows shadowing.
 - A declaration is resolved by its module and name rather than by AST node
-  identity, which Kitten cannot key a map by; duplicate detection makes the pair
+  identity, which Percy cannot key a map by; duplicate detection makes the pair
   exact.
 
 ### 27.4 Rules implemented
@@ -3087,7 +3164,7 @@ cross-module cases, every fixture, and the self-hosted sources.
 ### 27.6 Deferred
 
 - **Code generation.** The semantic result of Section 27.2.1 carries every fact
-  the reference generator reads. The first layer of a Kitten-written generator —
+  the reference generator reads. The first layer of a Percy-written generator —
   naming, the C type mapping, escaping, and output accumulation — and the emitters
   that consume this result are described in Section 28. The contract they rely on is
   documented in `selfhost/checker/README.md`.
@@ -3098,14 +3175,14 @@ cross-module cases, every fixture, and the self-hosted sources.
 
 ---
 
-## 28. Kitten-written C generator (experimental)
+## 28. Percy-written C generator (experimental)
 
 Section 19 describes the compilation model, and Section 27 describes the
-Kitten-written checker that resolves a program. This section describes the
-Kitten-written code generator: the layer that turns resolved names and types into
+Percy-written checker that resolves a program. This section describes the
+Percy-written code generator: the layer that turns resolved names and types into
 C text and the bounded accumulation it writes into, the declaration emitter, the
 expression emitter, the string literal pool, the statement and function-body
-emitter, and the translation unit assembly. The Kitten-written module loader under
+emitter, and the translation unit assembly. The Percy-written module loader under
 `selfhost/loader` supplies the module set, accepting absolute and relative root
 paths with the reference's `filepath.Abs`-shaped resolution; its README records
 the exact parity and the remaining exclusions.
@@ -3114,21 +3191,21 @@ the exact parity and the remaining exclusions.
 
 The sources are:
 
-- `selfhost/codegen/names.ktn` — name mangling, the C type mapping, and
+- `selfhost/codegen/names.pcy` — name mangling, the C type mapping, and
   string-literal escaping, mirroring `codegen/names.go` and `codegen/cstring.go`.
-- `selfhost/codegen/output.ktn` — bounded output accumulation and finalization.
-- `selfhost/codegen/errors.ktn` — the failure type every stage reports.
-- `selfhost/codegen/declarations.ktn` — the declaration emitter.
-- `selfhost/codegen/expressions.ktn` — the core expression emitter.
-- `selfhost/codegen/literals.ktn` — the string literal pool.
-- `selfhost/codegen/statements.ktn` — the statement and function-body emitter.
-- `selfhost/codegen/unit.ktn` — the entry point rule and the translation unit
+- `selfhost/codegen/output.pcy` — bounded output accumulation and finalization.
+- `selfhost/codegen/errors.pcy` — the failure type every stage reports.
+- `selfhost/codegen/declarations.pcy` — the declaration emitter.
+- `selfhost/codegen/expressions.pcy` — the core expression emitter.
+- `selfhost/codegen/literals.pcy` — the string literal pool.
+- `selfhost/codegen/statements.pcy` — the statement and function-body emitter.
+- `selfhost/codegen/unit.pcy` — the entry point rule and the translation unit
   assembly.
-- `selfhost/codegen.ktn` — the helper probe driver.
-- `selfhost/declarations.ktn` — the declaration driver.
-- `selfhost/expressions.ktn` — the expression driver.
-- `selfhost/functions.ktn` — the function driver.
-- `selfhost/unit.ktn` — the unit driver.
+- `selfhost/codegen.pcy` — the helper probe driver.
+- `selfhost/declarations.pcy` — the declaration driver.
+- `selfhost/expressions.pcy` — the expression driver.
+- `selfhost/functions.pcy` — the function driver.
+- `selfhost/unit.pcy` — the unit driver.
 
 `selfhost/codegen/README.md` describes how to build and run each driver, the
 directive interface the helper probe exposes, and the measured costs. The pool has
@@ -3148,7 +3225,7 @@ translation unit for a program.
 
 ### 28.2 API
 
-`names.ktn` exposes the reserved prefixes and standalone generated names, the
+`names.pcy` exposes the reserved prefixes and standalone generated names, the
 derived name forms, `c_type`, and `c_string_literal`:
 
 - `c_type(type) -> CTypeResult` where `CTypeResult` is `Ok { text }` or
@@ -3166,7 +3243,7 @@ derived name forms, `c_type`, and `c_string_literal`:
   the declaration sections mention: the header they include and the allocation the
   generated constructors call.
 
-`output.ktn` exposes `new_output`, `output_write`, `output_indent`, `output_line`,
+`output.pcy` exposes `new_output`, `output_write`, `output_indent`, `output_line`,
 each returning `OutputResult`, and `output_text`.
 
 Nothing in this layer inspects a program, resolves a name, or infers a type: every
@@ -3178,11 +3255,11 @@ emitter's in Section 28.7.
 
 The mapping and the mangling are the ones in Section 19.1 and Section 19.7,
 derived from the reference generator rather than restated from the language:
-primitives map to `int64_t`, `double`, `bool`, `const ktn_string *`, and `void`;
-a struct or union maps to a pointer to `ktn_s_<module><Name>`; an enum maps to the
-typedef `ktn_e_<module><Name>`; and an array or a map maps to `ktn_array *` or
-`ktn_map *`. The root module is unmangled and an imported module is qualified by
-its id, which cannot collide with a root-module name because a Kitten identifier
+primitives map to `int64_t`, `double`, `bool`, `const pcy_string *`, and `void`;
+a struct or union maps to a pointer to `pcy_s_<module><Name>`; an enum maps to the
+typedef `pcy_e_<module><Name>`; and an array or a map maps to `pcy_array *` or
+`pcy_map *`. The root module is unmangled and an imported module is qualified by
+its id, which cannot collide with a root-module name because a Percy identifier
 cannot begin with a digit.
 
 ### 28.4 String literal escaping
@@ -3195,7 +3272,7 @@ decoded bytes, excluding the terminator C appends.
 
 ### 28.5 Output accumulation
 
-Kitten strings are immutable, so appending to a growing buffer costs the size of
+Percy strings are immutable, so appending to a growing buffer costs the size of
 the output per append. Output is therefore accumulated as a bounded array of
 chunks — one chunk per completed line — and finalized by joining the chunks in
 halves, which copies the text once per level of recursion. The caller sizes the
@@ -3208,12 +3285,12 @@ linearly, where joining left to right grows quadratically.
 
 ### 28.6 The declaration emitter
 
-`selfhost/codegen/declarations.ktn` emits the sections the reference generator
+`selfhost/codegen/declarations.pcy` emits the sections the reference generator
 writes before any function body, in its order and with its spacing: the
 generated-file comment and runtime include, forward typedefs, enum declarations,
 union tag constants, function prototypes, struct definitions, union definitions,
-struct constructors, and union constructors. `selfhost/declarations.ktn` is its
-driver: it reads two modules, runs the Kitten front end, and prints the section.
+struct constructors, and union constructors. `selfhost/declarations.pcy` is its
+driver: it reads two modules, runs the Percy front end, and prints the section.
 
 The API is `emit_declarations(model)`, which sizes the output exactly, and
 `emit_declarations_with_capacity(model, capacity)`, which emits into a chosen
@@ -3239,13 +3316,13 @@ run advances.
 
 ### 28.7 The core expression emitter
 
-`selfhost/codegen/expressions.ktn` renders the expressions the reference generator
+`selfhost/codegen/expressions.pcy` renders the expressions the reference generator
 handles with a recursive walk and parentheses: integer, floating-point, boolean, and
 string literals; identifiers; unary `-`, `!`, `++`, and `--`; binary `+`, `-`, `*`,
 `/`, `%`, `<`, `<=`, `>`, `>=`, `==`, `!=`, `&&`, and `||`; calls; member access and
 qualified variant references; struct and variant literals; array and map creation;
 indexing; and assignment. Every unary and binary operation is parenthesized, so the generated C never
-depends on C's precedence matching Kitten's. A string literal renders as a reference to
+depends on C's precedence matching Percy's. A string literal renders as a reference to
 its pooled object, described in Section 28.8.
 
 A literal is emitted as its source spelling, exactly as the reference emits it, so
@@ -3256,7 +3333,7 @@ because the checker rejects a name that is not a local variable or parameter in
 expression position.
 
 Three binary operators are string operations: `+` concatenates and `==` and `!=`
-compare content, through the runtime helpers, because a Kitten string is a
+compare content, through the runtime helpers, because a Percy string is a
 length-carrying pointer. The left operand's resolved type decides that, and it is
 the only semantic fact the emitter reads, which mirrors the reference exactly.
 
@@ -3275,8 +3352,10 @@ resolved function. The built-ins are expanded: `print` and `eprint` become comma
 expressions of the runtime helpers for each argument's type, separated by the
 space helper and terminated by the newline helper, which has type void and is the
 built-in's own type; `length` becomes the array, map, or string length helper
-chosen by the argument's type; and `has`, `substring`, `read_file`, `argv`, and
-`exit` are one runtime call each. Every prelude built-in is a call to its
+chosen by the argument's type; `push` becomes the append helper with the value
+materialized as a compound literal of the array's C element type, so the helper
+receives a stable address and copies it; and `has`, `substring`, `read_file`,
+`argv`, and `exit` are one runtime call each. Every prelude built-in is a call to its
 non-static generated helper, which builds the result union from the runtime's
 success flag and payload or message. Arguments
 are rendered left to right and the first failure among them stops the call, so a call
@@ -3284,7 +3363,7 @@ is never emitted with a hole where an argument failed. The built-ins whose argum
 is a container choose their length or membership helper from the argument's type, and
 their argument can be constructed in the same expression because `new` is rendered.
 
-**Member access** renders as `<receiver>->ktn_f_<field>`, unless the checker recorded
+**Member access** renders as `<receiver>->pcy_f_<field>`, unless the checker recorded
 the member as a qualified variant reference, in which case an enum case renders as its
 tag constant and a payload-less union variant renders as a call to its constructor.
 **Struct and variant literals** render as calls to the generated constructors, with
@@ -3313,7 +3392,7 @@ measures it rather than hiding it.
 
 ### 28.8 The string literal pool
 
-`selfhost/codegen/literals.ktn` holds the string literals a translation unit uses.
+`selfhost/codegen/literals.pcy` holds the string literals a translation unit uses.
 A literal is interned where it is rendered, so the entries are in first-use order,
 and two literals that share a C spelling share one object, which is exactly the
 reference's rule. The order is the reference's rendering order, which is source
@@ -3321,12 +3400,12 @@ order for every construct except a struct or variant literal: the reference rend
 those values in field declaration order rather than source order, so a literal
 written last there can be the first pooled entry.
 
-The pool names its objects `ktn_literal_<n>`, one-based, using the helper of
-Section 28.3, and expression emission refers to one as `(&ktn_literal_<n>)`.
+The pool names its objects `pcy_literal_<n>`, one-based, using the helper of
+Section 28.3, and expression emission refers to one as `(&pcy_literal_<n>)`.
 `literal_pool_text` returns the declarations, each line built from the escaped form
 of Section 28.4:
 
-	static const ktn_string ktn_literal_<n> = { <length>, "<escaped>" };
+	static const pcy_string pcy_literal_<n> = { <length>, "<escaped>" };
 
 with one blank line after them, and the empty string for a program with no
 literals. In a generated file they belong after the constructors and before the
@@ -3348,7 +3427,7 @@ because that output is sized from the pool.
 
 ### 28.9 The statement and function emitter
 
-`selfhost/codegen/statements.ktn` renders the body of every function.
+`selfhost/codegen/statements.pcy` renders the body of every function.
 `emit_function_bodies(model, pool)` returns the whole body section - one definition
 per function declaration, in module and source order, each followed by a blank line
 - or a failure, which means no bodies were produced. The string literals the bodies
@@ -3356,21 +3435,23 @@ use are interned into the pool the caller supplies, in the order the reference
 interns them.
 
 The statements are a block, a local declaration, an expression statement, `if` with
-its `else` and `else if` forms, `while`, `for`, `return`, and `match`. Braces,
-indentation, blank lines, and parentheses are the reference's. The language defines
-no `break`, `continue`, or `goto`, so no statement emits one; the `break;` a `match`
-case ends with is the reference's, and so is the `default:` arm that fails through
-the runtime, which the checker's exhaustiveness rule makes unreachable.
+its `else` and `else if` forms, `while`, `for`, `break`, `continue`, `return`, and
+`match`. Braces, indentation, blank lines, and parentheses are the reference's.
+`break;` and `continue;` are emitted as the language's own statements. A `match`
+becomes an `if`/`else if` chain on the tag so a `break` inside an arm still targets
+the enclosing loop; the final `else` fails through the runtime, which the checker's
+exhaustiveness rule makes unreachable.
 
 A condition keeps the parentheses of a compound expression and gains them when it
 is a bare identifier or a literal, which is the reference's rule; a condition that is
 an assignment keeps an extra layer of parentheses, because C's `-Wparentheses` warns
 about an assignment used as a condition without them.
 
-A `match` evaluates its scrutinee once into a temporary named `ktn_match_<n>`,
+A `match` evaluates its scrutinee once into a temporary named `pcy_match_<n>`,
 numbered across the whole unit in emission order, checks a union scrutinee for null
-before reading its tag, and turns each arm into a `case` that binds the variant's
-fields, casts each unused binding to void, emits the arm's statements, and breaks.
+before reading its tag, and turns each arm into an `if`/`else if` branch that binds
+the variant's fields, casts each unused binding to void, and emits the arm's
+statements; the final `else` is the defensive invalid-tag failure.
 
 A statement whose expression the expression emitter cannot render is reported with
 that expression's failure and produces no bodies, so an incomplete body can never be
@@ -3386,7 +3467,7 @@ because the counter starts at zero in each run.
 
 ### 28.10 The translation unit
 
-`selfhost/codegen/unit.ktn` renders a complete C translation unit:
+`selfhost/codegen/unit.pcy` renders a complete C translation unit:
 `emit_translation_unit(model)` returns `Success { text; lines }` or a failure, and a
 failure means no unit was produced.
 
@@ -3397,7 +3478,7 @@ declarations of Section 28.8, with one blank line after them or nothing at all f
 program with no literals; one definition per function from Section 28.9, each
 followed by a blank line; and the C entry point, which calls the runtime
 initialization, saves `argc`/`argv` for `argv()`, then calls the root module's
-`ktn_fn_main` and returns 0.
+`pcy_fn_main` and returns 0.
 
 **The entry point rule** runs before anything is emitted, exactly as the reference
 runs it, so a program with both an invalid entry point and an expression the emitter
@@ -3419,7 +3500,7 @@ render every expression twice and intern every literal twice.
 
 ### 28.11 Differential testing
 
-The differential tests in `cmd/purr` compare the Kitten-written generator with
+The differential tests in `cmd/purr` compare the Percy-written generator with
 the reference. The helper test compares values the reference produced rather than a
 copy of its logic: for every literal of the corpus the harness reads the pooled
 declaration out of the reference's own output and compares both the escaped text
@@ -3456,7 +3537,7 @@ and, because such a program can now print, compiles, links, and runs both genera
 programs and compares what they write, their standard error, and their exit status. A
 program the entry point rule rejects is compared through its error, so it is never
 counted as a unit comparison. The fixture harness hands every top-level fixture under
-`tests/` to the Kitten backend: each fixture must match the reference's unit and
+`tests/` to the Percy backend: each fixture must match the reference's unit and
 produce its expected output when compiled and run.
 
 `selfhost/codegen/README.md` records the corpora and the results.
@@ -3469,31 +3550,31 @@ produce its expected output when compiled and run.
 - Driver integration of process launch and the file-writing and directory
   operations; the self-hosted driver does not use them.
 
-Kitten is not self-hosting. The lexer, the parser, the checker, the module loader,
+Percy is not self-hosting. The lexer, the parser, the checker, the module loader,
 and the generator's helper, declaration, expression, literal-pool, statement, and
-unit layers are written in Kitten, and every expression kind the language has is now
+unit layers are written in Percy, and every expression kind the language has is now
 emitted; but production
 integration, the pipeline that writes and compiles the output, and the production
 compiler are Go. The Go compiler must therefore remain
-the bootstrap reference until the Kitten-written compiler can compile its own source
-through a Kitten-written pipeline and reproduce the same behavior.
+the bootstrap reference until the Percy-written compiler can compile its own source
+through a Percy-written pipeline and reproduce the same behavior.
 
 
 ---
 
-## 29. Kitten-written `purr` (experimental; frozen under the `purr` name in 9.9)
+## 29. Percy-written `purr` (experimental; frozen under the `purr` name in 9.9)
 
-`purr.ktn`, `purr/cli.ktn`, `purr/build.ktn`, `purr/new.ktn`, and
-`purr/project.ktn` are the toolchain written in Kitten. After the 9.9 freeze the
-binary built from `purr.ktn` takes over the `purr` name, and the Go CLI at
+`purr.pcy`, `purr/cli.pcy`, `purr/build.pcy`, `purr/new.pcy`, and
+`purr/project.pcy` are the toolchain written in Percy. After the 9.9 freeze the
+binary built from `purr.pcy` takes over the `purr` name, and the Go CLI at
 `./cmd/purr` is frozen as the bootstrap and testing reference; the harnesses
-still label pipeline-specific test builds `purr-kt`, while the binary's own
-help and diagnostics always name the program `purr`. Building the Kitten `purr`
+still label pipeline-specific test builds `purr-pcy`, while the binary's own
+help and diagnostics always name the program `purr`. Building the Percy `purr`
 still requires the Go bootstrap. The sidecar supports `help`, `new`, `build`,
 and `run`, including current-directory binary project mode. Library project
 builds remain deferred.
 
-`build` links the Kitten-written loader, lexer, parser, checker, and generator
+`build` links the Percy-written loader, lexer, parser, checker, and generator
 in process, discovers `CC` or `cc`/`gcc`/`clang` with PATH rules matching Go's
 `exec.LookPath` (relative PATH results are rejected as Go's `ErrDot`), reads
 `pkg-config bdw-gc` flags, writes the generated C and embedded runtime to a
@@ -3509,7 +3590,7 @@ to stdout, and exit 0 without touching the filesystem; every other argument is
 ignored when help is requested. The help text is:
 
 ```text
-Kitten project scaffolding
+Percy project scaffolding
 
 Usage:
   purr new [--lib] <name>
@@ -3527,8 +3608,8 @@ reports usage errors on stderr with exit 2.
 Project mode activates only for `purr build` or `purr run` with no source
 argument, no `-o`/`--output` option, and a `purr.toml` in the **current
 directory**. There is no parent-directory search. The manifest is parsed with
-the strict subset parser in `purr/manifest.ktn`, and exactly one of
-`src/main.ktn` (binary) or `src/lib.ktn` (library) must exist.
+the strict subset parser in `purr/manifest.pcy`, and exactly one of
+`src/main.pcy` (binary) or `src/lib.pcy` (library) must exist.
 
 For a binary project named by the manifest:
 
@@ -3551,8 +3632,8 @@ Project-discovery failures use the command prefix and exit 1:
 
 - a manifest read or parse failure reports the runtime or parser message after
   `purr build: ` or `purr run: `;
-- both source files report `project has both src/main.ktn and src/lib.ktn`;
-- neither source reports `project has neither src/main.ktn nor src/lib.ktn`.
+- both source files report `project has both src/main.pcy and src/lib.pcy`;
+- neither source reports `project has neither src/main.pcy nor src/lib.pcy`.
 
 Without `purr.toml`, the existing `missing source file` usage error and status 2
 are preserved. An explicit source argument, or any output option without a
@@ -3588,7 +3669,7 @@ oracle.
 
 ### 30.1 The typed scene
 
-`selfhost/native/ir.ktn` defines the backend's input representation, one
+`selfhost/native/ir.pcy` defines the backend's input representation, one
 `NativeScene` per program:
 
 - **Shapes.** `int` is a signed 64-bit value, `float64` is IEEE 754 binary64,
@@ -3632,7 +3713,7 @@ the renderer's spellings, and the both-pipeline probe agreement are recorded in
 
 ### 30.3 The skeleton slice (Phase 10.2)
 
-`selfhost/native/selector.ktn` and `selfhost/native/elf.ktn` lower the scene
+`selfhost/native/selector.pcy` and `selfhost/native/elf.pcy` lower the scene
 subset the skeleton needs, so a scene has a native executable without any C
 compiler, libc, or libgc:
 
@@ -3732,12 +3813,12 @@ and no register allocation.
 
 ### 30.5 The lowering (Phase 10.4)
 
-`selfhost/native/lower.ktn` lowers a checked program into a `NativeScene`,
+`selfhost/native/lower.pcy` lowers a checked program into a `NativeScene`,
 closing the first half of the proposal's verification ladder step 2: real
 language source goes in, a static native executable comes out, with no C
 compiler, libc, or libgc anywhere.
 
-- **The input.** The lowering reads the Kitten-written checker's
+- **The input.** The lowering reads the Percy-written checker's
   `SemanticModel`: it never resolves a name, infers a type, or re-reads
   source text. It consumes exactly one module — an import, or the
   checker's injected prelude module, fails with its message — and walks that
@@ -3785,7 +3866,7 @@ compiler, libc, or libgc anywhere.
   are; the corpus never reads one, and the reference's same-name
   self-shadowing-initializer quirk (the C generator's scoping collides on
   such an initializer) keeps the corpus from lowering that construct.
-- **The acceptance rung.** `tests/native/*.ktn` — fifteen targeted
+- **The acceptance rung.** `tests/native/*.pcy` — fifteen targeted
   programs covering arithmetic, defined division and its fatal path,
   comparisons and boolean operators with their short-circuit side effects,
   both increment positions, literal bases and ranges, scoping, string
@@ -3794,7 +3875,7 @@ compiler, libc, or libgc anywhere.
   use — all lower, and each executable's output, standard error, and status
   match the C pipeline's `purr run` of the same source, each with an empty
   `PATH`, every production byte-identical in repeat, and the two pipelines'
-  productions byte-identical. `tests/native/bad/*.ktn` pins one message per
+  productions byte-identical. `tests/native/bad/*.pcy` pins one message per
   unsupported construct and per load, lex, parse, and check failure, with
   status 1 and empty standard error. The pool render — blob pooling, the
   `"$print"` helper, and the binding order — is pinned byte for byte.
@@ -3811,9 +3892,9 @@ and run, with no new host-language decisions beyond what the C pipelines
 already fix (IEEE 754 binary64, with every double's operator behavior
 carried by the C toolchain).
 
-- **The encoder.** `selfhost/native/floats.ktn` does what the C pipeline's
+- **The encoder.** `selfhost/native/floats.pcy` does what the C pipeline's
   C compiler does: a literal's decimal text becomes the exact binary64 bit
-  pattern. It runs in pure integer Kitten — 16-bit limbs (every product
+  pattern. It runs in pure integer Percy — 16-bit limbs (every product
   stays inside the signed 64-bit range, so the defined arithmetic carries
   no undefined behavior), exact x10 scaling, exact bit shifts, and exactly
   one rounding: the significand keeps 53 bits against a guard bit and a
@@ -3863,8 +3944,8 @@ carried by the C toolchain).
   decimal classics, the round-trip edge, the smallest subnormal, the
   maximal normal boundary, and the saturations — plus a seeded random
   corpus, against the `strconv` oracle through the probe's `float` mode,
-  with zero disagreement. The corpus grows `tests/native/floats.ktn` and
-  `tests/native/floatfns.ktn` — arithmetic through functions, recursion
+  with zero disagreement. The corpus grows `tests/native/floats.pcy` and
+  `tests/native/floatfns.pcy` — arithmetic through functions, recursion
   via calls, NaN's unordered behavior (including `-(0.0)`, infinity, and
   the smallest-subnormal division that rounds to zero), both increment
   positions, compound assignment, and the tie's rounding — and both match
@@ -3903,7 +3984,7 @@ records the ABI's substance).
   private failure messages are objects of the same shape. The pointer slot
   is patched in place the moment its blob starts, replacing the deferred
   pointer-fixup list.
-- **The allocator.** `selfhost/native/runtime.ktn` holds the runtime
+- **The allocator.** `selfhost/native/runtime.pcy` holds the runtime
   shells: the `$heap` blob — two 8-byte words on a payload whose starting
   bytes are the all-ones pattern, the negative value -1, so "unmapped" is
   the one test `cursor < 0` — plus `$map`, which maps 256 MiB
@@ -3917,7 +3998,7 @@ records the ABI's substance).
 - **The failure text.** The out-of-memory paragraph is the division
   failure's sibling: write(2) the C runtime's exact `purr: out of memory`
   to standard error, then `exit_group(1)`, byte for byte the
-  `ktn_rt_fail("out of memory")` spelling. Each paragraph's private message
+  `pcy_rt_fail("out of memory")` spelling. Each paragraph's private message
   object and its jumps are emitted only when some failure reaches it.
 - **The print helpers.** The print-kind prescan folds the argument kinds of
   every call resolving to the print built-in, and the lowering registers
@@ -3929,10 +4010,10 @@ records the ABI's substance).
   "true" or "false" to `$print`. print is supported with exactly one
   string, int, or bool argument; every other type still fails with its own
   message.
-- **The acceptance rung.** The print corpus (`printint.ktn`,
-  `printbool.ktn`, `negatives.ktn`, `mixed.ktn` — zero, negatives,
+- **The acceptance rung.** The print corpus (`printint.pcy`,
+  `printbool.pcy`, `negatives.pcy`, `mixed.pcy` — zero, negatives,
   wrap-to-INT64_MIN, formatted bools, and mixed kinds) joins
-  `tests/native/*.ktn`; every program's native executable output, standard
+  `tests/native/*.pcy`; every program's native executable output, standard
   error, and status match `purr run` of the same source with an empty
   `PATH`, deterministically in repeat, and the two pipelines' ELFs are
   byte-identical. `elf-oom` halts with the exact failure text at status 1,
@@ -3950,7 +4031,7 @@ whole heap. The production sidecar still does not depend on this module.
 
 The backend received the proposal Section 7.1's approved first collector:
 non-moving conservative mark-sweep over the header ABI Section 19.10
-records, written in Kitten as scene shells in `selfhost/native/runtime.ktn`.
+records, written in Percy as scene shells in `selfhost/native/runtime.pcy`.
 
 - **The block world.** All blocks live in one mapped region behind
   size-only 8-byte header words: the header value is the whole block size,
@@ -3985,7 +4066,7 @@ records, written in Kitten as scene shells in `selfhost/native/runtime.ktn`.
   taken header — and `$bump` serves the untouched cursor while it has
   room. `$alloc` = search, bump, then one full collection (scan, sweep),
   then search and bump again, then the exact `purr: out of memory` halt at
-  status 1 the C runtime's `ktn_rt_fail` spelling words.
+  status 1 the C runtime's `pcy_rt_fail` spelling words.
 - **The language surface.** String concatenation (`+`, `+=`) lower to
   `$string_concat`, the one user-reachable allocation; content equality
   (`==`, `!=`) lower to `$string_equal`; the `length` built-in lowers to
@@ -3993,15 +4074,678 @@ records, written in Kitten as scene shells in `selfhost/native/runtime.ktn`.
   every program the corpus carries, with an empty `PATH`, in repeat, and
   the two pipelines' ELFs are byte-identical for hello, arith, divzero,
   oom, and gc scene kinds.
-- **The acceptance rung.** `gcstress.ktn` grows one string by doubling,
-  `concat.ktn`, `equal.ktn`, and `lengthgc.ktn` cover mixed pooling and
+- **The acceptance rung.** `gcstress.pcy` grows one string by doubling,
+  `concat.pcy`, `equal.pcy`, and `lengthgc.pcy` cover mixed pooling and
   comparisons; the probe's `elf-gc` pushes 600 one-megabyte allocations
   through the collector's path and still exits 0. Everything else remains
   with the C oracle; the production sidecar still does not depend on this
   module.
 
-What remains unimplemented is unchanged from Section 30.7: no float
-printing or value conversions, no arrays/maps/structs/unions in the
-native lowering, no field access or bounds checks, and no register
-allocation. The mark ledger's cost, the frame cap, and multi-module
-lowering all stay open on the way to the native compiler stage.
+What remains unimplemented after the later sections (30.10–30.14): no
+int/float value conversions, no maps, union/enum construction or `match`, no
+field access on unions, and no register allocation. The mark ledger's cost and
+multi-module lowering stay open on the way to the native compiler stage;
+the frame cap is raised in Section 30.10, heap marking is transitive in
+Section 30.11, and arrays land in Section 30.12.
+
+### 30.9 Exact `%g` float printing (Phase 10.8)
+
+`selfhost/native/runtime.pcy` now prints floats with the C pipeline's exact
+`%g` spelling: six significant digits with round-half-even, fixed notation
+when the decimal exponent is at least -4 and below the precision, scientific
+notation otherwise, and the specified sign, zero, infinity, and NaN forms.
+The formatter is written in Percy as scene shells over 16-bit-limb big
+integers; it uses only the scene's integer, float-bits, raw-memory, and
+syscall forms.
+
+The first landing was incomplete and is repaired in this section's final
+state:
+
+- `$bn_copy_into` writes every source limb before sealing the destination's
+  count. It previously stopped at the destination's old count, so a remainder
+  that grew by a limb left a stale top limb behind.
+- `$bn_pad` gives the digit numerator at least the divisor's limb count of
+  capacity. The digit loop multiplies by ten and copies the remainder back;
+  the remainder can be one limb wider than the object it replaces.
+- `$print_float` calls the shared `$print_newline` tail on every return path,
+  so a float print ends its line exactly as `print(int)`, `print(bool)`, and
+  `print(string)` do.
+- `$bn_bump` clears all six digit limbs on a roll; its roll loop previously
+  stopped one limb short.
+
+The acceptance rung is `tests/native/printfloat.pcy`: zero and negative zero,
+fixed and scientific thresholds, six-digit fixed values with leading zeroes,
+rounding boundaries, large and small magnitudes, infinities, NaN, and
+rational values computed by division. The corpus runs through
+`TestNativeProbeLowerCorpus`, which compares the native executable's output,
+standard error, and status with the C pipeline's `purr run` byte for byte and
+checks that a repeated production is byte-identical; the Percy-pipeline
+variant checks the same through `purr-pcy`. The shared `$print_newline` shell
+also moves the pinned integer-print scene, which is refreshed with the
+verified rendering.
+
+### 30.10 Wide frames (Phase 10.9)
+
+The selector's frame capacity moves from fourteen parameters and fourteen
+locals to 4096 of each; this supersedes the fourteen-slot statements in
+Sections 30.3 and 30.4. Phase 10.33 raised the budget to 8192 of each (a
+64 KiB frame) because the capture shell's builder exceeds the old limit when
+the native backend compiles the compiler's own source. The small-frame encodings are unchanged: a
+displacement that fits the signed byte form still emits the same `disp8`
+bytes, and a frame or argument area that fits still uses `imm8`. The wider
+forms are selected only when an offset needs them.
+
+- `slot_disp_fits8` decides between the two ModRM spellings for every
+  rbp-relative operand: `mov`, `cmp`, `idiv`, `movsd`, `ucomisd`, byte stores,
+  and the implicit-constant guards all go through `push_slot_operand`.
+- `frame_prologue`, `frame_epilogue`, and `release_arguments` choose
+  `48 83 /imm8` while the byte count fits and `48 81 /imm32` beyond it.
+- Parameters keep the caller-allocated argument area at rbp+16+8k, now with
+  disp32 addressing when k is large; a call with many arguments pops the
+  whole area through the imm32 form.
+
+The acceptance rung adds `tests/native/bigframe.pcy` (sixty-four locals in a
+use chain, so no C warning perturbs the stream), `tests/native/manyparams.pcy`
+(twenty parameters, which exercises parameter disp32 and the imm32 argument
+pop), and a regenerated `TestNativeProbeLowerFrameLimit` that writes 2049
+declarations (4098 lowered locals) and expects the deterministic
+`do not fit the slice's frame layout` message. The whole corpus runs through
+`TestNativeProbeLowerCorpus` and its Percy-pipeline variant, comparing output,
+standard error, and status with the C pipeline byte for byte. Stack-alignment
+refinement, a System V interop convention, and register allocation remain
+later slices; composite types, file I/O, and multi-module lowering remain the
+next language-surface work.
+
+### 30.11 Transitive heap marking (Phase 10.10)
+
+The collector now traces pointers stored inside heap objects, not only the
+conservative stack roots. This is the property arrays, structs, unions, and
+maps depend on: an object reachable only through another object's payload
+must stay live across a collection.
+
+- `$mark_at` answers 1 when it marks a ledger-certified header that was not
+  already marked, and 0 otherwise. `$scan_roots` ignores the answer;
+  `$scan_heap` sums it so `$collect` can tell whether another pass is needed.
+- `$scan_heap` walks every block from the heap base to the allocation cursor.
+  For each marked block it scans every 8-byte word of the payload (the size
+  header is skipped) and offers the word to `$mark_at`. The pass is
+  conservative: a payload integer that happens to look like a heap address
+  may retain a block, which is acceptable; a reachable block is never missed.
+- `$collect` runs the stack root scan, repeats `$scan_heap` until a pass
+  adds no marks, and only then sweeps. The first pass marks the inner block
+  behind an outer object's payload; the second pass settles.
+- `$ledger_at` reads a value's ledger byte without changing it, which is the
+  probe's white-box view of the mark pass.
+
+The acceptance rung is `TestNativeProbeGCGraph` and its `elf-gc-graph` scene.
+The scene allocates an outer block, an inner block, and an unlinked block,
+stores the inner address in the outer payload, marks only the outer explicitly
+(never scanning the stack), runs `$scan_heap`, and reads both ledger bytes.
+The expected output is `marked`, `unlinked`, `changed`, `settled`: the inner
+block is 2 (marked), the unlinked block is 1 (allocated but unmarked), the
+first pass reports one new mark, and the second reports zero. Disabling
+`$scan_heap` flips the same scene to `missed`, `unlinked`, `nochange`,
+`settled`, so the test is sensitive to the transitive edge rather than to a
+stale conservative stack value. The existing `elf-gc` stress test still
+pushes six hundred one-megabyte blocks through the collector and exits 0.
+
+### 30.12 Arrays (Phase 10.11)
+
+The native backend now supports arrays of int, bool, float, string, and
+reference elements: `new T[n]`, `a[i]`, `a[i] = value`, compound `+=` and
+`-=` on int and float elements, `length(a)`, array parameters, and array
+returns. Byte arrays land in Section 30.13; string byte indexing remains
+deferred.
+
+The array object uses the runtime header ABI plus three words:
+
+| Offset | Word |
+| ---: | --- |
+| 0 | whole object size, written by `$alloc` |
+| 8 | element count |
+| 16 | element size in bytes |
+| 24 | data buffer's **block base** |
+
+The data buffer is a separate GC object: its own size header at base+0 and
+its element bytes from base+8. Storing the base, not the first element,
+keeps the collector's conservative pointer match on a certified header.
+`$array_new` allocates the object and the buffer, zeroes every element (an
+empty array still allocates one byte, as the C runtime does), and returns the
+object. Elements are eight bytes for int, float, string, and reference
+elements, and one byte for bool. Negative lengths, non-positive element
+sizes, and products that cannot fit a signed 64-bit request fail with the C
+runtime's exact texts:
+
+- `array length cannot be negative`
+- `array element size must be positive`
+- `array allocation is too large`
+- `array access on a null array reference`
+- `length of a null array reference`
+- `array index <i> is out of range for length <n>`
+
+The failure writers are Percy shells: `$write_byte_fd`, `$write_blob_fd`,
+`$write_digits_fd`, `$write_int_fd`, `$fail_blob`, and `$fail_bounds`. They
+write `purr: ` plus the message and a newline to descriptor 2, then exit
+with status 1, byte for byte the C runtime's `pcy_rt_fail`. The bounds text
+interpolates the index and length through the decimal writer, so the exact
+text is available without a libc formatter.
+
+Lowering evaluates an element address once through `$array_at`: null check,
+`0 <= index < length`, then `data base + 8 + index * element_size`. Loads and
+stores choose the element shape: an 8-byte load for int/ref, a byte load
+normalized to bool, and a raw 64-bit load plus the new `BitsFloat` scene form
+for float. Stores invert that choice; bool materializes one 0/1 byte through
+a branch, and a reference copies its address into an int binding first. The
+scene's transitive heap scan marks the data buffer from the array's payload
+and then marks reference elements from the buffer's payload.
+
+The acceptance rung is `tests/native/arrays.pcy` (int, bool, float, string,
+`length`, element stores, compound element assignment, concatenated string
+elements), `tests/native/arrayfns.pcy` (array parameter and array return),
+and `tests/native/arrayfail.pcy` (a runtime bounds failure whose standard
+error and status match the C pipeline). All three run through
+`TestNativeProbeLowerCorpus` and its Percy-pipeline variant. The old
+"array values are not supported yet" failure fixture is gone; string
+indexing still fails with `string indexing is not supported yet`. Structs
+land in Section 30.14; after Section 30.13 the remaining composite work is
+maps, unions, tag switches, and string byte indexing.
+
+### 30.13 Byte values and byte arrays (Phase 10.12)
+
+`byte` now lowers as a 0..255 value in an int scene slot: equality and
+unsigned relational comparisons are ordinary int comparisons because the
+value never exceeds 255, and `print(byte)` routes to the integer print helper
+and therefore prints the unsigned decimal value. `byte[]` uses the array
+layout with an element size of one: creation, indexing, element assignment,
+`length`, parameters, and returns all work through the Phase 10.11 array
+runtime. A byte load is one raw byte read into an int; a byte store writes
+the low byte.
+
+- `int_from_byte(value)` is the identity on the 0..255 slot.
+- `byte_from_int(value)` takes `value % 256` and adds 256 when the truncating
+  remainder is negative, producing the low eight bits without a bitwise
+  operator.
+- `string_to_bytes(value)` allocates an element-size-one array of the
+  string's byte length and copies the string's payload.
+- `bytes_to_string(value)` rejects a null array (`byte array is null`) and a
+  non-unit element size (`byte array element size is not 1`), scans for the
+  first NUL, and fails with
+  `byte array contains a NUL byte at index <i>` before allocating a
+  length-carrying string object and copying the bytes. The NUL index is
+  formatted by the same decimal writer as the array bounds message.
+
+The acceptance rung is `tests/native/bytes.pcy` — byte creation, indexing,
+printing, unsigned comparison, `byte_from_int` truncation (including negative
+inputs), `int_from_byte`, `string_to_bytes`, `bytes_to_string`, and byte
+parameters/returns — and `tests/native/bytesnul.pcy`, whose NUL failure
+matches the C pipeline's standard error and status byte for byte. Both run
+through `TestNativeProbeLowerCorpus` and its Percy-pipeline variant. String
+byte indexing (`text[i]` yielding an int) remains deferred; structs land in
+Section 30.14, and maps, unions, tag switches, and multi-module lowering
+remain the next language-surface work.
+
+### 30.14 Struct layout, literals, and field access (Phase 10.13)
+
+Struct values are references to heap objects. The object begins with the
+eight-byte runtime header, then fields in declaration order, each aligned to
+its type:
+
+- `int`, `float`, `string`, `array`, `struct`, `union`, `map`, and `enum`
+  fields occupy eight bytes and align to eight; `bool` and `byte` fields
+  occupy one byte and align to one. The whole object size rounds up to eight.
+- A struct literal allocates `struct_size - 8` through the allocator (the
+  header is the allocator's), then writes every field at its offset. All
+  fields are required, so every readable payload byte is initialized.
+- A member read evaluates the receiver once, adds the field's constant
+  offset, and loads through the field's shape: int/enum, byte, normalized
+  bool, float through `BitsFloat`, or an eight-byte reference.
+- A member assignment uses the same single receiver evaluation; `=` stores,
+  and `+=`/`-=` load, fold an int or float, and store back. Field assignment
+  on other shapes fails with its message.
+- Field access on a null struct reference is not checked, matching the C
+  pipeline's documented deferred behavior.
+
+Composite values now have a reference shape: struct, union, and map values
+are eight-byte references, while enum values are their eight-byte tag in an
+int slot. Operations on unions, enums, and maps (variant construction,
+`match`, map access) remain unsupported; their values can already travel
+through locals, parameters, returns, fields, and arrays. The collector's
+transitive heap scan marks reference fields because it scans the whole struct
+payload.
+
+The acceptance rung is `tests/native/structs.pcy` — int, bool, float, and
+string fields, member assignment and compound assignment, struct parameters,
+struct returns, nested structs, and arrays of structs — and
+`tests/native/structmixed.pcy` — byte and array fields, an out-of-order
+literal, field mutation, and reference fields. Both run through
+`TestNativeProbeLowerCorpus` and its Percy-pipeline variant. The old
+"struct declarations are not supported yet" fixture is gone. Later sections
+30.15–30.21 cover union/enum construction and `match`, multi-module lowering,
+and maps; file/process built-ins and the native compiler stage remain.
+
+### 30.15 Multi-module lowering and variadic `print` (Phase 10.14)
+
+The native lowering now consumes a whole checked `SemanticModel`, not one
+module:
+
+- Function shells register for every module before any body lowers. The root
+  module keeps its bare scene name (`main`, `area`, ...); an imported
+  module's functions take an `m<module-id>_` prefix, so same-named private
+  functions cannot collide.
+- A call resolves through the checked `Function.module` field and the same
+  key, so cross-module calls reach the imported module's scene function.
+- Bodies lower module by module with `lowering.module` and `lowering.path`
+  switched to the current module, which makes `type_refs`, expression
+  annotations, struct layouts, and diagnostic paths use that module's tables.
+- `import` declarations produce no code; the loader already resolved them.
+- The entry point is still the root module's zero-parameter, void `main`.
+
+`print` now accepts one or more arguments. Each printable kind has a raw
+writer and a newline wrapper: `$print_string_raw`/`$print`,
+`$print_int_raw`/`$print_int`, `$print_bool_raw`/`$print_bool`, and
+`$print_float_raw`/`$print_float`. A one-argument call uses the wrapper,
+preserving the existing single-value behavior. A multi-argument call lowers
+each value through its raw writer with a space blob between values and one
+`$print_newline` at the end, matching the C pipeline's separators and
+trailing newline. `eprint` remains unsupported.
+
+The acceptance rung is the real `tests/modules` tree — imported structs,
+public/private functions, cross-module calls, and `print(label(), area(room))`
+— through `TestNativeProbeLowerModules` and the Percy-pipeline corpus loop,
+byte-identical to `purr run` and deterministic across repeated productions.
+`tests/native/printmany.pcy` covers strings, ints, mixed bool/float values,
+and bytes in one call. The old single-module and single-print-argument
+fixtures are gone. Later sections cover union/enum construction and `match`
+and maps; file/process built-ins, the native compiler stage, and the
+zero-dependency cut remain.
+
+### 30.16 Enums and `match` (Phase 10.15)
+
+Enum declarations need no scene code: an enum value is its eight-byte tag in
+an int slot, and a qualified case reference (`Color.Red`) is a `Member` node
+whose `ExprInfo.variant` the checker resolved. The lowering emits the
+variant's index as a constant. `match` on an enum evaluates the scrutinee
+once, compares the tag against each arm's variant index, lowers the arm body,
+and falls through to the defensive `match on an invalid variant tag` failure.
+`tests/native/enums.pcy` covers case constants, equality, parameters/returns,
+and enum struct fields through both pipelines.
+
+### 30.17 Unions and `match` (Phase 10.16)
+
+A union object is flat: the runtime header at 0, the active tag at 8, then
+every variant's fields in declaration order from offset 16, each aligned by
+its type, with the total rounded to eight. `union_size` and
+`union_field_offset` compute the layout; construction allocates
+`size - 8`, writes the tag first, then stores the payload fields at their
+offsets. A payload-less variant is constructed by its bare reference.
+`match` on a union null-checks the reference (`match on a null union
+reference`), loads the tag at offset 8, compares each arm, binds the variant's
+fields by loading them at their flat offsets, and lowers the arm body.
+`tests/native/unions.pcy` covers payload and empty construction, payload
+bindings, enum matches, and multi-argument printing through both pipelines.
+
+### 30.18 String indexing and `substring` (Phase 10.17)
+
+`text[i]` calls `$string_at`: a null string reads as empty, the index is
+checked against the length word, and the payload byte is zero-extended to an
+int. A failure prints `purr: string index <i> is out of range for length <n>`
+to standard error and exits 1. `substring(text, start, end)` calls
+`$substring`, checks `0 <= start <= end <= length` (null reads as empty),
+allocates a fresh length-carrying string, and copies the byte range. A
+failure prints `purr: substring range <s>..<e> is out of range for length <n>`.
+`tests/native/stringops.pcy`, `stringindexfail.pcy`, and
+`substringfail.pcy` cover the success and failure paths through both
+pipelines.
+
+### 30.19 `eprint` (Phase 10.18)
+
+`eprint(...)` lowers through the runtime's descriptor writers to descriptor 2:
+strings use `$write_blob_fd`, ints and bytes use `$write_int_fd`, bools choose
+the `true`/`false` blob, a space blob separates values, and one newline ends
+the line. The space is emitted before the following argument is evaluated, so
+side-effecting arguments interleave exactly as the C pipeline's comma
+expression does. Float `eprint` has no descriptor-based formatter yet and
+fails explicitly. `tests/native/eprint.pcy` covers mixed values, multiple
+lines, and evaluation order through both pipelines.
+
+### 30.20 `argv()` (Phase 10.19)
+
+When the prescan sees `argv()`, the scene gains a 16-byte args blob and the
+selector's opening paragraph saves the initial stack's `argc` at payload+0
+and `argv` pointer at payload+8 before calling the entry. `$argv` allocates a
+fresh `string[argc]`, reads each C argument with `$c_strlen`, copies it into a
+normal length-carrying string object, and stores the reference in the array.
+`TestNativeProbeArgv` runs the C and native executables with the same
+non-empty vector, including an empty argument and one containing spaces, and
+compares the observable arguments; `tests/native/argv.pcy` covers the
+no-argument corpus run.
+
+### 30.21 Maps (Phase 10.20)
+
+Maps are string-keyed tables with inline value bytes. The object is the
+runtime header plus five words:
+
+| Offset | Word |
+| ---: | --- |
+| 0 | whole object size |
+| 8 | entry count (`length`) |
+| 16 | entry capacity |
+| 24 | value size in bytes |
+| 32 | key buffer block base |
+| 40 | value buffer block base |
+
+The key and value buffers are separate GC objects; their payloads start at
+base+8, are zeroed on allocation, and hold eight-byte string references and
+`value_size`-byte values respectively. `value_size` is one for bool and byte
+values and eight for every scalar, tag, reference, or composite value. Keys
+are compared by string content; a null key normalizes to the empty string.
+
+The first slice uses a **linear packed entry table** rather than a hash table:
+`$map_find` scans entries 0..length-1 with `$string_equal`, `$map_set`
+updates or appends, and growth doubles the capacity and copies both buffers
+with `$copy_bytes`. The old buffers stay in stack bindings while the new ones
+are allocated and filled, and the map object receives the new bases before the
+copy, so the collector always sees both the old and new graphs. Hashing is a
+later performance slice; the observable map semantics do not depend on it.
+
+- `$map_new(value_size)` allocates the object and the initial eight-entry
+  buffers; non-positive value sizes fail with `map value size must be
+  positive`.
+- `$map_at` rejects a null map (`map lookup on a null map reference`) and a
+  missing key with `purr: map has no entry for key "<key>"`, then returns the
+  value's address.
+- `$map_has` rejects a null map (`has on a null map reference`); `$map_set`
+  rejects one with `map assignment on a null map reference`; `$map_length`
+  rejects one with `length of a null map reference`.
+
+Lowering covers `new map[string]V`, `m[k]`, `m[k] = v`, compound `+=`/`-=` on
+int and float values, `has(m, k)`, and `length(m)`. Map values of every
+supported type travel through the same int-bits boundary: bool becomes 0/1,
+float its raw bits, and references their addresses. The runtime buffers are
+scanned transitively, so reference keys and values stay alive.
+
+The acceptance rung is `tests/native/maps.pcy` — ten int entries across a
+growth boundary, an updated key, string/bool/float values, compound float
+assignment, `has`, and `length` — and `tests/native/mapmissing.pcy`, whose
+missing-key standard error and status match the C pipeline byte for byte.
+Both run through `TestNativeProbeLowerCorpus` and its Percy-pipeline variant.
+What remains is the file/process built-in family, the native compiler stage,
+and the zero-dependency cut.
+
+### 30.22 Recoverable file built-ins (Phases 10.21–10.23)
+
+The first recoverable file built-ins now lower natively, all through raw
+Linux syscalls and the predeclared result unions:
+
+- `try_current_directory()` calls `getcwd(2)` into a 64 KiB buffer and builds
+  `CurrentDirectoryResult` (`Ok { path }` at 16, `Failed { message }` at 24,
+  total 32). Failure reasons use the Go-compatible mapping; a deleted current
+  directory reports `getwd: no such file or directory`.
+- `try_read_file(path)` opens with `open(2)`, sizes with `fstat(2)`, reads to
+  EOF, closes, and builds `ReadFileResult`. Failures are `open|stat|read
+  <path>: <reason>` with the same lower-case reason mapping.
+- `try_write_file(path, text)` and `try_write_bytes(path, bytes)` share one
+  writer: create/truncate with mode 0644 (`open` flags 577), write all bytes,
+  close, and build `FileResult` (`Ok` tag 0 with no payload; `Failed` message
+  at 16). Failures are `open|write|close <path>: <reason>`, with the exact
+  `write <path>: short write` for a zero-byte write.
+- `$errno_reason` maps ENOENT, EACCES, EISDIR, ENOTDIR, ENAMETOOLONG, EMFILE,
+  ENFILE, ELOOP, and ENOMEM to the C runtime's lower-case texts, falling back
+  to `unknown error`.
+
+The corpus gained `currentdir.pcy`, `readfile.pcy`, `writefile.pcy`,
+`writebytes.pcy`, and `writefail.pcy`, plus `TestNativeProbeReadFile` for the
+existing/empty/directory/missing read cases. The file built-ins are ordinary
+Percy shells; no C runtime call is involved.
+
+### 30.23 Bitwise and shift operators (Phase 10.24)
+
+The scene gained `BitAnd`, `BitOr`, `BitXor`, `BitNot`, `ShiftLeft`, and
+`ShiftRight`. The selector encodes `and`, `or`, `xor`, `not`, `shl`, and `sar`
+with the same slot addressing as the other binary forms. The lowering checks
+that every operand is an int, and a shift count is range-checked at runtime
+through `$fail_shift`: a count outside 0..63 prints
+`purr: shift count <n> is outside 0..63` to standard error and exits 1. Bool
+`==`/`!=` lower through a branch table over the two normalized bool slots.
+`tests/native/bits.pcy`, `shiftfail.pcy`, and `booleq.pcy` cover the forms and
+the failure text through both pipelines.
+
+### 30.24 Stack-top capture and the 512 MiB heap (Phase 10.25)
+
+The collector's conservative scan originally used the stack pointer captured
+at first mapping time. A later collection from a shallower frame could miss
+caller roots, and the self-hosted compiler exposed exactly that failure. The
+selector's opening paragraph now writes the initial `rsp` into a static
+`stack_top_blob`, and `$map` uses that value as the scan's upper bound. Probe
+scenes without the blob keep the old map-time capture.
+
+The native heap grows from 256 MiB to 512 MiB (ledger 64 MiB) because the
+native compiler stage's working set exceeds the original target when the
+linear maps and the full scene are live. `elf-oom` still halts with the exact
+`purr: out of memory` text because its 4 GiB request exceeds the limit.
+
+### 30.25 Native stage fixpoint (Phase 10.26)
+
+`TestNativeProbeNativeFixpoint` proves the native stage is real:
+
+1. The C-pipeline probe lowers `selfhost/native.pcy` into a native stage 2.
+2. Stage 2, run with `PATH=/nonexistent`, lowers the same source into stage 3.
+3. Stage 2 and stage 3 ELFs are **byte-identical** (1,833,192 bytes in the
+   measured run); stage 3 also reproduces stage 4.
+4. Stage 2 lowers `tests/native/arith.pcy`; that ELF is byte-identical to the
+   C-pipeline probe's, and it runs with the expected `large`/`negged` output
+   and status.
+
+`selfhost/native.pcy` is the native backend's own probe: it imports the
+loader, checker, semantic model, lowering, selector, ELF writer, and runtime.
+The fixpoint therefore means the native backend can compile its own compiler
+tooling to a native executable, not merely the C-emitting driver. The native
+driver also compiles every fixture and `tests/modules` to C byte-identically
+to the Go reference and runs them through the POSIX wrapper. The same
+fixpoint test lowers `selfhost/driver.pcy` through stage 2: the resulting
+driver ELF is byte-identical to the C-pipeline probe's, and that native-stage
+driver emits byte-identical C to the Go-built stage 1 for `fizzbuzz.pcy`.
+
+### 30.26 Environment lookup (Phase 10.27)
+
+The native `try_getenv` reads the process environment from the `envp` vector
+saved off the initial stack, since there is no libc `getenv` in that runtime.
+The shell walks `envp` entry by entry, comparing the first `length(name)` bytes
+of each `NAME=value` entry with the name and requiring the next byte to be the
+`=` separator. An entry whose loaded pointer is null ends the walk. Empty
+names and names containing `=` return `Unset` before the walk, matching the C
+runtime's `getenv` guard. A match copies the value bytes into a fresh
+GC-managed string and returns `EnvResult.Set`; no match returns
+`EnvResult.Unset`.
+
+What remains is file info, temp directories, listing, create/remove, process
+launch/capture, then the production `purr build`/`run` native path and the
+zero-dependency cut.
+
+### 30.27 Directory creation and removal (Phase 10.28)
+
+The native `try_create_directory` copies the path into a NUL-terminated buffer,
+calls `mkdir(0755)`, and builds `FileResult`: `Ok` on success, or `Failed` with
+`mkdir <path>: <reason>` from the shared errno table. `try_remove` calls
+`lstat`, chooses `rmdir` for a directory and `unlink` otherwise, and reports
+`remove <path>: <reason>` on either lstat or removal failure. The errno table
+gained `file exists` (EEXIST) and `directory not empty` (ENOTEMPTY) so those
+failures match the C runtime's text.
+
+### 30.28 Directory listing (Phase 10.29)
+
+The native `try_list_directory` opens the path with `O_DIRECTORY`, runs two
+`getdents64` passes (count, then fill), closes the descriptor, insertion-sorts
+the names bytewise, and builds `ListDirectoryResult.Ok { entries }`. The
+`.`/`..` entries are skipped by a helper that checks the exact name bytes. A
+failed open reports `open <path>: <reason>`; a failed read reports
+`readdirent <path>: <reason>`.
+
+### 30.29 File information (Phase 10.30)
+
+The native `try_file_info` classifies the path with `lstat`, follows a symlink
+with `stat`, and reports `Ok { is_file, is_directory, is_symlink, executable,
+size }` using the same `S_IFMT` tests as the C runtime. A missing or
+`ENOTDIR` path is `Missing`; a dangling link is `Ok` with only `is_symlink`
+set. `executable` comes from `access(X_OK)`. Other failures are `lstat
+<path>: <reason>` or `stat <path>: <reason>`.
+
+### 30.30 Temporary directories (Phase 10.31)
+
+The native `try_create_temp_directory` validates the prefix against the C
+runtime's 1..64-byte `[A-Za-z0-9._-]` rule (rejecting `..`), resolves the base
+from a non-empty `$TMPDIR` made absolute against the current directory, or
+`/tmp`, joins `base/prefix.XXXXXX`, fills the six suffix bytes with
+`getrandom`, and calls `mkdir(0700)` with the umask cleared, retrying on
+`EEXIST`. `OK { path }` carries the created path; failures use `mkdir
+<template>: <reason>`, or `stat <base>: <reason>` when the base itself is
+missing.
+
+### 30.31 Process launch (Phase 10.32)
+
+The native `try_run` builds a NUL-terminated `argv` (`program` as `argv[0]`,
+the argument array after it), forks, and `execve`s with the inherited `envp`.
+A close-on-exec pipe carries the child's errno when `execve` fails, so the
+parent reports `fork/exec <program>: <reason>` instead of mistaking the child's
+127 exit for a normal status. The parent waits and maps a normal exit to
+`Ok { status }` and signal termination to `Ok { status = 128 + signal }`.
+### 30.32 Captured process launch (Phase 10.33)
+
+The native `try_run_capture` shares `try_run`'s argv construction and direct
+`execve` semantics but wires the child's stdin to `/dev/null`, its stdout and
+stderr to separate pipes, and its start failures to a third pipe. The parent
+multiplexes the three read ends with `poll`, appending each stream into a
+16 MiB buffer, enforcing the `16777216`-byte limit, and rejecting NUL bytes
+with their offsets. It reaps the child, maps the exit/signal status, and
+builds `CapturedRunResult.Ok { status, stdout, stderr }`; every failure is
+`Failed { message }` with the same `run`/`fork/exec`/`wait` text as `try_run`.
+
+What remains is the production `purr build`/`run` native path and the
+zero-dependency cut.
+
+### 30.34 Production native build path (Phase 10.34)
+
+The native lowering now covers the runtime intrinsics (`raw_load8`/
+`raw_load64`, `raw_store8`/`raw_store64`, `raw_copy`, `raw_zero`,
+`address_of`, and `syscall`), so a program that imports the reserved
+`runtime/pcy` helpers lowers end to end. The string runtime normalizes a null
+string to empty in `length`, equality, and concatenation, matching the C
+runtime's `pcy_rt_string_value`, and compound `+=` on string array elements
+and `++`/`--` on map entries are lowered.
+
+The Percy `purr` now uses the native path by default for `build` and `run`:
+`build_native` loads and checks the program, lowers it to a `NativeScene`,
+selects it, assembles the ELF, and writes it with `write_executable` (mode
+`0755`). No C compiler, libgc, assembler, or linker is invoked, and the C
+runtime/codegen imports are gone from `purr/build.pcy`. `--native` is still
+accepted as a no-op for compatibility. The path is validated by
+`TestPurrPcyNativeBuild` (executable mode, fixture output parity with the C
+pipeline, and `run --native`) and by `TestRuntimeIoWriterBothPipelines` (the
+reserved runtime module and writer through both pipelines). The Go C pipeline
+remains the frozen reference and bootstrap; the C-only fake-compiler, CC/GC
+discovery, pkg-config, and compiler-diagnostic parity cases are retired, and
+the help text states the native backend.
+
+### 30.35 Zero-dependency verification (Phase 10.35)
+
+`TestPercyPurrZeroDependency` runs the shipped Percy `purr` in the
+zero-dependency rung of `proposals/zero-dependency-toolchain.md` Section 8:
+the child environment contains only `PATH` (a directory holding the single
+`purr` executable), `CC=/nonexistent`, `TMPDIR`, and `HOME`. With no Go, C
+compiler, assembler, linker, pkg-config, or libgc reachable, it builds and
+runs all nine fixture programs and `tests/modules/`, checks each output with
+`readelf -d` for no `NEEDED` entries and no interpreter, builds `purr.pcy`
+into a native stage B, and has stage B rebuild `purr.pcy` into a byte-identical
+stage C. The host still bootstraps the `purr` under test with the frozen Go
+tool; every step the test runs uses only the copied `purr` and the produced
+static executables.
+
+### 30.36 Sixteen-byte stack alignment (Phase 10.36)
+
+The selector follows the System V AMD64 stack contract. A callee's prologue is
+`push rbp; mov rbp, rsp; sub rsp, frame_size`, where `frame_size` rounds the
+eight-byte local slots up to a multiple of sixteen, so `rsp` is 16-byte aligned
+after the prologue. A caller pads an odd argument count with one eight-byte
+slot below the arguments before the call and releases it after; the pad sits
+below the arguments, so a parameter's `[rbp+16+8k]` position never shifts.
+`_start` enters at the kernel's aligned `rsp` and calls the entry function
+without arguments.
+
+The white-box `elf-align` scene captures `rsp` in functions with zero, one,
+and two locals, calls them with even and odd argument counts, and exits with
+the sum of the captured low nibbles. `TestNativeProbeAlign` runs it: a correct
+selector exits 0, while disabling the frame rounding or the odd-argument pad
+produces status 8.
+
+### 30.37 Native fatal read_file (Phase 10.37)
+
+The native backend lowers the fatal `read_file` builtin through a `$read_file`
+shell that mirrors the C runtime's `fopen`/`fseek`/`ftell`/`fread` path. It
+opens the path, rejects a directory with `read_file: cannot determine the size
+of '<path>': Invalid argument` and another non-regular file with `...: Illegal
+seek` (the C runtime reaches these through fseek), enforces the 256 MiB limit
+with the plain `read_file: file is larger than the maximum supported size`,
+reads to the stat size, adjusts the length to the bytes actually read,
+NUL-terminates the result, and closes the descriptor. Failures route through
+`$fail_blob` (the `purr: ` prefix on standard error and status 1) with the
+libc-cased `strerror` reasons, so the fatal text matches the C pipeline. The
+recoverable `try_read_file` keeps the lower-case Go-compatible reasons.
+
+`TestNativeProbeReadFileFatal` compares both pipelines over a regular file, an
+empty file, a directory, a missing path, and a sparse file above the limit;
+`tests/native/readfilefatal.pcy` covers the success-then-fatal sequence in the
+lower corpus.
+
+### 30.38 Straight-line register cache (Phase 10.38)
+
+The selector keeps its stack-slot ABI but adds a first register-allocation
+slice: a per-function cache of the binding whose current value sits in `rax`.
+`load_rax` skips the slot load when the cache already holds that binding, and
+`store_rax` records the binding after a full-word store. The cache survives
+only straight-line code: labels, jumps, branches, calls, byte and xmm stores,
+and raw memory writes (which may alias a slot) invalidate it, and each function
+starts with no cached binding. `RawSyscall` and `Call` argument loads update the
+cache so the following number/argument loads stay correct.
+
+This is not a general allocator: locals still live in `[rbp-8k]`, and no
+callee-saved register is allocated across a call. It removes a meaningful share
+of `mov` traffic in straight-line code; measured on the native compiler itself,
+the produced ELF fell from 2,550,576 to 2,284,336 bytes (about 10.4%).
+`TestNativeProbe` (corpus, fixpoint, alignment, fatal read) and the full suite
+verify behavior, and the native stage fixpoint remains byte-identical.
+
+### 30.39 Loop control across the pipelines (Phase 10.39)
+
+`break;` and `continue;` are lexed as keywords, parsed as statements, checked
+only inside a loop (`InvalidLoopControl` otherwise), and emitted by the Go
+generator, the Percy generator, and the native lowering. In the native
+selector a function tracks the innermost loop's break and continue labels;
+`continue` targets the condition in a `while` and the increment in a `for`.
+
+Adding loop control exposed a match-codegen bug: a `match` compiled to a C
+`switch`, so a user `break` inside an arm exited the match instead of the
+enclosing loop. Both C generators now emit an `if`/`else if` chain on the tag,
+with the final `else` as the defensive invalid-tag failure, which keeps break
+and continue pointing at the loop. `tests/break_continue.pcy` covers both
+statements and both inside a match arm; the checker differential corpus carries
+the outside-loop errors, and the native corpus carries `loopcontrol.pcy`.
+
+### 30.40 Growable arrays across the pipelines (Phase 10.40)
+
+`push(array, value)` appends one element and returns the new length. The array
+object gained a capacity word after its data pointer, so the length, element
+size, and data fields keep their offsets; growth doubles the capacity, allocates
+a fresh GC-managed buffer, copies the live payload, and leaves the old buffer to
+the collector. Every reference to the array therefore observes the append.
+
+The Go generator emits `pcy_rt_array_push(array, &(T){value})`: the element is
+materialized as a compound literal of the array's C element type, so the helper
+receives a stable address and copies exactly the right number of bytes; one
+literal covers int, float, bool, byte, string, enum, struct, union, array, and
+map elements. The Percy generator emits the same call from the semantic model.
+The native lowering computes the element word through the value's shape, takes
+the low byte for one-byte elements and the full word for eight-byte ones, and
+calls the `$array_push` shell, which performs the same growth and stores through
+the array object's capacity word. `tests/append.pcy`, `tests/native/push.pcy`,
+and the checker, unit, and native corpora cover the element kinds, growth
+across repeated appends, and the checker's non-array and wrong-element errors.

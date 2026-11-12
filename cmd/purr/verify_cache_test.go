@@ -3,7 +3,7 @@ package main
 // Content-hashed caching for the test harness's repeated native builds.
 //
 // The differential suite builds the same large binaries over and over: the
-// stage-1 driver, the Go CLI, both purr-kt builds, and the Kitten-written
+// stage-1 driver, the Go CLI, both purr-pcy builds, and the Percy-written
 // stage probes. Each build runs the full toolchain against Boehm GC, which is
 // minutes of work on a modest machine per round. The cache keys a build by
 // the content of everything it depends on — the source trees, the resolved C
@@ -20,7 +20,7 @@ package main
 // The cache is a development convenience for the verification tiers
 // documented in AGENTS.md; it changes no claims: a build is verified exactly
 // when it runs, and the cache only means that verified bytes get reused until
-// their inputs change. Set KITTEN_TEST_CACHE to an explicit directory (or to
+// their inputs change. Set PERCY_TEST_CACHE to an explicit directory (or to
 // "off") to control or disable it; the default is a directory next to the
 // platform's user cache.
 
@@ -39,7 +39,7 @@ import (
 // "" when caching is disabled or unavailable.
 func verifyCacheDirectory(t *testing.T) string {
 	t.Helper()
-	value := os.Getenv("KITTEN_TEST_CACHE")
+	value := os.Getenv("PERCY_TEST_CACHE")
 	if value == "off" {
 		return ""
 	}
@@ -49,7 +49,7 @@ func verifyCacheDirectory(t *testing.T) string {
 		if err != nil {
 			return ""
 		}
-		base = filepath.Join(defaultBase, "kitten-verify")
+		base = filepath.Join(defaultBase, "percy-verify")
 	}
 	target := filepath.Join(base, "builds")
 	if err := os.MkdirAll(target, 0o755); err != nil {
@@ -65,7 +65,7 @@ func verifyCacheDirectory(t *testing.T) string {
 func cachedBuildHash(t *testing.T, kind string, roots []string) string {
 	t.Helper()
 	hasher := sha256.New()
-	fmt.Fprintf(hasher, "kind=%s\npartition=%s\n", kind, os.Getenv("KITTEN_TEST_CACHE"))
+	fmt.Fprintf(hasher, "kind=%s\npartition=%s\n", kind, os.Getenv("PERCY_TEST_CACHE"))
 
 	// The compiler selection and the GC flags live in the key: binaries may
 	// differ per compiler, and pkg-config output changes link lines.
@@ -87,7 +87,7 @@ func cachedBuildHash(t *testing.T, kind string, roots []string) string {
 			if entry.IsDir() || !entry.Type().IsRegular() {
 				return nil
 			}
-			if strings.HasSuffix(path, ".ktn") || strings.HasSuffix(path, ".c") || strings.HasSuffix(path, ".h") {
+			if strings.HasSuffix(path, ".pcy") || strings.HasSuffix(path, ".c") || strings.HasSuffix(path, ".h") {
 				files = append(files, path)
 			}
 			return nil

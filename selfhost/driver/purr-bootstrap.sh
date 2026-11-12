@@ -1,7 +1,7 @@
 #!/bin/sh
-# purr-bootstrap.sh - temporary POSIX-sh wrapper around the Kitten-written driver.
+# purr-bootstrap.sh - temporary POSIX-sh wrapper around the Percy-written driver.
 #
-# It mirrors the Go CLI's build/run surface for the subset that the Kitten
+# It mirrors the Go CLI's build/run surface for the subset that the Percy
 # driver supports: build <src> [-o out] and run <src> [args...]. The driver is
 # expected in PURR_BOOTSTRAP_DRIVER (default: purr-stage1 next to this script) and
 # the runtime sources in PURR_RUNTIME_DIR (default: runtime/csrc in this
@@ -15,17 +15,17 @@ repo_root=$(CDPATH= cd "$script_dir/../.." && pwd -P) || exit 2
 driver=${PURR_BOOTSTRAP_DRIVER:-$script_dir/purr-stage1}
 runtime_dir=${PURR_RUNTIME_DIR:-$repo_root/runtime/csrc}
 
-usage_text='Kitten compiler
+usage_text='Percy compiler
 
 Usage:
-  purr build <file.ktn> [-o <output>]   Compile a Kitten source file
-  purr run <file.ktn>                   Compile and run a Kitten source file
+  purr build <file.pcy> [-o <output>]   Compile a Percy source file
+  purr run <file.pcy>                   Compile and run a Percy source file
 
 Options:
   -o, --output <path>   Write the executable to <path> (build only)
 
 The C compiler is taken from CC, or discovered as cc, gcc, or clang.
-Kitten programs are linked against the Boehm garbage collector (libgc).'
+Percy programs are linked against the Boehm garbage collector (libgc).'
 
 usage() {
     printf '%s\n' "$usage_text"
@@ -93,10 +93,10 @@ prepare_build() {
     announce=$5
 
     if [ ! -x "$driver" ]; then
-        printf 'purr: Kitten driver not found or not executable: %s\n' "$driver" >&2
+        printf 'purr: Percy driver not found or not executable: %s\n' "$driver" >&2
         return 1
     fi
-    if [ ! -f "$runtime_dir/kitten_runtime.c" ] || [ ! -f "$runtime_dir/kitten_runtime.h" ]; then
+    if [ ! -f "$runtime_dir/percy_runtime.c" ] || [ ! -f "$runtime_dir/percy_runtime.h" ]; then
         printf 'purr: runtime sources not found in %s\n' "$runtime_dir" >&2
         return 1
     fi
@@ -124,8 +124,8 @@ prepare_build() {
         return "$status"
     fi
 
-    if ! cp "$runtime_dir/kitten_runtime.c" "$build_tmp/kitten_runtime.c" ||
-       ! cp "$runtime_dir/kitten_runtime.h" "$build_tmp/kitten_runtime.h"; then
+    if ! cp "$runtime_dir/percy_runtime.c" "$build_tmp/percy_runtime.c" ||
+       ! cp "$runtime_dir/percy_runtime.h" "$build_tmp/percy_runtime.h"; then
         printf 'purr: cannot copy the runtime sources\n' >&2
         cleanup_build
         trap - EXIT HUP INT TERM
@@ -135,7 +135,7 @@ prepare_build() {
     log=$build_tmp/compiler.log
     # shellcheck disable=SC2086
     if ! (cd "$build_tmp" && $compiler $gc_cflags -std=c11 -Wall -Wextra \
-            -o "$out_abs" program.c kitten_runtime.c $gc_libs) >"$log" 2>&1; then
+            -o "$out_abs" program.c percy_runtime.c $gc_libs) >"$log" 2>&1; then
         status=$?
         printf '%s: C compilation failed: exit status %d\n' "$src_display" "$status" >&2
         cat "$log" >&2
@@ -223,13 +223,13 @@ build_command() {
         build_usage_error "expected one source file, got $positional_count"
     fi
     case $source in
-        *.ktn) ;;
-        *) build_usage_error "\"$source\" is not a Kitten source file (expected a .ktn file)" ;;
+        *.pcy) ;;
+        *) build_usage_error "\"$source\" is not a Percy source file (expected a .pcy file)" ;;
     esac
 
     if [ -z "$output" ]; then
         base=${source##*/}
-        base=${base%.ktn}
+        base=${base%.pcy}
         if [ -z "$base" ] || [ "$base" = "." ]; then
             output=a.out
         else
@@ -286,8 +286,8 @@ run_command() {
         run_usage_error "missing source file"
     fi
     case $source in
-        *.ktn) ;;
-        *) run_usage_error "\"$source\" is not a Kitten source file (expected a .ktn file)" ;;
+        *.pcy) ;;
+        *) run_usage_error "\"$source\" is not a Percy source file (expected a .pcy file)" ;;
     esac
 
     source_abs=$(absolute_path "$source")

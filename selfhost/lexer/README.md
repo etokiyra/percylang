@@ -1,7 +1,7 @@
-# A lexer for Kitten, written in Kitten
+# A lexer for Percy, written in Percy
 
 This directory holds the first substantial component of the eventual self-hosting
-compiler: a lexer written in Kitten, compiled by the Go bootstrap compiler, and
+compiler: a lexer written in Percy, compiled by the Go bootstrap compiler, and
 compared byte-for-byte against the Go reference lexer.
 
 It is **not** the production front end. `purr build` and `purr run` still use
@@ -12,9 +12,9 @@ language, and no language feature was added to make it easier.
 
 | File | Contents |
 | --- | --- |
-| `tokens.ktn` | `TokenKind` enum, `Token` struct, `LexResult` union, `kind_name` |
-| `lexer.ktn` | the `Scanner` state, all scanning helpers, and the public `lex` |
-| `main.ktn` | a driver program that reads `input.txt` and prints the result |
+| `tokens.pcy` | `TokenKind` enum, `Token` struct, `LexResult` union, `kind_name` |
+| `lexer.pcy` | the `Scanner` state, all scanning helpers, and the public `lex` |
+| `main.pcy` | a driver program that reads `input.txt` and prints the result |
 
 ## Building and running
 
@@ -23,7 +23,7 @@ language, and no language feature was added to make it easier.
 # "input.txt", so the working directory selects the input.
 printf 'fn main() {\n    int x = 42 + 3.5;\n}\n' > input.txt
 go build -o /tmp/purr ./cmd/purr
-/tmp/purr build selfhost/lexer/main.ktn -o /tmp/purr-lexer
+/tmp/purr build selfhost/lexer/main.pcy -o /tmp/purr-lexer
 /tmp/purr-lexer   # prints one "token ..." line per token
 ```
 
@@ -46,7 +46,7 @@ as text.
 
 ### Why the input path is fixed
 
-The Kitten runtime exposes no way for a program to read its command-line
+The Percy runtime exposes no way for a program to read its command-line
 arguments, to write to standard error, or to choose its exit status; the only
 nonzero exit is a fatal runtime error. The driver therefore cannot take a path
 from the command line, and it reports a lexical error on standard output rather
@@ -56,7 +56,7 @@ choosing the working directory instead.
 
 ## How the scanner mirrors the reference lexer
 
-`lexer.ktn` follows the structure of `lexer/lexer.go` step for step, so that the
+`lexer.pcy` follows the structure of `lexer/lexer.go` step for step, so that the
 two can be read side by side:
 
 - whitespace, `//` line comments, and the newline left behind by a comment;
@@ -82,11 +82,11 @@ token-or-error outcome of a single scan step.
 
 ## Differential testing
 
-`cmd/purr/differential_test.go` builds the Kitten lexer once and runs it over a
+`cmd/purr/differential_test.go` builds the Percy lexer once and runs it over a
 corpus of 1,076 inputs, comparing the result with the Go lexer:
 
 ```sh
-go test -count=1 -v -run TestKittenLexer ./cmd/purr/
+go test -count=1 -v -run TestPercyLexer ./cmd/purr/
 ```
 
 The corpus covers every keyword, type name (including `byte`), and boolean literal; identifiers and
@@ -97,14 +97,14 @@ forms, and non-numbers; every supported escape, every
 string error form, and strings containing line breaks; comments and their
 interaction with division; whitespace and `\n`, `\r`, and `\r\n` line endings;
 multi-line position tracking; non-ASCII input, both valid and invalid UTF-8;
-every `.ktn` fixture in `tests/`; and the three sources of this lexer, so it is
+every `.pcy` fixture in `tests/`; and the three sources of this lexer, so it is
 checked on the most realistic input available — its own source.
 
 The comparison is exact — kind, text, line, and column — for ASCII input. It
 normalizes two things, both documented above and in the test file:
 
 - **Rune columns to byte columns.** The reference lexer counts columns in code
-  points and the Kitten lexer counts bytes, so the harness converts the reference
+  points and the Percy lexer counts bytes, so the harness converts the reference
   positions before comparing. This is a mechanical, total conversion: invalid
   UTF-8 bytes count as one rune each, exactly as Go's `[]rune` conversion does.
 - **Text and messages for bytes >= 128.** The reference lexer decodes UTF-8 and
@@ -114,7 +114,7 @@ normalizes two things, both documented above and in the test file:
   text or message text.
 
 Two further cases are checked by hand-written expectations in
-`TestKittenLexerOutputFormat`, so that a format regression is caught even if both
+`TestPercyLexerOutputFormat`, so that a format regression is caught even if both
 lexers change together.
 
 ## Known differences from the reference lexer
@@ -125,7 +125,7 @@ lexers change together.
 2. **The "unexpected character" message names a byte.** For `0xC3` this scanner
    says `'\xc3'`; the reference decodes the sequence and names the code point,
    or U+FFFD for invalid UTF-8.
-3. **Embedded NUL is impossible.** A Kitten string cannot contain a NUL byte, so
+3. **Embedded NUL is impossible.** A Percy string cannot contain a NUL byte, so
    `read_file` truncates a source file at the first one; the reference lexer
    would continue past it.
 4. **No command-line arguments or chosen exit status.** See above.
@@ -135,18 +135,18 @@ positions, and error messages for ASCII input — matches exactly on the corpus.
 
 ## Performance
 
-`length` and string indexing are constant-time, because a Kitten string stores
+`length` and string indexing are constant-time, because a Percy string stores
 its byte length next to its bytes (SPEC.md 20.6), so the scanner's work is
 
     Θ(n)        n = source bytes
 
 plus the per-token cost of allocating a token, a scan result, and a lexeme, which
-is also linear in the number of tokens. Measured with `TestKittenLexerScaling`,
-which logs its numbers (`go test -count=1 -v -run TestKittenLexerScaling
+is also linear in the number of tokens. Measured with `TestPercyLexerScaling`,
+which logs its numbers (`go test -count=1 -v -run TestPercyLexerScaling
 ./cmd/purr/`), on the development machine and with process start-up (about
 1.3 ms) subtracted:
 
-| Source | Tokens | Go lexer | Kitten lexer | Growth for a 4× input |
+| Source | Tokens | Go lexer | Percy lexer | Growth for a 4× input |
 | --- | --- | --- | --- | --- |
 | 1 KB | 253 | 0.08 ms | 0.3 ms | — |
 | 4 KB | 995 | 0.3 ms | 2.4 ms | ×9 (measurement noise dominates) |
@@ -171,8 +171,8 @@ tokens.
 ## What is deliberately not here
 
 - A code generator. A parser that consumes these tokens exists in
-  `selfhost/parser`, with its driver in `selfhost/parse.ktn`, and a semantic
-  checker exists in `selfhost/checker`, with its driver in `selfhost/check.ktn`;
+  `selfhost/parser`, with its driver in `selfhost/parse.pcy`, and a semantic
+  checker exists in `selfhost/checker`, with its driver in `selfhost/check.pcy`;
   both reproduce the reference implementation and are checked against it by their
   own differential corpora.
 - Code-point-aware positions and messages.

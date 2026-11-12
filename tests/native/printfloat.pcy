@@ -1,0 +1,88 @@
+fn zeroes() {
+    print(0.0);
+    print(-0.0);
+}
+
+fn units() {
+    print(1.0);
+    print(-1.0);
+}
+
+fn fractions() {
+    print(0.5);
+    print(0.1);
+}
+
+fn thirds() {
+    print(1.0 / 3.0);
+    print(2.0 / 3.0);
+}
+
+fn small_scientific() {
+    print(1.0 / 100000.0);
+    print(2.0 / 100000.0);
+}
+
+fn fixed_leading_zeroes() {
+    print(0.00001);
+    print(0.0000100001);
+}
+
+fn fixed_six_digits() {
+    print(0.000123456);
+    print(0.0001234567);
+}
+
+fn tiny_scientific() {
+    print(0.000000123456789);
+    print(0.0000000012345);
+}
+
+fn large_fixed() {
+    print(999999.0);
+    print(9999995.0);
+}
+
+fn large_scientific() {
+    print(123456789.0);
+    print(1234567890123456.0);
+}
+
+fn specials() {
+    print(1.0 / 0.0);
+    print(-1.0 / 0.0);
+}
+
+fn nan_and_pi() {
+    print(0.0 / 0.0);
+    print(3.141592653589793);
+}
+
+fn rounding() {
+    print(9.999999);
+    print(0.0000999999);
+}
+
+fn first_half() {
+    zeroes();
+    units();
+    fractions();
+    thirds();
+    small_scientific();
+    fixed_leading_zeroes();
+}
+
+fn second_half() {
+    fixed_six_digits();
+    tiny_scientific();
+    large_fixed();
+    large_scientific();
+    specials();
+    nan_and_pi();
+    rounding();
+}
+
+fn main() {
+    first_half();
+    second_half();
+}

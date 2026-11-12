@@ -1,6 +1,10 @@
 package checker
 
-import "kitten/parser"
+import (
+	"strings"
+
+	"percy/parser"
+)
 
 // runtimeIntrinsicFunctions returns the functions that resolve only while
 // checking the synthetic <runtime> module. They are not in the ordinary
@@ -62,9 +66,22 @@ func runtimeIntrinsicFunctions() map[string]*Function {
 	}
 }
 
-// lookupRuntimeIntrinsic resolves an intrinsic only in the runtime module.
+// isReservedRuntimeModulePath reports whether a module may use intrinsics:
+// the synthetic <runtime> module and the compiler's reserved runtime/pcy
+// helper modules. The paths are reserved so a user module cannot quietly gain
+// the raw surface by choosing a different file name.
+func isReservedRuntimeModulePath(path string) bool {
+	if path == runtimeModulePath {
+		return true
+	}
+	return strings.HasSuffix(path, "/runtime/pcy/memory.pcy") ||
+		strings.HasSuffix(path, "/runtime/pcy/io.pcy")
+}
+
+// lookupRuntimeIntrinsic resolves an intrinsic only in a reserved runtime
+// module.
 func (c *checker) lookupRuntimeIntrinsic(name string) (*Function, bool) {
-	if c.current == nil || c.current.path != runtimeModulePath {
+	if c.current == nil || !isReservedRuntimeModulePath(c.current.path) {
 		return nil, false
 	}
 	function, ok := runtimeIntrinsicFunctions()[name]

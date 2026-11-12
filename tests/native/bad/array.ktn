@@ -1,3 +1,0 @@
-fn main() {
-    int[] sizes = new int[3];
-}

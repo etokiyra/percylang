@@ -1,0 +1,242 @@
+// purr/build.pcy - the in-process build command for the Percy-written purr.
+//
+// It loads, checks, lowers, selects, and assembles the program into a static
+// ELF with the Percy-native backend, then writes it with the reserved
+// runtime/pcy executable writer. No C compiler is involved.
+
+import "../selfhost/loader/loader.pcy";
+import "../selfhost/loader/paths.pcy";
+import "../selfhost/lexer/lexer.pcy";
+import "../selfhost/parser/parser.pcy";
+import "../selfhost/checker/checker.pcy";
+import "../selfhost/native/ir.pcy";
+import "../selfhost/native/lower.pcy";
+import "../selfhost/native/selector.pcy";
+import "../selfhost/native/elf.pcy";
+import "../runtime/pcy/io.pcy";
+
+public union BuildResult {
+    Ok { string warnings; string notes; }
+    Failed { string message; string output; string notes; }
+}
+
+union PathResult {
+    Ok { string path; }
+    Failed { string message; }
+}
+
+fn ends_with(string value, string suffix) -> bool {
+    int size = length(value);
+    int suffix_size = length(suffix);
+    if (suffix_size > size) {
+        return false;
+    }
+    return substring(value, size - suffix_size, size) == suffix;
+}
+
+fn base_name(string path) -> string {
+    int size = length(path);
+    if (size == 0) {
+        return ".";
+    }
+    int end = size;
+    while (end > 1 && path[end - 1] == 47) {
+        end--;
+    }
+    int start = end;
+    while (start > 0 && path[start - 1] != 47) {
+        start--;
+    }
+    string result = substring(path, start, end);
+    if (result == "") {
+        return "/";
+    }
+    return result;
+}
+
+fn default_output_path(string source) -> string {
+    string base = base_name(source);
+    if (ends_with(base, ".pcy")) {
+        base = substring(base, 0, length(base) - 4);
+    }
+    if (base == "" || base == ".") {
+        return "a.out";
+    }
+    return base;
+}
+
+public fn build_default_output(string source) -> string {
+    return default_output_path(source);
+}
+
+fn absolute_path(string path) -> PathResult {
+    if (path == "") {
+        match (try_current_directory()) {
+            Ok(current) {
+                return PathResult.Ok { path = clean_path(current) };
+            }
+            Failed(message) {
+                return PathResult.Failed { message = message };
+            }
+        }
+    }
+    if (path[0] == 47) {
+        return PathResult.Ok { path = clean_path(path) };
+    }
+    match (try_current_directory()) {
+        Ok(current) {
+            return PathResult.Ok { path = clean_path(current + "/" + path) };
+        }
+        Failed(message) {
+            return PathResult.Failed { message = message };
+        }
+    }
+}
+
+fn load_error_text(LoadError error) -> string {
+    if (error.path != "" && error.line > 0) {
+        return error.path + ":" + decimal(error.line) + ":" +
+            decimal(error.column) + ": " + error.message;
+    }
+    if (error.path != "") {
+        return error.path + ": " + error.message;
+    }
+    return error.message;
+}
+
+fn check_error_text(string source, CheckError error) -> string {
+    string file = error.file;
+    if (file == "") {
+        file = source;
+    }
+    return file + ":" + decimal(error.line) + ":" + decimal(error.column) +
+        ": " + error.message;
+}
+
+fn failed_before_tree(string source, string message) -> BuildResult {
+    return BuildResult.Failed {
+        message = source + ": " + message,
+        output = "",
+        notes = ""
+    };
+}
+
+// errno_text renders the errno values the native build path can meet while
+// creating its output, matching the C runtime's lower-case reason text.
+fn errno_text(int code) -> string {
+    if (code == 1) {
+        return "operation not permitted";
+    }
+    if (code == 2) {
+        return "no such file or directory";
+    }
+    if (code == 13) {
+        return "permission denied";
+    }
+    if (code == 17) {
+        return "file exists";
+    }
+    if (code == 20) {
+        return "not a directory";
+    }
+    if (code == 21) {
+        return "is a directory";
+    }
+    if (code == 28) {
+        return "no space left on device";
+    }
+    if (code == 30) {
+        return "read-only file system";
+    }
+    if (code == 36) {
+        return "file name too long";
+    }
+    return "input/output error";
+}
+
+// build_native lowers a checked program to a NativeScene, selects it, and
+// assembles a static ELF written with mode 0755. No C compiler is involved.
+public fn build_native(string source_path, string output_path) -> BuildResult {
+    match (absolute_path(source_path)) {
+        Failed(message) {
+            return failed_before_tree(source_path, message);
+        }
+        Ok(absolute_source) {
+            match (load_program(absolute_source)) {
+                Failure(error) {
+                    return BuildResult.Failed {
+                        message = load_error_text(error),
+                        output = "",
+                        notes = ""
+                    };
+                }
+                Success(modules, module_count) {
+                    match (check_modules(modules, module_count)) {
+                        Failure(error) {
+                            return BuildResult.Failed {
+                                message = check_error_text(source_path, error),
+                                output = "",
+                                notes = ""
+                            };
+                        }
+                        Success(summary, model) {
+                            match (lower_program(model)) {
+                                Failed(message) {
+                                    return BuildResult.Failed {
+                                        message = message,
+                                        output = "",
+                                        notes = ""
+                                    };
+                                }
+                                Ok(scene) {
+                                    match (check_scene(scene)) {
+                                        Failed(message) {
+                                            return failed_before_tree(source_path, message);
+                                        }
+                                        Ok {
+                                            match (select_scene(scene)) {
+                                                Failed(message) {
+                                                    return failed_before_tree(source_path, message);
+                                                }
+                                                Ok(selection) {
+                                                    match (assemble(selection)) {
+                                                        Failed(message) {
+                                                            return failed_before_tree(source_path, message);
+                                                        }
+                                                        Ok(bytes) {
+                                                            match (absolute_path(output_path)) {
+                                                                Failed(message) {
+                                                                    return failed_before_tree(source_path, message);
+                                                                }
+                                                                Ok(absolute_output) {
+                                                                    match (try_file_info(absolute_output)) {
+                                                                        Ok(is_file, is_directory, is_symlink, executable, size) {
+                                                                            if (is_directory) {
+                                                                                return failed_before_tree(source_path, "output path " + absolute_output + " is a directory");
+                                                                            }
+                                                                        }
+                                                                        Missing { }
+                                                                        Failed(message) { }
+                                                                    }
+                                                                    int written = write_executable(absolute_output, to_array(bytes));
+                                                                    if (written != 0) {
+                                                                        return failed_before_tree(source_path, "cannot write " + absolute_output + ": " + errno_text(-written));
+                                                                    }
+                                                                    return BuildResult.Ok { warnings = "", notes = "" };
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

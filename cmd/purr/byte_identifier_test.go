@@ -8,11 +8,11 @@ import (
 	"strings"
 	"testing"
 
-	"kitten/lexer"
+	"percy/lexer"
 )
 
 // TestNoByteIdentifierTokens is the migration guard for Phase 8.3a/8.3b. It
-// tokenizes every Kitten source file in the repository so comments and string
+// tokenizes every Percy source file in the repository so comments and string
 // contents cannot hide or falsely report the word, and fails when byte is still
 // used as an identifier. After 8.3b, byte as a type keyword has its own token
 // kind and is intentionally not reported here. The native lowering's
@@ -38,7 +38,7 @@ func TestNoByteIdentifierTokens(t *testing.T) {
 			}
 			return nil
 		}
-		if filepath.Ext(path) != ".ktn" {
+		if filepath.Ext(path) != ".pcy" {
 			return nil
 		}
 		source, readErr := os.ReadFile(path)
@@ -58,7 +58,7 @@ func TestNoByteIdentifierTokens(t *testing.T) {
 		return nil
 	})
 	if err != nil {
-		t.Fatalf("walking Kitten sources: %v", err)
+		t.Fatalf("walking Percy sources: %v", err)
 	}
 	if len(offenders) != 0 {
 		t.Errorf("byte is still used as an identifier at:\n%s", joinOffenders(offenders))

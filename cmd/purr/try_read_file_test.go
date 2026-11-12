@@ -23,9 +23,9 @@ const tryReadFileSource = `fn main() {
 func buildTryReadFileProgram(t *testing.T, directory string) (string, string) {
 	t.Helper()
 
-	sourcePath := filepath.Join(directory, "try_read_file.ktn")
+	sourcePath := filepath.Join(directory, "try_read_file.pcy")
 	if err := os.WriteFile(sourcePath, []byte(tryReadFileSource), 0o644); err != nil {
-		t.Fatalf("writing try_read_file.ktn: %v", err)
+		t.Fatalf("writing try_read_file.pcy: %v", err)
 	}
 	executable := filepath.Join(directory, "try-read-file")
 	var diagnostics strings.Builder
@@ -106,24 +106,24 @@ func TestTryReadFileRuntime(t *testing.T) {
 	})
 }
 
-// TestTryReadFileKittenRuntime compiles the fixture through the Kitten-written
+// TestTryReadFilePercyRuntime compiles the fixture through the Percy-written
 // pipeline, checks that its C is byte-identical to the Go generator's, and runs
 // both executables over the same existing, empty, missing, directory, and
 // unreadable paths. It compares stdout, stderr, and the exit status exactly.
-func TestTryReadFileKittenRuntime(t *testing.T) {
+func TestTryReadFilePercyRuntime(t *testing.T) {
 	requireToolchain(t)
 
-	unitExecutable := buildKittenUnit(t)
+	unitExecutable := buildPercyUnit(t)
 	probeDirectory := t.TempDir()
-	kittenText, err := runKittenUnit(unitExecutable, probeDirectory, tryReadFileSource, "")
+	percyText, err := runPercyUnit(unitExecutable, probeDirectory, tryReadFileSource, "")
 	if err != nil {
-		t.Fatalf("generating try_read_file C with the Kitten pipeline: %v", err)
+		t.Fatalf("generating try_read_file C with the Percy pipeline: %v", err)
 	}
 	_, _, referenceText, ok := checkProgram(t, "try_read_file runtime", tryReadFileSource, "")
 	if !ok {
 		return
 	}
-	if difference := unitDifference(kittenText, referenceText); difference != "" {
+	if difference := unitDifference(percyText, referenceText); difference != "" {
 		t.Fatalf("the try_read_file translation unit differs: %s", difference)
 	}
 
@@ -170,12 +170,12 @@ func TestTryReadFileKittenRuntime(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			want := runExternal(t, goExecutable, []string{testCase.path}, directory, nil)
 			buildDirectory := t.TempDir()
-			got, err := buildAndRunProgramWithArgs(t, compiler, compileFlags, linkFlags, buildDirectory, kittenText, index, []string{testCase.path})
+			got, err := buildAndRunProgramWithArgs(t, compiler, compileFlags, linkFlags, buildDirectory, percyText, index, []string{testCase.path})
 			if err != nil {
-				t.Fatalf("building and running the Kitten-generated program: %v", err)
+				t.Fatalf("building and running the Percy-generated program: %v", err)
 			}
 			if got.status != want.status || got.stderr != want.stderr || got.stdout != want.stdout {
-				t.Errorf("Kitten pipeline: status %d, stderr %q, stdout %q; Go pipeline: status %d, stderr %q, stdout %q",
+				t.Errorf("Percy pipeline: status %d, stderr %q, stdout %q; Go pipeline: status %d, stderr %q, stdout %q",
 					got.status, got.stderr, got.stdout, want.status, want.stderr, want.stdout)
 			}
 		})

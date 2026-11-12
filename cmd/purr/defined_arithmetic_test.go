@@ -40,7 +40,7 @@ const largeShiftSource = `fn main() {
 func buildDefinedArithmeticProgram(t *testing.T, directory, name, source string) string {
 	t.Helper()
 
-	sourcePath := filepath.Join(directory, name+".ktn")
+	sourcePath := filepath.Join(directory, name+".pcy")
 	if err := os.WriteFile(sourcePath, []byte(source), 0o644); err != nil {
 		t.Fatalf("writing %s: %v", sourcePath, err)
 	}
@@ -60,7 +60,7 @@ func buildDefinedArithmeticProgram(t *testing.T, directory, name, source string)
 func TestDefinedArithmeticRuntime(t *testing.T) {
 	requireToolchain(t)
 
-	unitExecutable := buildKittenUnit(t)
+	unitExecutable := buildPercyUnit(t)
 	probeDirectory := t.TempDir()
 	compiler, err := discoverCompiler()
 	if err != nil {
@@ -125,26 +125,26 @@ func TestDefinedArithmeticRuntime(t *testing.T) {
 					goResult.stdout, goResult.stderr, goResult.status, testCase.expected, testCase.stderr, testCase.status)
 			}
 
-			kittenText, err := runKittenUnit(unitExecutable, probeDirectory, testCase.source, "")
+			percyText, err := runPercyUnit(unitExecutable, probeDirectory, testCase.source, "")
 			if err != nil {
-				t.Fatalf("generating C with the Kitten pipeline: %v", err)
+				t.Fatalf("generating C with the Percy pipeline: %v", err)
 			}
 			_, _, referenceText, ok := checkProgram(t, testCase.name, testCase.source, "")
 			if !ok {
 				return
 			}
-			if difference := unitDifference(kittenText, referenceText); difference != "" {
+			if difference := unitDifference(percyText, referenceText); difference != "" {
 				t.Fatalf("the %s translation unit differs: %s", testCase.name, difference)
 			}
 
-			kittenBuildDirectory := t.TempDir()
-			kittenResult, err := buildAndRunProgram(t, compiler, compileFlags, linkFlags, kittenBuildDirectory, kittenText, index)
+			percyBuildDirectory := t.TempDir()
+			percyResult, err := buildAndRunProgram(t, compiler, compileFlags, linkFlags, percyBuildDirectory, percyText, index)
 			if err != nil {
-				t.Fatalf("building and running the Kitten-generated program: %v", err)
+				t.Fatalf("building and running the Percy-generated program: %v", err)
 			}
-			if kittenResult.stdout != testCase.expected || kittenResult.stderr != testCase.stderr || kittenResult.status != testCase.status {
-				t.Errorf("Kitten pipeline: stdout %q, stderr %q, status %d; want %q, %q, %d",
-					kittenResult.stdout, kittenResult.stderr, kittenResult.status, testCase.expected, testCase.stderr, testCase.status)
+			if percyResult.stdout != testCase.expected || percyResult.stderr != testCase.stderr || percyResult.status != testCase.status {
+				t.Errorf("Percy pipeline: stdout %q, stderr %q, status %d; want %q, %q, %d",
+					percyResult.stdout, percyResult.stderr, percyResult.status, testCase.expected, testCase.stderr, testCase.status)
 			}
 		})
 	}
@@ -163,7 +163,7 @@ func TestDefinedArithmeticSanitizer(t *testing.T) {
 	compileFlags, linkFlags := gcBuildFlags()
 	compileFlags = append(compileFlags, "-fsanitize=undefined")
 
-	unitExecutable := buildKittenUnit(t)
+	unitExecutable := buildPercyUnit(t)
 	probeDirectory := t.TempDir()
 	for index, testCase := range []struct {
 		name   string
@@ -172,9 +172,9 @@ func TestDefinedArithmeticSanitizer(t *testing.T) {
 		{"defined integer arithmetic", definedArithmeticSource},
 		{"bitwise and shift operators", bitwiseSource},
 	} {
-		text, err := runKittenUnit(unitExecutable, probeDirectory, testCase.source, "")
+		text, err := runPercyUnit(unitExecutable, probeDirectory, testCase.source, "")
 		if err != nil {
-			t.Fatalf("%s: generating C with the Kitten pipeline: %v", testCase.name, err)
+			t.Fatalf("%s: generating C with the Percy pipeline: %v", testCase.name, err)
 		}
 		directory := t.TempDir()
 		result, err := buildAndRunProgram(t, compiler, compileFlags, linkFlags, directory, text, index)

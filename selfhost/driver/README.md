@@ -1,7 +1,7 @@
-# The Kitten-written compiler driver and wrapper
+# The Percy-written compiler driver and wrapper
 
-`selfhost/driver.ktn` is the Kitten-written compiler driver. It is compiled by the
-Go compiler into a stage-1 executable, then uses only the Kitten-written loader,
+`selfhost/driver.pcy` is the Percy-written compiler driver. It is compiled by the
+Go compiler into a stage-1 executable, then uses only the Percy-written loader,
 lexer, parser, checker, and C generator.
 
 `selfhost/driver/purr-bootstrap.sh` is a temporary POSIX-shell wrapper that turns the
@@ -12,16 +12,16 @@ use the Go implementation. `purr` will replace the wrapper later.
 ## Renamed in 6.0
 
 The tool rename changed the wrapper and its environment names:
-`kittenc.sh` became `purr-bootstrap.sh`, `KITTENC_DRIVER` became
-`PURR_BOOTSTRAP_DRIVER`, and `KITTEN_RUNTIME_DIR` became `PURR_RUNTIME_DIR`.
-The driver's usage prefix changed from `kitten-selfhost` to `purr-selfhost`.
+`percyc.sh` became `purr-bootstrap.sh`, `PERCYC_DRIVER` became
+`PURR_BOOTSTRAP_DRIVER`, and `PERCY_RUNTIME_DIR` became `PURR_RUNTIME_DIR`.
+The driver's usage prefix changed from `percy-selfhost` to `purr-selfhost`.
 
 ## Driver
 
 Usage:
 
 ```text
-purr-selfhost <source.ktn>
+purr-selfhost <source.pcy>
 ```
 
 - It reads exactly one argument, `argv()[1]`. It may be relative; the loader's
@@ -34,15 +34,15 @@ purr-selfhost <source.ktn>
   usage error (a wrong argument count).
 - It parses no options, writes no files, and invokes no processes.
 
-The driver is at `selfhost/driver.ktn`, not `selfhost/driver/main.ktn`, because the
-Kitten loader restricts imports to the root source's directory. From
-`selfhost/driver.ktn` every import stays inside `selfhost/`.
+The driver is at `selfhost/driver.pcy`, not `selfhost/driver/main.pcy`, because the
+Percy loader restricts imports to the root source's directory. From
+`selfhost/driver.pcy` every import stays inside `selfhost/`.
 
 Build stage 1 with the Go compiler:
 
 ```sh
-purr build selfhost/driver.ktn -o /tmp/purr-stage1
-/tmp/purr-stage1 /absolute/path/to/main.ktn > program.c
+purr build selfhost/driver.pcy -o /tmp/purr-stage1
+/tmp/purr-stage1 /absolute/path/to/main.pcy > program.c
 ```
 
 The generated C is byte-identical to the Go pipeline's output for the same
@@ -59,7 +59,7 @@ streams never mix.
 - `CC` (including arguments) or discovery of `cc`, `gcc`, or `clang`;
 - the runtime sources and Boehm GC flags, using `pkg-config bdw-gc` when
   available and `-lgc` otherwise;
-- the default output name (source basename without `.ktn`, or `a.out`); and
+- the default output name (source basename without `.pcy`, or `a.out`); and
 - propagating the compiled program's exit status for `run`.
 
 The wrapper's user-facing `build`/`run` usage and compile diagnostics mirror the
@@ -70,8 +70,8 @@ Environment:
 
 - `PURR_BOOTSTRAP_DRIVER` — the stage-1 executable. Default:
   `selfhost/driver/purr-stage1`.
-- `PURR_RUNTIME_DIR` — the directory holding `kitten_runtime.c` and
-  `kitten_runtime.h`. Default: `runtime/csrc` in this repository.
+- `PURR_RUNTIME_DIR` — the directory holding `percy_runtime.c` and
+  `percy_runtime.h`. Default: `runtime/csrc` in this repository.
 - `CC` — the C compiler command. The wrapper splits it into words, as the Go CLI
   does. If unset, it tries `cc`, `gcc`, then `clang`.
 - `TMPDIR` — the parent for temporary build directories.
@@ -79,9 +79,9 @@ Environment:
 Example:
 
 ```sh
-purr build selfhost/driver.ktn -o /tmp/purr-stage1
+purr build selfhost/driver.pcy -o /tmp/purr-stage1
 PURR_BOOTSTRAP_DRIVER=/tmp/purr-stage1 \
-  selfhost/driver/purr-bootstrap.sh build tests/modules/main.ktn -o /tmp/modules
+  selfhost/driver/purr-bootstrap.sh build tests/modules/main.pcy -o /tmp/modules
 /tmp/modules
 ```
 
@@ -89,7 +89,7 @@ PURR_BOOTSTRAP_DRIVER=/tmp/purr-stage1 \
 
 ```sh
 PURR_BOOTSTRAP_DRIVER=/tmp/purr-stage1 \
-  selfhost/driver/purr-bootstrap.sh run program.ktn alpha "" "two words"
+  selfhost/driver/purr-bootstrap.sh run program.pcy alpha "" "two words"
 ```
 
 ## Diagnostics and limits
@@ -99,7 +99,7 @@ generator failures, including the file/line/column shape and the no-position
 loader form (`<path>: <message>`) for outside-root and read failures. Usage
 status is 2; compilation failures are status 1.
 
-**Read failures are matched.** The Kitten loader uses `try_read_file`, so a
+**Read failures are matched.** The Percy loader uses `try_read_file`, so a
 missing, unreadable, or directory root or import produces the Go loader's
 no-position `cannot read source file: ...` diagnostic. Both stage 1 and stage 2
 are compared byte for byte with the Go CLI's stderr and exit status.
@@ -115,26 +115,26 @@ not claimed as tested.
 ## Fixpoint
 
 The C-level fixpoint is reached. Stage 1 is built by the Go compiler; stage 1
-builds stage 2 from `selfhost/driver.ktn`; stage 2 builds stage 3; and the C for
-`driver.ktn` is byte-identical across Go, stage 1, stage 2, and stage 3. Stage 2
+builds stage 2 from `selfhost/driver.pcy`; stage 2 builds stage 3; and the C for
+`driver.pcy` is byte-identical across Go, stage 1, stage 2, and stage 3. Stage 2
 also reproduces the Go reference for all nine fixtures and `tests/modules/`.
 
 ```sh
-purr build selfhost/driver.ktn -o /tmp/stage1
+purr build selfhost/driver.pcy -o /tmp/stage1
 PURR_BOOTSTRAP_DRIVER=/tmp/stage1 PURR_RUNTIME_DIR=runtime/csrc \
-  selfhost/driver/purr-bootstrap.sh build selfhost/driver.ktn -o /tmp/stage2
+  selfhost/driver/purr-bootstrap.sh build selfhost/driver.pcy -o /tmp/stage2
 PURR_BOOTSTRAP_DRIVER=/tmp/stage2 PURR_RUNTIME_DIR=runtime/csrc \
-  selfhost/driver/purr-bootstrap.sh build selfhost/driver.ktn -o /tmp/stage3
-/tmp/stage1 "$PWD/selfhost/driver.ktn" > /tmp/stage1.c
-/tmp/stage2 "$PWD/selfhost/driver.ktn" > /tmp/stage2.c
-/tmp/stage3 "$PWD/selfhost/driver.ktn" > /tmp/stage3.c
+  selfhost/driver/purr-bootstrap.sh build selfhost/driver.pcy -o /tmp/stage3
+/tmp/stage1 "$PWD/selfhost/driver.pcy" > /tmp/stage1.c
+/tmp/stage2 "$PWD/selfhost/driver.pcy" > /tmp/stage2.c
+/tmp/stage3 "$PWD/selfhost/driver.pcy" > /tmp/stage3.c
 cmp /tmp/stage1.c /tmp/stage2.c
 cmp /tmp/stage2.c /tmp/stage3.c
 ```
 
-The Go reference C for `driver.ktn` is produced by
+The Go reference C for `driver.pcy` is produced by
 `loader.Load` → `checker.CheckModules` → `codegen.Generate` and is also compared
-byte for byte by `TestKittenFixpoint`.
+byte for byte by `TestPercyFixpoint`.
 
 Measured on the Linux development host: stage 1 built by Go in about 2.5 s;
 stage 2 and stage 3 built by the previous stage in about 2.9–3.0 s each; each
@@ -156,8 +156,8 @@ not on binary reproducibility.
 - the driver's relative-path status-2 contract; and
 - that missing roots and missing imports match the Go CLI in stderr text and status.
 
-`TestKittenFixpoint` in the same file additionally builds stages 1–3, compares the
-C for `driver.ktn` across Go and all stages, checks stage-2 determinism and a
+`TestPercyFixpoint` in the same file additionally builds stages 1–3, compares the
+C for `driver.pcy` across Go and all stages, checks stage-2 determinism and a
 one-byte negative control, replays the 10 fixture roots through stage 2, and
 repeats the error and usage comparisons with stage 2. It is skipped only under
 `go test -short`.
@@ -166,7 +166,7 @@ The wrapper is checked with `sh -n`; `shellcheck` is not installed in the test
 environment.
 
 Measured on the development machine with the Go-built `purr` CLI: building
-stage 1 from `selfhost/driver.ktn` took about 2.9 s and 70 MB RSS, producing a
+stage 1 from `selfhost/driver.pcy` took about 2.9 s and 70 MB RSS, producing a
 304 KB executable. Stage 1 then emitted C for `lexer_proof`, `maps`, and
 `tests/modules/` in 5–10 ms with about 5.4 MB RSS. These are measurements, not
 performance guarantees.

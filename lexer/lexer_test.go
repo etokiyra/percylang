@@ -240,7 +240,7 @@ func TestStringLiterals(t *testing.T) {
 	}{
 		{"simple", `"hello"`},
 		{"empty", `""`},
-		{"with spaces", `"hello, kitten"`},
+		{"with spaces", `"hello, percy"`},
 	}
 
 	for _, testCase := range cases {
@@ -528,10 +528,10 @@ func TestErrorIsReportedOnce(t *testing.T) {
 
 func TestEveryFixtureLexes(t *testing.T) {
 	fixtures := []string{
-		"hello.ktn",
-		"fizzbuzz.ktn",
-		"math.ktn",
-		"room.ktn",
+		"hello.pcy",
+		"fizzbuzz.pcy",
+		"math.pcy",
+		"room.pcy",
 	}
 
 	for _, name := range fixtures {
@@ -566,7 +566,7 @@ func TestDecodeString(t *testing.T) {
 	}{
 		{name: "plain", literal: `"hello"`, want: "hello"},
 		{name: "empty", literal: `""`, want: ""},
-		{name: "spaces", literal: `"hello, kitten"`, want: "hello, kitten"},
+		{name: "spaces", literal: `"hello, percy"`, want: "hello, percy"},
 		{name: "newline", literal: `"a\nb"`, want: "a\nb"},
 		{name: "tab", literal: `"a\tb"`, want: "a\tb"},
 		{name: "quote", literal: `"a\"b"`, want: `a"b`},

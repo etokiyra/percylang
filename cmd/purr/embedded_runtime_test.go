@@ -1,6 +1,6 @@
 package main
 
-// Tests for the generated purr/embedded.ktn runtime embedding.
+// Tests for the generated purr/embedded.pcy runtime embedding.
 
 import (
 	"bytes"
@@ -19,11 +19,11 @@ const embeddedChunkLimit = 4096
 func embeddedHeaderComment() string {
 	return "// GENERATED FILE - DO NOT EDIT.\n" +
 		"// Regenerate from the repository root:\n" +
-		"//   purr build tools/embed_runtime.ktn -o /tmp/embed_runtime\n" +
+		"//   purr build tools/embed_runtime.pcy -o /tmp/embed_runtime\n" +
 		"//   /tmp/embed_runtime <repo-root>\n" +
 		"//\n" +
 		"// The embedded strings are the MIT-licensed runtime sources from\n" +
-		"// runtime/csrc/kitten_runtime.h and runtime/csrc/kitten_runtime.c.\n" +
+		"// runtime/csrc/percy_runtime.h and runtime/csrc/percy_runtime.c.\n" +
 		"// Their MIT notice is preserved verbatim inside those strings. The rest\n" +
 		"// of this file is generator output covered by the project's\n" +
 		"// GPL-3.0-or-later toolchain license.\n\n"
@@ -180,8 +180,8 @@ func readEmbeddedInputs(t *testing.T) ([]byte, []byte) {
 	return header, source
 }
 
-const runtimeHeaderFile = "kitten_runtime.h"
-const runtimeSourceFile = "kitten_runtime.c"
+const runtimeHeaderFile = "percy_runtime.h"
+const runtimeSourceFile = "percy_runtime.c"
 
 func TestEmbeddedRuntimeReferenceMatchesCommitted(t *testing.T) {
 	header, source := readEmbeddedInputs(t)
@@ -189,12 +189,12 @@ func TestEmbeddedRuntimeReferenceMatchesCommitted(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reference generation: %v", err)
 	}
-	got, err := os.ReadFile(repoPath(t, "..", "..", "purr", "embedded.ktn"))
+	got, err := os.ReadFile(repoPath(t, "..", "..", "purr", "embedded.pcy"))
 	if err != nil {
-		t.Fatalf("reading committed embedded.ktn: %v", err)
+		t.Fatalf("reading committed embedded.pcy: %v", err)
 	}
 	if !bytes.Equal(got, want) {
-		t.Fatalf("committed purr/embedded.ktn differs from the reference: %s", unitDifference(string(got), string(want)))
+		t.Fatalf("committed purr/embedded.pcy differs from the reference: %s", unitDifference(string(got), string(want)))
 	}
 }
 
@@ -203,14 +203,14 @@ func TestEmbeddedRuntimeNotIgnored(t *testing.T) {
 		t.Skip("git is unavailable")
 	}
 	root := repoPath(t, "..", "..")
-	command := exec.Command("git", "check-ignore", "-q", "purr/embedded.ktn")
+	command := exec.Command("git", "check-ignore", "-q", "purr/embedded.pcy")
 	command.Dir = root
 	if err := command.Run(); err == nil {
-		t.Fatalf("git check-ignore reports purr/embedded.ktn as ignored")
+		t.Fatalf("git check-ignore reports purr/embedded.pcy as ignored")
 	} else if exit, ok := err.(*exec.ExitError); !ok || exit.ExitCode() != 1 {
 		t.Fatalf("git check-ignore failed unexpectedly: %v", err)
 	}
-	command = exec.Command("git", "check-ignore", "-v", "purr/embedded.ktn")
+	command = exec.Command("git", "check-ignore", "-v", "purr/embedded.pcy")
 	command.Dir = root
 	output, err := command.CombinedOutput()
 	if err != nil {
@@ -219,11 +219,11 @@ func TestEmbeddedRuntimeNotIgnored(t *testing.T) {
 		}
 	}
 	if len(output) != 0 {
-		t.Fatalf("git check-ignore -v printed a pattern for purr/embedded.ktn:\n%s", output)
+		t.Fatalf("git check-ignore -v printed a pattern for purr/embedded.pcy:\n%s", output)
 	}
 }
 
-const embeddedRoundTripSource = `import "purr/embedded.ktn";
+const embeddedRoundTripSource = `import "purr/embedded.pcy";
 
 fn write_checked(string path, string text) {
     match (try_write_file(path, text)) {
@@ -234,8 +234,8 @@ fn write_checked(string path, string text) {
 
 fn main() {
     string output = argv()[1];
-    write_checked(output + "/kitten_runtime.h", embedded_runtime_header());
-    write_checked(output + "/kitten_runtime.c", embedded_runtime_source());
+    write_checked(output + "/percy_runtime.h", embedded_runtime_header());
+    write_checked(output + "/percy_runtime.c", embedded_runtime_source());
 }
 `
 
@@ -243,7 +243,7 @@ func buildGeneratorWithGo(t *testing.T) string {
 	t.Helper()
 	output := filepath.Join(t.TempDir(), "embed_runtime_go")
 	var diagnostics bytes.Buffer
-	if err := buildExecutable(repoPath(t, "..", "..", "tools", "embed_runtime.ktn"), output, &diagnostics); err != nil {
+	if err := buildExecutable(repoPath(t, "..", "..", "tools", "embed_runtime.pcy"), output, &diagnostics); err != nil {
 		t.Fatalf("building the Go-pipeline generator: %v\n%s", err, diagnostics.String())
 	}
 	if warnings := strings.TrimSpace(diagnostics.String()); warnings != "" {
@@ -252,17 +252,17 @@ func buildGeneratorWithGo(t *testing.T) string {
 	return output
 }
 
-func buildGeneratorWithKitten(t *testing.T, stage1 string) string {
+func buildGeneratorWithPercy(t *testing.T, stage1 string) string {
 	t.Helper()
-	output := filepath.Join(t.TempDir(), "embed_runtime_kitten")
+	output := filepath.Join(t.TempDir(), "embed_runtime_percy")
 	result := runExternal(t, wrapperPath(t), []string{
-		"build", repoPath(t, "..", "..", "tools", "embed_runtime.ktn"), "-o", output,
+		"build", repoPath(t, "..", "..", "tools", "embed_runtime.pcy"), "-o", output,
 	}, repoPath(t, "..", ".."), wrapperEnvironment(stage1, t))
 	if result.status != 0 || result.stderr != "" {
-		t.Fatalf("building the Kitten-pipeline generator: status %d, stderr %q", result.status, result.stderr)
+		t.Fatalf("building the Percy-pipeline generator: status %d, stderr %q", result.status, result.stderr)
 	}
 	if _, err := os.Stat(output); err != nil {
-		t.Fatalf("Kitten-pipeline generator was not produced: %v", err)
+		t.Fatalf("Percy-pipeline generator was not produced: %v", err)
 	}
 	return output
 }
@@ -293,9 +293,9 @@ func runEmbeddedGenerator(t *testing.T, generator, root string) {
 
 func readGeneratedEmbedded(t *testing.T, root string) []byte {
 	t.Helper()
-	output, err := os.ReadFile(filepath.Join(root, "purr", "embedded.ktn"))
+	output, err := os.ReadFile(filepath.Join(root, "purr", "embedded.pcy"))
 	if err != nil {
-		t.Fatalf("reading generated embedded.ktn: %v", err)
+		t.Fatalf("reading generated embedded.pcy: %v", err)
 	}
 	return output
 }
@@ -328,12 +328,12 @@ func buildRoundTripWithGo(t *testing.T, root, sourcePath string) string {
 	return output
 }
 
-func buildRoundTripWithKitten(t *testing.T, stage1, root, sourcePath string) string {
+func buildRoundTripWithPercy(t *testing.T, stage1, root, sourcePath string) string {
 	t.Helper()
-	output := filepath.Join(root, "roundtrip_kitten")
+	output := filepath.Join(root, "roundtrip_percy")
 	result := runExternal(t, wrapperPath(t), []string{"build", sourcePath, "-o", output}, root, wrapperEnvironment(stage1, t))
 	if result.status != 0 || result.stderr != "" {
-		t.Fatalf("building round-trip program with Kitten pipeline: status %d, stderr %q", result.status, result.stderr)
+		t.Fatalf("building round-trip program with Percy pipeline: status %d, stderr %q", result.status, result.stderr)
 	}
 	return output
 }
@@ -368,16 +368,16 @@ func roundTripCommitted(t *testing.T, stage1 string, committed []byte) {
 	if err := os.MkdirAll(filepath.Join(root, "purr"), 0o755); err != nil {
 		t.Fatalf("creating purr directory: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "purr", "embedded.ktn"), committed, 0o644); err != nil {
-		t.Fatalf("writing embedded.ktn: %v", err)
+	if err := os.WriteFile(filepath.Join(root, "purr", "embedded.pcy"), committed, 0o644); err != nil {
+		t.Fatalf("writing embedded.pcy: %v", err)
 	}
-	sourcePath := filepath.Join(root, "main.ktn")
+	sourcePath := filepath.Join(root, "main.pcy")
 	if err := os.WriteFile(sourcePath, []byte(embeddedRoundTripSource), 0o644); err != nil {
 		t.Fatalf("writing round-trip source: %v", err)
 	}
 	for pipeline, executable := range map[string]string{
-		"Go":     buildRoundTripWithGo(t, root, sourcePath),
-		"Kitten": buildRoundTripWithKitten(t, stage1, root, sourcePath),
+		"Go":    buildRoundTripWithGo(t, root, sourcePath),
+		"Percy": buildRoundTripWithPercy(t, stage1, root, sourcePath),
 	} {
 		header, source := runRoundTrip(t, executable, root)
 		wantHeader, err := os.ReadFile(repoPath(t, "..", "..", "runtime", "csrc", runtimeHeaderFile))
@@ -404,33 +404,33 @@ func TestEmbeddedRuntimeGeneration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reference generation: %v", err)
 	}
-	committed, err := os.ReadFile(repoPath(t, "..", "..", "purr", "embedded.ktn"))
+	committed, err := os.ReadFile(repoPath(t, "..", "..", "purr", "embedded.pcy"))
 	if err != nil {
-		t.Fatalf("reading committed embedded.ktn: %v", err)
+		t.Fatalf("reading committed embedded.pcy: %v", err)
 	}
 	if !bytes.Equal(committed, want) {
-		t.Fatalf("committed embedded.ktn differs from the independent reference")
+		t.Fatalf("committed embedded.pcy differs from the independent reference")
 	}
 	checkEmbeddedShape(t, committed)
 
 	stage1 := buildStage1(t)
 	goGenerator := buildGeneratorWithGo(t)
-	kittenGenerator := buildGeneratorWithKitten(t, stage1)
+	percyGenerator := buildGeneratorWithPercy(t, stage1)
 
 	goRoot := prepareEmbeddedRoot(t, header, source)
-	kittenRoot := prepareEmbeddedRoot(t, header, source)
+	percyRoot := prepareEmbeddedRoot(t, header, source)
 	runEmbeddedGenerator(t, goGenerator, goRoot)
-	runEmbeddedGenerator(t, kittenGenerator, kittenRoot)
+	runEmbeddedGenerator(t, percyGenerator, percyRoot)
 	goOutput := readGeneratedEmbedded(t, goRoot)
-	kittenOutput := readGeneratedEmbedded(t, kittenRoot)
+	percyOutput := readGeneratedEmbedded(t, percyRoot)
 	if !bytes.Equal(goOutput, want) {
 		t.Errorf("Go-pipeline generation differs from the independent reference")
 	}
-	if !bytes.Equal(kittenOutput, want) {
-		t.Errorf("Kitten-pipeline generation differs from the independent reference")
+	if !bytes.Equal(percyOutput, want) {
+		t.Errorf("Percy-pipeline generation differs from the independent reference")
 	}
-	if !bytes.Equal(goOutput, kittenOutput) {
-		t.Errorf("Go and Kitten generation differ")
+	if !bytes.Equal(goOutput, percyOutput) {
+		t.Errorf("Go and Percy generation differ")
 	}
 	checkEmbeddedShape(t, goOutput)
 
@@ -439,9 +439,9 @@ func TestEmbeddedRuntimeGeneration(t *testing.T) {
 
 func TestEmbeddedRuntimeFixture(t *testing.T) {
 	requireToolchain(t)
-	committed, err := os.ReadFile(repoPath(t, "..", "..", "purr", "embedded.ktn"))
+	committed, err := os.ReadFile(repoPath(t, "..", "..", "purr", "embedded.pcy"))
 	if err != nil {
-		t.Fatalf("reading embedded.ktn: %v", err)
+		t.Fatalf("reading embedded.pcy: %v", err)
 	}
 	root := prepareEmbeddedRoot(t, nil, nil)
 	if err := os.RemoveAll(filepath.Join(root, "runtime")); err != nil {
@@ -450,10 +450,10 @@ func TestEmbeddedRuntimeFixture(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(root, "purr"), 0o755); err != nil {
 		t.Fatalf("creating purr directory: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "purr", "embedded.ktn"), committed, 0o644); err != nil {
-		t.Fatalf("writing embedded.ktn: %v", err)
+	if err := os.WriteFile(filepath.Join(root, "purr", "embedded.pcy"), committed, 0o644); err != nil {
+		t.Fatalf("writing embedded.pcy: %v", err)
 	}
-	sourcePath := filepath.Join(root, "main.ktn")
+	sourcePath := filepath.Join(root, "main.pcy")
 	if err := os.WriteFile(sourcePath, []byte(embeddedRoundTripSource), 0o644); err != nil {
 		t.Fatalf("writing round-trip source: %v", err)
 	}
@@ -466,7 +466,7 @@ func TestEmbeddedRuntimeFixture(t *testing.T) {
 		t.Fatalf("writing embedded source: %v", err)
 	}
 
-	fixtureSource, err := os.ReadFile(repoPath(t, "..", "..", "tests", "hello.ktn"))
+	fixtureSource, err := os.ReadFile(repoPath(t, "..", "..", "tests", "hello.pcy"))
 	if err != nil {
 		t.Fatalf("reading hello fixture: %v", err)
 	}
@@ -516,7 +516,7 @@ func prepareFailureRoot(t *testing.T, header, source []byte) (string, string, []
 	if err := os.Mkdir(directory, 0o755); err != nil {
 		t.Fatalf("creating purr directory: %v", err)
 	}
-	outputPath := filepath.Join(directory, "embedded.ktn")
+	outputPath := filepath.Join(directory, "embedded.pcy")
 	sentinel := []byte("sentinel output\n")
 	if err := os.WriteFile(outputPath, sentinel, 0o644); err != nil {
 		t.Fatalf("writing sentinel output: %v", err)
@@ -552,8 +552,8 @@ func TestEmbeddedRuntimeFailures(t *testing.T) {
 	header, source := readEmbeddedInputs(t)
 	stage1 := buildStage1(t)
 	generators := map[string]string{
-		"Go":     buildGeneratorWithGo(t),
-		"Kitten": buildGeneratorWithKitten(t, stage1),
+		"Go":    buildGeneratorWithGo(t),
+		"Percy": buildGeneratorWithPercy(t, stage1),
 	}
 
 	t.Run("missing repo root", func(t *testing.T) {
@@ -679,16 +679,16 @@ func roundTripSynthetic(t *testing.T, stage1 string, embedded, header, source []
 	if err := os.MkdirAll(filepath.Join(root, "purr"), 0o755); err != nil {
 		t.Fatalf("creating purr directory: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "purr", "embedded.ktn"), embedded, 0o644); err != nil {
-		t.Fatalf("writing synthetic embedded.ktn: %v", err)
+	if err := os.WriteFile(filepath.Join(root, "purr", "embedded.pcy"), embedded, 0o644); err != nil {
+		t.Fatalf("writing synthetic embedded.pcy: %v", err)
 	}
-	sourcePath := filepath.Join(root, "main.ktn")
+	sourcePath := filepath.Join(root, "main.pcy")
 	if err := os.WriteFile(sourcePath, []byte(embeddedRoundTripSource), 0o644); err != nil {
 		t.Fatalf("writing synthetic round-trip source: %v", err)
 	}
 	for name, executable := range map[string]string{
-		"Go":     buildRoundTripWithGo(t, root, sourcePath),
-		"Kitten": buildRoundTripWithKitten(t, stage1, root, sourcePath),
+		"Go":    buildRoundTripWithGo(t, root, sourcePath),
+		"Percy": buildRoundTripWithPercy(t, stage1, root, sourcePath),
 	} {
 		gotHeader, gotSource := runRoundTrip(t, executable, root)
 		if !bytes.Equal(gotHeader, header) {
@@ -704,8 +704,8 @@ func TestEmbeddedRuntimeStress(t *testing.T) {
 	requireToolchain(t)
 	stage1 := buildStage1(t)
 	generators := map[string]string{
-		"Go":     buildGeneratorWithGo(t),
-		"Kitten": buildGeneratorWithKitten(t, stage1),
+		"Go":    buildGeneratorWithGo(t),
+		"Percy": buildGeneratorWithPercy(t, stage1),
 	}
 
 	cases := []struct {
@@ -776,7 +776,7 @@ func TestEmbeddedRuntimeSanitizer(t *testing.T) {
 	compileFlags, linkFlags := gcBuildFlags()
 	compileFlags = append(compileFlags, "-fsanitize=undefined")
 
-	generatorSource, err := os.ReadFile(repoPath(t, "..", "..", "tools", "embed_runtime.ktn"))
+	generatorSource, err := os.ReadFile(repoPath(t, "..", "..", "tools", "embed_runtime.pcy"))
 	if err != nil {
 		t.Fatalf("reading generator source: %v", err)
 	}
@@ -784,7 +784,7 @@ func TestEmbeddedRuntimeSanitizer(t *testing.T) {
 	if !ok {
 		return
 	}
-	generator, err := buildKittenRunProgram(t, compiler, compileFlags, linkFlags, generatorC)
+	generator, err := buildPercyRunProgram(t, compiler, compileFlags, linkFlags, generatorC)
 	if err != nil {
 		t.Skipf("undefined behavior sanitizer is unavailable with %s: %v", filepath.Base(compiler[0]), err)
 	}
@@ -798,15 +798,15 @@ func TestEmbeddedRuntimeSanitizer(t *testing.T) {
 		t.Errorf("sanitized generator output differs from the reference")
 	}
 
-	committed, err := os.ReadFile(repoPath(t, "..", "..", "purr", "embedded.ktn"))
+	committed, err := os.ReadFile(repoPath(t, "..", "..", "purr", "embedded.pcy"))
 	if err != nil {
-		t.Fatalf("reading embedded.ktn: %v", err)
+		t.Fatalf("reading embedded.pcy: %v", err)
 	}
 	_, _, roundTripC, ok := checkProgram(t, "embedded round-trip sanitizer", embeddedRoundTripSource, string(committed))
 	if !ok {
 		return
 	}
-	roundTrip, err := buildKittenRunProgram(t, compiler, compileFlags, linkFlags, roundTripC)
+	roundTrip, err := buildPercyRunProgram(t, compiler, compileFlags, linkFlags, roundTripC)
 	if err != nil {
 		t.Skipf("undefined behavior sanitizer is unavailable with %s: %v", filepath.Base(compiler[0]), err)
 	}

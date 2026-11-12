@@ -2,7 +2,7 @@ package main
 
 // Focused regression tests for the string representation.
 //
-// A Kitten string is a pointer to a runtime object that stores the byte length
+// A Percy string is a pointer to a runtime object that stores the byte length
 // next to the bytes, so length and indexing are constant-time. These tests cover
 // the behavior that the representation must preserve everywhere a string can be
 // stored, passed, or returned, which is broader than the direct runtime helpers:
@@ -397,7 +397,7 @@ func TestStringsAcrossModulesAndFunctions(t *testing.T) {
 	requireToolchain(t)
 
 	project := t.TempDir()
-	writeSource(t, filepath.Join(project, "text.ktn"), `public struct Label {
+	writeSource(t, filepath.Join(project, "text.pcy"), `public struct Label {
     string text;
 }
 public union Slot {
@@ -429,14 +429,14 @@ public fn table_with(string key, string value) -> map[string]string {
     return table;
 }
 `)
-	mainPath := writeSource(t, filepath.Join(project, "main.ktn"), `import "text.ktn";
+	mainPath := writeSource(t, filepath.Join(project, "main.pcy"), `import "text.pcy";
 fn main() {
-    string greeting = greet("kitten");
+    string greeting = greet("percy");
     print(greeting, length(greeting));
     print(repeat("ab", 4), length(repeat("ab", 4)));
 
     Label label = label_of(greeting);
-    print(label.text, label.text == "hello, kitten");
+    print(label.text, label.text == "hello, percy");
 
     print(text_of(Slot.Filled { text = repeat("x", 3) }));
     print(text_of(Slot.Blank) == "");
@@ -460,9 +460,9 @@ fn main() {
 		t.Fatalf("running: %v", err)
 	}
 	want := strings.Join([]string{
-		"hello, kitten 13",
+		"hello, percy 12",
 		"abababab 8",
-		"hello, kitten true",
+		"hello, percy true",
 		"xxx",
 		"true",
 		"v true 1",
