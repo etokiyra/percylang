@@ -2,6 +2,47 @@
 
 Project instructions for everyone (human or AI) working on Percy.
 
+## Current checkpoint (2026-11-12)
+
+**State:** the language is **Percy**, the tool is **`purr`**, and source files
+are **`.pcy`**. The repository is `etokiyra/percylang`; the local checkout is
+`~/Projects/percy`. `main` is clean and level with `origin/main`.
+
+**Green:** `go test ./... -count=1 -timeout 60m` passes in full
+(`percy/checker`, `percy/cmd/purr`, `percy/codegen`, `percy/lexer`,
+`percy/loader`, `percy/parser`, `percy/runtime`), `go vet ./...` is clean, and
+`gofmt -l .` prints nothing.
+
+**Last landed:**
+- Phase 10.39: `break`/`continue` in the lexers, parsers, checkers, both C
+  generators, and the native lowering; `match` emits an `if`/`else if` chain so
+  a `break` inside an arm targets the enclosing loop.
+- Phase 10.40: `push(array, value)`, the array capacity word, capacity doubling,
+  and the C and native runtime paths, with fixtures and corpora.
+- Phase 10.41: the full rename to Percy — `.pcy` extension,
+  `pcy_*` identifiers, `percy_runtime.{h,c}`, the `percy` Go module,
+  `runtime/pcy`, and updated README, VISION, site, and profile.
+
+**Next, in order:**
+1. Standard library, first slice: `std/string` (`starts_with`, `ends_with`,
+   `contains`, `index_of`, `split`, `join`, `replace`, `trim`, `to_upper`,
+   `to_lower`, `repeat`, `int_to_string`, `string_to_int`) in Percy over the
+   existing built-ins, plus the loader rule for a standard-library root.
+2. Language conveniences: `for (value in array)`, array literals, map iteration
+   and `remove`, and array slices.
+3. Tooling: `purr test`, `purr fmt`, then dependencies, install, and the
+   registry.
+4. Performance: hash maps in the native runtime, full register allocation,
+   inlining and escape analysis, bounds-check elimination.
+5. Independence: a Go-free bootstrap artifact and the one-line installer.
+6. Platforms and ecosystem: arm64/macOS, LSP, docs generation, publishing.
+
+**Known limits:** no standard library; native output is Linux x86-64 only; the
+native map is a linear packed table; Go still builds stage 1; library object
+builds are an approved deferred error; the Go CLI does not dispatch `new` yet.
+
+---
+
 ## Source of truth
 
 1. `SPEC.md` is the source of truth for language semantics. If code and
@@ -668,9 +709,12 @@ keep their offsets), growth doubles the buffer and copies the live payload, Go
 and Percy generators emit `pcy_rt_array_push` with the element as a compound
 literal, and the native selector's `$array_push` shell stores one or eight bytes
 through the same capacity word. `tests/append.pcy`, `tests/native/push.pcy`, and
-the checker, unit, and native corpora cover it. Full register allocation
-(callee-saved registers and liveness), the Go-free bootstrap artifact, and the
-Goal 3 ecosystem remain. The release-flow
+the checker, unit, and native corpora cover it. Phase 10.41 then renamed the
+language, extension, runtime prefixes, Go module, documentation, website, and
+profile from Kitten to Percy: `.pcy` files, `pcy_*` and `pcy_rt_*` identifiers,
+`percy_runtime.{h,c}`, the `percy` module, and `runtime/pcy`; the tool remains
+`purr`. Full register allocation (callee-saved registers and liveness), the
+Go-free bootstrap artifact, and the Goal 3 ecosystem remain. The release-flow
 test skips on a dirty checkout because it clones committed HEAD.
 
 ## Roadmap
@@ -727,8 +771,7 @@ test skips on a dirty checkout because it clones committed HEAD.
    is independence from Go. **C-level fixpoint reached** (5.7): Go builds stage 1,
    stage 1 builds stage 2, stage 2 builds stage 3, and the C for `driver.pcy` is
    byte-identical across Go and all stages. Full independence remains open because
-   Go still builds stage 1; relative loader roots and a Go-free bootstrap install
-   remain open work, not part of this finish line yet.
+   Go still builds stage 1; a Go-free bootstrap artifact remains open work.
 4. Explore an LLVM IR or native assembly/object-code backend, and eventually move
    the runtime off C as well. This is independence from C. **Authorized** (Phase
    10.0): the typed-IR/stack-first/direct-ELF design is approved and
@@ -736,9 +779,9 @@ test skips on a dirty checkout because it clones committed HEAD.
    the typed-IR scene; Phase 10.2 the static-ELF skeleton; Phase 10.3 scalar
    arithmetic and control flow in the selector; Phase 10.4 the lowering of
    checked programs into scenes and corpus executable parity with the C
-   pipeline; Phase 10.5 floats end to end (encoder to SSE2). GC and basic
-   runtime (proposal step 3) is next; the full instruction set and a standard
-   library remain designed but unimplemented.
+   pipeline; Phase 10.5 floats end to end (encoder to SSE2); the GC, the
+   native runtime, and the native build path are implemented. Full register
+   allocation, broader platforms, and the standard library remain.
 5. Grow a broader standard library and an ecosystem for command-line tools first,
    then GUI, servers, and games. This is independence from other languages'
    ecosystems, and it includes the whole `purr` toolchain: one-command install of
